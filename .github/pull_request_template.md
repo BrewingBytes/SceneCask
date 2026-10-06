@@ -5,7 +5,7 @@ New branch: codex/<type>/<issue-number>-<short-kebab-case-description>
 Omit the issue number if there is no issue. See README.md for examples.
 -->
 
-## ✨ What is implemented
+## What is implemented
 
 <!-- Describe the problem and resulting behavior, then list the main changes. -->
 
