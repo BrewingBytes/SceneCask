@@ -28,9 +28,10 @@ CREATE TABLE activity_events (
     show_id uuid NOT NULL REFERENCES shows (id) ON DELETE RESTRICT,
     episode_id uuid REFERENCES episodes (id) ON DELETE RESTRICT,
     created_at timestamptz NOT NULL DEFAULT now(),
-    -- Undo removes events created by the reversed action.
-    action_id uuid NOT NULL REFERENCES mutation_actions (id) ON DELETE CASCADE,
+    -- Undo deletes events created by the reversed action. Pruning expired actions keeps the
+    -- event and clears the link.
+    action_id uuid REFERENCES mutation_actions (id) ON DELETE SET NULL,
     CHECK ((kind = 'episode_watched') = (episode_id IS NOT NULL))
 );
 CREATE INDEX activity_events_actor_idx ON activity_events (actor_id, created_at DESC, id DESC);
-CREATE INDEX activity_events_action_idx ON activity_events (action_id);
+CREATE INDEX activity_events_action_idx ON activity_events (action_id) WHERE action_id IS NOT NULL;

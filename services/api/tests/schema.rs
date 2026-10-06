@@ -296,17 +296,24 @@ async fn rejects(pool: &PgPool, code: &str, sql: &str) {
         .await
         .expect_err(&format!("expected SQLSTATE {code} for: {sql}"));
     let actual = error.as_database_error().and_then(|e| e.code());
-    // PostgreSQL 18 reports ON DELETE RESTRICT as restrict_violation (23001); 17 uses 23503.
-    let accepted: &[&str] = if code == "23503" {
-        &["23503", "23001"]
-    } else {
-        &[code]
-    };
-    assert!(
-        actual
-            .as_deref()
-            .is_some_and(|actual| accepted.contains(&actual)),
+    assert_eq!(
+        actual.as_deref(),
+        Some(code),
         "expected SQLSTATE {code}, got {actual:?} for: {sql}"
+    );
+}
+
+/// Runs a delete that an `ON DELETE RESTRICT` reference must block.
+async fn rejects_restrict(pool: &PgPool, sql: &str) {
+    let error = sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
+        .execute(pool)
+        .await
+        .expect_err(&format!("expected a restrict violation for: {sql}"));
+    let actual = error.as_database_error().and_then(|e| e.code());
+    // PostgreSQL 18 reports ON DELETE RESTRICT as restrict_violation (23001); 17 uses 23503.
+    assert!(
+        matches!(actual.as_deref(), Some("23001" | "23503")),
+        "expected a restrict violation, got {actual:?} for: {sql}"
     );
 }
 
@@ -444,6 +451,12 @@ async fn constraints_reject_duplicates_self_edges_and_invalid_values(pool: PgPoo
         "INSERT INTO jobs (kind) VALUES ('export')".to_owned(),
         "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'link', now() + interval '10 minutes')".to_owned(),
         "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, return_to, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'signin', '//evil.test', now() + interval '10 minutes')".to_owned(),
+        // Browsers strip tabs and newlines, which would turn these into '//evil.test'.
+        "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, return_to, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'signin', '/\t/evil.test', now() + interval '10 minutes')".to_owned(),
+        "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, return_to, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'signin', '/\n/evil.test', now() + interval '10 minutes')".to_owned(),
+        "INSERT INTO users (normalized_email) VALUES ('Ana@scenecask.test')".to_owned(),
+        format!("INSERT INTO jobs (user_id, kind, state) VALUES ('{ANA}', 'export', 'running')"),
+        "INSERT INTO jobs (kind) VALUES ('delete')".to_owned(),
     ] {
         rejects(&pool, "23514", &sql).await;
     }
@@ -500,6 +513,12 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
     rejects(&pool, "23505", &export).await;
     exec(
         &pool,
+        "UPDATE jobs SET state = 'running', lease_until = now() + interval '5 minutes'",
+    )
+    .await;
+    rejects(&pool, "23514", "UPDATE jobs SET lease_until = NULL").await;
+    exec(
+        &pool,
         "UPDATE jobs SET state = 'ready', result_path = 'exports/fixture.json'",
     )
     .await;
@@ -519,9 +538,19 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
         VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '13 hours')")).await;
     rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
         VALUES ('\\xaa', '{ANA}', 'everything', '00000000-0000-4000-8000-0000000005e2', now() + interval '1 hour')")).await;
+    // A grant must belong to the session's owner.
+    rejects(&pool, "23503", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+        VALUES ('\\xaa', '{BEN}', 'discussion', '00000000-0000-4000-8000-0000000000d9', now() + interval '1 hour')")).await;
     exec(&pool, "DELETE FROM sessions WHERE id_hash = '\\xaa'").await;
     assert_eq!(count(&pool, "SELECT count(*) FROM reveal_grants").await, 0);
     assert_eq!(count(&pool, "SELECT count(*) FROM oauth_flows").await, 0);
+
+    // One follow-request notification per requester; retries cannot duplicate it.
+    let notification = format!(
+        "INSERT INTO notifications (user_id, kind, actor_id) VALUES ('{ANA}', 'follow_request', '{BEN}')"
+    );
+    exec(&pool, &notification).await;
+    rejects(&pool, "23505", &notification).await;
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -575,13 +604,8 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
     );
 
     // Catalog rows with history cannot be deleted.
-    rejects(
-        &pool,
-        "23503",
-        "DELETE FROM episodes WHERE tmdb_id = 910002",
-    )
-    .await;
-    rejects(&pool, "23503", "DELETE FROM shows").await;
+    rejects_restrict(&pool, "DELETE FROM episodes WHERE tmdb_id = 910002").await;
+    rejects_restrict(&pool, "DELETE FROM shows").await;
 
     // Revisions move forward, including true→false transitions, never back.
     exec(
@@ -607,6 +631,19 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         "UPDATE shows SET catalog_revision = catalog_revision",
     )
     .await;
+
+    // A misspelled revision column fails loudly instead of comparing NULLs.
+    exec(
+        &pool,
+        "
+        CREATE TABLE misconfigured (revision bigint NOT NULL);
+        CREATE TRIGGER misconfigured_revision_forward BEFORE UPDATE ON misconfigured
+            FOR EACH ROW EXECUTE FUNCTION reject_revision_decrease('revison');
+        INSERT INTO misconfigured VALUES (2);
+    ",
+    )
+    .await;
+    rejects(&pool, "42703", "UPDATE misconfigured SET revision = 1").await;
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -642,6 +679,8 @@ async fn user_deletion_erases_private_state_without_cascading_shared_content(poo
         VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '1 hour');
         INSERT INTO auth_tokens (token_hash, user_id, purpose, expires_at) VALUES ('\\xbb', '{ANA}', 'reset', now() + interval '30 minutes');
         INSERT INTO jobs (user_id, kind, state, result_path) VALUES ('{ANA}', 'export', 'ready', 'exports/ana.json');
+        INSERT INTO jobs (id, user_id, kind, state, lease_until)
+        VALUES ('00000000-0000-4000-8000-0000000000f1', '{ANA}', 'delete', 'running', now() + interval '5 minutes');
 
         -- Ana hosts D1 (Ben comments there); Ben hosts D2 (Ana comments there).
         INSERT INTO discussions (id, host_id, episode_id)
@@ -659,13 +698,38 @@ async fn user_deletion_erases_private_state_without_cascading_shared_content(poo
         VALUES ('{CLEO}', '00000000-0000-4000-8000-0000000000e1', 'dismiss');
     ")).await;
 
-    // Deletion job: tombstone the user's shared comments, then remove the account row.
+    // Export rows must be removed (with their files) before the account row.
+    rejects(
+        &pool,
+        "23514",
+        &format!("DELETE FROM users WHERE id = '{ANA}'"),
+    )
+    .await;
+
+    // Deletion job: tombstone the user's shared comments, delete exports, then the account row.
     exec(&pool, &format!("
         BEGIN;
         UPDATE comments SET body = NULL, removed_at = now() WHERE author_id = '{ANA}' AND removed_at IS NULL;
+        DELETE FROM jobs WHERE user_id = '{ANA}' AND kind = 'export';
         DELETE FROM users WHERE id = '{ANA}';
         COMMIT;
     ")).await;
+
+    // The claimed deletion job survives, detached from the user, so the worker can finish it.
+    exec(
+        &pool,
+        "UPDATE jobs SET state = 'ready', lease_until = NULL
+         WHERE id = '00000000-0000-4000-8000-0000000000f1' AND user_id IS NULL",
+    )
+    .await;
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM jobs WHERE kind = 'delete' AND state = 'ready'"
+        )
+        .await,
+        1
+    );
 
     // Every user-keyed private table is empty for Ana.
     for (table, column) in [
@@ -762,4 +826,31 @@ async fn user_deletion_erases_private_state_without_cascading_shared_content(poo
     );
     // Catalog is untouched.
     assert_eq!(count(&pool, "SELECT count(*) FROM episodes").await, 5);
+
+    // Pruning expired undo actions keeps activity and progress, only clearing the link.
+    exec(
+        &pool,
+        &format!("DELETE FROM mutation_actions WHERE user_id = '{BEN}'"),
+    )
+    .await;
+    assert_eq!(
+        count(
+            &pool,
+            &format!(
+                "SELECT count(*) FROM activity_events WHERE actor_id = '{BEN}' AND action_id IS NULL"
+            )
+        )
+        .await,
+        1
+    );
+    assert_eq!(
+        count(
+            &pool,
+            &format!(
+                "SELECT count(*) FROM episode_progress WHERE user_id = '{BEN}' AND last_action_id IS NULL"
+            )
+        )
+        .await,
+        1
+    );
 }

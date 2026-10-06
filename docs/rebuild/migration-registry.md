@@ -34,13 +34,15 @@ Owner: R02. Source of truth for SQLx migration numbers in `services/api/migratio
 
 | Relationship | Rule | Why |
 |---|---|---|
-| User-private rows (credentials, identities, sessions, tokens, library, progress, actions, idempotency, previews, follows, blocks, activity, hidden comments, notifications, jobs, reveal grants) → users | `CASCADE` | Account erasure removes private state |
-| sessions → reveal_grants, oauth_flows | `CASCADE` | Logout, reset and expiry revoke grants and flows |
+| User-private rows (credentials, identities, sessions, tokens, library, progress, actions, idempotency, previews, follows, blocks, activity, hidden comments, notifications, reveal grants) → users | `CASCADE` | Account erasure removes private state |
+| jobs.user_id → users | `SET NULL`, with a `CHECK` that only a claimed `delete` job may lose its user | The deletion job keeps its row to record its outcome; remaining export rows block erasure until their files and rows are deleted |
+| activity_events.action_id, episode_progress.last_action_id → mutation_actions | `SET NULL` | Pruning expired undo actions keeps activity and progress |
+| sessions → reveal_grants (via `session_id, user_id`), oauth_flows | `CASCADE` | Logout, reset and expiry revoke grants and flows; a grant's user always owns its session |
 | discussions.host_id, comments.author_id / removed_by, reports.reporter_id / reviewed_by, notifications.actor_id, moderation_audit.operator_id → users | `SET NULL` | Shared content and moderation history survive as anonymous records |
 | comments → discussions, reports → comments, moderation_audit → reports | `RESTRICT` | Other users' comments and moderation history are never cascaded away |
 | catalog references (seasons, episodes, progress, library, activity, discussions, previews) → shows / episodes | `RESTRICT` | Removed provider episodes are archived (`archived_at`); history is never deleted |
 
-The account deletion job tombstones the user's comments (`body = NULL`, `removed_at = now()`) before deleting the `users` row, and deletes export artifact files together with their `jobs` rows. A hostless discussion is inaccessible to everyone because access requires the host.
+The account deletion job tombstones the user's comments (`body = NULL`, `removed_at = now()`) and deletes the user's export artifact files and their `jobs` rows before deleting the `users` row. The database rejects the `users` delete while export rows remain. A hostless discussion is inaccessible to everyone because access requires the host.
 
 ## Additions beyond the C02 column list
 
@@ -55,6 +57,12 @@ These columns and constraints are required by C03–C08 behavior and were added 
 | `library_entries.updated_at`, `jobs.created_at` / `updated_at`, `outbox.created_at`, `idempotency_records.created_at`, `catchup_previews.created_at`, `reveal_grants.created_at` | Operational timestamps and expiry checks |
 | `episodes` active-number uniqueness is a deferrable exclusion constraint over non-archived rows | Numbering corrections can swap numbers in one import; archived episodes keep their number |
 | `jobs` unique active `(user_id, kind)` for export/delete | One active export per user (C08) |
+| `jobs` running state requires `lease_until` | A running job cannot be reclaimed immediately by another worker |
+| `notifications` unique `(user_id, kind, actor_id)` | Follow retries cannot duplicate a notification; block cancels it by pair (C06) |
+| `users.normalized_email` must be lowercase | Case variants cannot create duplicate accounts (C03 casefold) |
+| `oauth_flows.return_to` rejects backslash, whitespace and control characters | Browsers strip tabs/newlines, which could rebuild a `//` open redirect |
+| `sessions` unique `(id_hash, user_id)` | Target for the `reveal_grants` owner foreign key |
+| `activity_events.action_id` nullable | Pruning expired undo actions keeps activity |
 | `reveal_grants` expiry capped at 12 hours | C04 grant lifetime |
 
 ## Test database factory and fixtures
@@ -79,13 +87,14 @@ Tests live in `services/api/tests/schema.rs`.
 | Development rollback reverts cleanly and reapplies | `.down.sql` files | `development_rollback_reverts_every_migration` |
 | Duplicate provider identity, email, handle, show/episode TMDB ID | Unique constraints | `constraints_reject_duplicates_self_edges_and_invalid_values` |
 | Duplicate follow pair, self-follow, self-block | PK and `CHECK` | `constraints_reject_duplicates_self_edges_and_invalid_values` |
-| Invalid visibility, role, handle, follow state, library status (incl. computed states), show status, token purpose, job state, OAuth intent/session/returnTo | `CHECK` | `constraints_reject_duplicates_self_edges_and_invalid_values` |
+| Invalid visibility, role, handle, email case, follow state, library status (incl. computed states), show status, token purpose, job state/lease, OAuth intent/session/returnTo (incl. tab/newline) | `CHECK` | `constraints_reject_duplicates_self_edges_and_invalid_values` |
 | Unique host+episode discussion; comment body/tombstone rules; report reason; one open report per reporter+comment | Constraints and partial unique index | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
-| One active export per user | Partial unique index | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
-| Reveal grants unique per session+scope+resource, max 12h, revoked with session | PK, `CHECK`, `CASCADE` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
+| One active export per user; running jobs hold a lease | Partial unique index, `CHECK` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
+| One follow-request notification per requester | Partial unique index | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
+| Reveal grants unique per session+scope+resource, owned by the session's user, max 12h, revoked with session | PK, `CHECK`, `CASCADE` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
 | Numbering corrections preserve progress; archived numbers reusable | Deferrable exclusion constraint | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
 | Catalog rows with history cannot be deleted | `RESTRICT` | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
-| Revisions never decrease, including true→false→true | Trigger | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
-| User deletion erases private state without cascading other users' comments/history | Cascade boundaries above | `user_deletion_erases_private_state_without_cascading_shared_content` |
+| Revisions never decrease, including true→false→true; a misconfigured trigger fails loudly | Trigger | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
+| User deletion erases private state without cascading other users' comments/history; exports must go first; the deletion job survives; pruning undo actions keeps activity | Cascade boundaries above | `user_deletion_erases_private_state_without_cascading_shared_content` |
 
 Cursor and filter indexes: library (`user_id, saved_at, show_id` where saved), episodes (`season_id, number, id`), follows (`followee_id, state, created_at, follower_id`), activity (`actor_id, created_at, id`), discussions (`episode_id, created_at, id`), comments (`discussion_id, created_at, id`), reports (`state, created_at, id`), notifications (`user_id, created_at, id`), plus expiry/claim indexes for sessions, tokens, OAuth flows, idempotency records, previews, outbox and jobs.

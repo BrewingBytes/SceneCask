@@ -10,6 +10,10 @@ CREATE TABLE notifications (
     read_at timestamptz
 );
 CREATE INDEX notifications_user_idx ON notifications (user_id, created_at DESC, id DESC);
+-- One notification per recipient, kind and actor: follow retries cannot duplicate, and block
+-- or withdrawal cancels it by (user_id, actor_id).
+CREATE UNIQUE INDEX notifications_user_kind_actor_key ON notifications (user_id, kind, actor_id)
+    WHERE actor_id IS NOT NULL;
 CREATE INDEX notifications_actor_idx ON notifications (actor_id) WHERE actor_id IS NOT NULL;
 
 CREATE TABLE outbox (
@@ -26,7 +30,9 @@ CREATE INDEX outbox_pending_idx ON outbox (available_at) WHERE delivered_at IS N
 
 CREATE TABLE jobs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES users (id) ON DELETE CASCADE,
+    -- SET NULL keeps the claimed deletion job's row so its outcome can be recorded. Any other
+    -- user job then fails the CHECK below, so erasure must first delete export files and rows.
+    user_id uuid REFERENCES users (id) ON DELETE SET NULL,
     kind text NOT NULL CHECK (kind IN ('export', 'delete', 'metadata_refresh')),
     state text NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'ready', 'failed')),
     payload jsonb NOT NULL DEFAULT '{}',
@@ -37,7 +43,9 @@ CREATE TABLE jobs (
     attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     -- A crashed worker's claim expires here and the job becomes claimable again.
     lease_until timestamptz,
-    CHECK (kind = 'metadata_refresh' OR user_id IS NOT NULL)
+    CHECK (user_id IS NOT NULL OR kind = 'metadata_refresh' OR (kind = 'delete' AND state <> 'queued')),
+    -- A running job always holds a lease, so another worker cannot claim it immediately.
+    CHECK (state <> 'running' OR lease_until IS NOT NULL)
 );
 -- One active export (and one active deletion) per user; repeats return the active job.
 CREATE UNIQUE INDEX jobs_active_user_kind_key

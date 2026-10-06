@@ -2,13 +2,15 @@
 
 CREATE TABLE reveal_grants (
     -- Logout, reset and session expiry delete the session and revoke its grants.
-    session_id bytea NOT NULL REFERENCES sessions (id_hash) ON DELETE CASCADE,
+    session_id bytea NOT NULL,
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     scope text NOT NULL CHECK (scope IN ('episode_details', 'discussion')),
     resource_id uuid NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL,
     PRIMARY KEY (session_id, scope, resource_id),
+    -- The grant's user must own the session, so revoking by user_id reaches every grant.
+    FOREIGN KEY (session_id, user_id) REFERENCES sessions (id_hash, user_id) ON DELETE CASCADE,
     CHECK (expires_at > created_at AND expires_at <= created_at + interval '12 hours')
 );
 -- Blocks and unfollows revoke a user's discussion grants.
