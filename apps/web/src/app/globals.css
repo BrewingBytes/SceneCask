@@ -1,0 +1,9 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: oklch(0.975 0.008 85); color: oklch(0.21 0.015 50); font-family: system-ui, sans-serif; }
+main { max-width: 1240px; margin: auto; padding: 64px 20px; }
+h1 { font-size: clamp(2.5rem, 8vw, 4rem); letter-spacing: -0.05em; line-height: 1; overflow-wrap: anywhere; }
+p { max-width: 760px; line-height: 1.5; }
+.kicker { font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+:focus-visible { outline: 3px solid oklch(0.5 0.13 38); outline-offset: 2px; }
+@media (min-width: 860px) { main { padding-inline: 48px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
