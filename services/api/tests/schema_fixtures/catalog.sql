@@ -1,0 +1,17 @@
+-- Development/test fixture only: one show with a special, a future and an undated episode.
+INSERT INTO shows (id, tmdb_id, title, first_air_year, genres, synopsis, status, catalog_revision, fetched_at, complete_import)
+VALUES ('00000000-0000-4000-8000-0000000005a1', 900001, 'Hollow Orchard', 2024, '["Drama"]',
+        'A family returns to a failing orchard.', 'returning', 1, now(), true);
+
+INSERT INTO seasons (id, show_id, number)
+VALUES
+    ('00000000-0000-4000-8000-0000000005b0', '00000000-0000-4000-8000-0000000005a1', 0),
+    ('00000000-0000-4000-8000-0000000005b1', '00000000-0000-4000-8000-0000000005a1', 1);
+
+INSERT INTO episodes (id, tmdb_id, season_id, number, title, air_date)
+VALUES
+    ('00000000-0000-4000-8000-0000000005e0', 910000, '00000000-0000-4000-8000-0000000005b0', 1, 'Orchard Diaries', '2024-01-01'),
+    ('00000000-0000-4000-8000-0000000005e1', 910001, '00000000-0000-4000-8000-0000000005b1', 1, 'First Frost', '2024-02-01'),
+    ('00000000-0000-4000-8000-0000000005e2', 910002, '00000000-0000-4000-8000-0000000005b1', 2, 'Grafting', '2024-02-08'),
+    ('00000000-0000-4000-8000-0000000005e3', 910003, '00000000-0000-4000-8000-0000000005b1', 3, 'Harvest Moon', '2999-01-01'),
+    ('00000000-0000-4000-8000-0000000005e4', 910004, '00000000-0000-4000-8000-0000000005b1', 4, NULL, NULL);

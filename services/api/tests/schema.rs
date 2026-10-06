@@ -1,0 +1,765 @@
+//! C02 schema tests against real PostgreSQL. `#[sqlx::test]` is the test database factory:
+//! each test gets a fresh database (from DATABASE_URL's server) with all migrations applied.
+//! Fixtures in `schema_fixtures/` are development/test data only.
+
+use sqlx::{AssertSqlSafe, PgPool, migrate::Migrator};
+
+static MIGRATOR: Migrator = sqlx::migrate!();
+
+const ANA: &str = "00000000-0000-4000-8000-00000000a0a1";
+const BEN: &str = "00000000-0000-4000-8000-00000000b0b1";
+
+/// Expected C02 tables and columns, in declaration order.
+const SCHEMA: &[(&str, &[&str])] = &[
+    (
+        "users",
+        &[
+            "id",
+            "normalized_email",
+            "display_name",
+            "handle",
+            "visibility",
+            "verified_at",
+            "role",
+            "disabled_at",
+            "created_at",
+        ],
+    ),
+    (
+        "password_credentials",
+        &["user_id", "argon2_hash", "updated_at"],
+    ),
+    (
+        "external_identities",
+        &["id", "user_id", "issuer", "subject", "created_at"],
+    ),
+    (
+        "sessions",
+        &[
+            "id_hash",
+            "user_id",
+            "created_at",
+            "last_seen_at",
+            "expires_at",
+            "reauthenticated_at",
+        ],
+    ),
+    (
+        "auth_tokens",
+        &[
+            "token_hash",
+            "user_id",
+            "purpose",
+            "created_at",
+            "expires_at",
+            "consumed_at",
+        ],
+    ),
+    (
+        "oauth_flows",
+        &[
+            "state_hash",
+            "nonce_hash",
+            "pkce_verifier_ciphertext",
+            "intent",
+            "session_id",
+            "return_to",
+            "created_at",
+            "expires_at",
+            "consumed_at",
+        ],
+    ),
+    (
+        "shows",
+        &[
+            "id",
+            "tmdb_id",
+            "title",
+            "first_air_year",
+            "genres",
+            "synopsis",
+            "poster_path",
+            "status",
+            "catalog_revision",
+            "fetched_at",
+            "complete_import",
+            "created_at",
+        ],
+    ),
+    ("seasons", &["id", "show_id", "number"]),
+    (
+        "episodes",
+        &[
+            "id",
+            "tmdb_id",
+            "season_id",
+            "number",
+            "title",
+            "overview",
+            "still_path",
+            "air_date",
+            "release_timezone",
+            "archived_at",
+        ],
+    ),
+    (
+        "library_entries",
+        &[
+            "user_id",
+            "show_id",
+            "saved",
+            "status",
+            "saved_at",
+            "revision",
+            "updated_at",
+        ],
+    ),
+    ("tracking_show_state", &["user_id", "show_id", "revision"]),
+    (
+        "mutation_actions",
+        &[
+            "id",
+            "user_id",
+            "show_id",
+            "kind",
+            "created_at",
+            "undo_until",
+            "undone_at",
+            "undo_result",
+        ],
+    ),
+    (
+        "mutation_changes",
+        &[
+            "action_id",
+            "entity",
+            "entity_key",
+            "field",
+            "before_value",
+            "after_revision",
+        ],
+    ),
+    (
+        "episode_progress",
+        &[
+            "user_id",
+            "episode_id",
+            "watched",
+            "revision",
+            "last_action_id",
+            "updated_at",
+        ],
+    ),
+    (
+        "idempotency_records",
+        &[
+            "user_id",
+            "key",
+            "request_hash",
+            "response",
+            "created_at",
+            "expires_at",
+        ],
+    ),
+    (
+        "catchup_previews",
+        &[
+            "id",
+            "user_id",
+            "show_id",
+            "endpoint_episode_id",
+            "episode_ids",
+            "revisions",
+            "catalog_revision",
+            "created_at",
+            "expires_at",
+        ],
+    ),
+    (
+        "follows",
+        &["follower_id", "followee_id", "state", "created_at"],
+    ),
+    ("blocks", &["blocker_id", "blocked_id", "created_at"]),
+    (
+        "activity_events",
+        &[
+            "id",
+            "actor_id",
+            "kind",
+            "show_id",
+            "episode_id",
+            "created_at",
+            "action_id",
+        ],
+    ),
+    (
+        "discussions",
+        &["id", "host_id", "episode_id", "created_at"],
+    ),
+    (
+        "comments",
+        &[
+            "id",
+            "discussion_id",
+            "author_id",
+            "body",
+            "created_at",
+            "removed_at",
+            "removed_by",
+        ],
+    ),
+    (
+        "reports",
+        &[
+            "id",
+            "reporter_id",
+            "comment_id",
+            "reason",
+            "state",
+            "created_at",
+            "reviewed_by",
+            "reviewed_at",
+        ],
+    ),
+    ("hidden_comments", &["user_id", "comment_id"]),
+    (
+        "notifications",
+        &["id", "user_id", "kind", "actor_id", "created_at", "read_at"],
+    ),
+    (
+        "outbox",
+        &[
+            "id",
+            "kind",
+            "payload",
+            "dedupe_key",
+            "created_at",
+            "available_at",
+            "attempts",
+            "delivered_at",
+        ],
+    ),
+    (
+        "jobs",
+        &[
+            "id",
+            "user_id",
+            "kind",
+            "state",
+            "payload",
+            "result_path",
+            "created_at",
+            "updated_at",
+            "expires_at",
+            "attempts",
+            "lease_until",
+        ],
+    ),
+    (
+        "reveal_grants",
+        &[
+            "session_id",
+            "user_id",
+            "scope",
+            "resource_id",
+            "created_at",
+            "expires_at",
+        ],
+    ),
+    (
+        "moderation_audit",
+        &["id", "operator_id", "report_id", "action", "created_at"],
+    ),
+];
+
+async fn public_tables(pool: &PgPool) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT table_name::text FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name <> '_sqlx_migrations' ORDER BY 1",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+async fn count(pool: &PgPool, sql: &str) -> i64 {
+    sqlx::query_scalar(AssertSqlSafe(sql.to_owned()))
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Runs `sql` and asserts PostgreSQL rejects it with `code` (SQLSTATE).
+async fn rejects(pool: &PgPool, code: &str, sql: &str) {
+    let error = sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
+        .execute(pool)
+        .await
+        .expect_err(&format!("expected SQLSTATE {code} for: {sql}"));
+    let actual = error.as_database_error().and_then(|e| e.code());
+    // PostgreSQL 18 reports ON DELETE RESTRICT as restrict_violation (23001); 17 uses 23503.
+    let accepted: &[&str] = if code == "23503" {
+        &["23503", "23001"]
+    } else {
+        &[code]
+    };
+    assert!(
+        actual
+            .as_deref()
+            .is_some_and(|actual| accepted.contains(&actual)),
+        "expected SQLSTATE {code}, got {actual:?} for: {sql}"
+    );
+}
+
+async fn exec(pool: &PgPool, sql: &str) {
+    sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+#[sqlx::test]
+async fn migrations_apply_in_order_and_match_c02(pool: PgPool) {
+    let versions: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success ORDER BY version")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(versions, (1..=7).collect::<Vec<_>>());
+
+    let mut expected: Vec<_> = SCHEMA.iter().map(|(table, _)| table.to_string()).collect();
+    expected.sort();
+    assert_eq!(public_tables(&pool).await, expected);
+
+    for (table, columns) in SCHEMA {
+        let actual: Vec<String> = sqlx::query_scalar(
+            "SELECT column_name::text FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position",
+        )
+        .bind(table)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(actual, *columns, "columns of {table}");
+    }
+
+    // Application IDs are UUIDs and timestamps are timestamptz everywhere.
+    let wrong_types = count(
+        &pool,
+        "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'
+           AND table_name <> '_sqlx_migrations'
+           AND ((column_name = 'id' OR column_name LIKE '%\\_id' ESCAPE '\\')
+                AND column_name NOT IN ('tmdb_id', 'session_id') AND data_type <> 'uuid'
+             OR column_name LIKE '%\\_at' ESCAPE '\\' AND data_type <> 'timestamp with time zone')",
+    )
+    .await;
+    assert_eq!(wrong_types, 0);
+}
+
+#[sqlx::test]
+async fn development_rollback_reverts_every_migration(pool: PgPool) {
+    MIGRATOR.undo(&pool, 0).await.unwrap();
+    assert!(public_tables(&pool).await.is_empty());
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM pg_proc WHERE proname = 'reject_revision_decrease'"
+        )
+        .await,
+        0
+    );
+    MIGRATOR.run(&pool).await.unwrap();
+    assert_eq!(public_tables(&pool).await.len(), SCHEMA.len());
+}
+
+#[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
+async fn constraints_reject_duplicates_self_edges_and_invalid_values(pool: PgPool) {
+    // Duplicate provider and account identities.
+    rejects(&pool, "23505", "INSERT INTO external_identities (user_id, issuer, subject)
+        VALUES ('00000000-0000-4000-8000-00000000a0a1', 'https://accounts.google.com', 'fixture-subject-ben')").await;
+    rejects(&pool, "23505", "INSERT INTO external_identities (user_id, issuer, subject)
+        VALUES ('00000000-0000-4000-8000-00000000b0b1', 'https://accounts.google.com', 'another-subject')").await;
+    rejects(
+        &pool,
+        "23505",
+        "INSERT INTO users (normalized_email) VALUES ('ana@scenecask.test')",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23505",
+        "INSERT INTO users (normalized_email, handle) VALUES ('x@scenecask.test', 'ana_r')",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23505",
+        "INSERT INTO shows (tmdb_id, title, fetched_at) VALUES (900001, 'Copy', now())",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23505",
+        "INSERT INTO episodes (tmdb_id, season_id, number)
+        VALUES (910001, '00000000-0000-4000-8000-0000000005b1', 9)",
+    )
+    .await;
+
+    // Follow and block graph.
+    let follow = format!(
+        "INSERT INTO follows (follower_id, followee_id, state) VALUES ('{ANA}', '{BEN}', 'approved')"
+    );
+    exec(&pool, &follow).await;
+    rejects(&pool, "23505", &follow).await;
+    rejects(&pool, "23514", &format!("INSERT INTO follows (follower_id, followee_id, state) VALUES ('{ANA}', '{ANA}', 'pending')")).await;
+    rejects(
+        &pool,
+        "23514",
+        &format!("INSERT INTO blocks (blocker_id, blocked_id) VALUES ('{BEN}', '{BEN}')"),
+    )
+    .await;
+
+    // Invalid enumerated values. Caught up and Completed are computed, never stored.
+    for sql in [
+        format!("UPDATE users SET visibility = 'friends' WHERE id = '{ANA}'"),
+        format!("UPDATE users SET role = 'admin' WHERE id = '{ANA}'"),
+        format!("UPDATE users SET handle = 'Ana!' WHERE id = '{ANA}'"),
+        format!("UPDATE follows SET state = 'declined' WHERE follower_id = '{ANA}'"),
+        format!(
+            "INSERT INTO library_entries (user_id, show_id, status, saved_at) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'completed', now())"
+        ),
+        format!(
+            "INSERT INTO library_entries (user_id, show_id, status, saved_at) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'caught_up', now())"
+        ),
+        format!(
+            "INSERT INTO library_entries (user_id, show_id, saved) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', true)"
+        ),
+        "UPDATE shows SET status = 'airing'".to_owned(),
+        format!(
+            "UPDATE password_credentials SET argon2_hash = 'plaintext' WHERE user_id = '{ANA}'"
+        ),
+        format!(
+            "INSERT INTO auth_tokens (token_hash, user_id, purpose, expires_at) VALUES ('\\x01', '{ANA}', 'login', now() + interval '1 hour')"
+        ),
+        format!("INSERT INTO jobs (user_id, kind, state) VALUES ('{ANA}', 'export', 'done')"),
+        "INSERT INTO jobs (kind) VALUES ('export')".to_owned(),
+        "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'link', now() + interval '10 minutes')".to_owned(),
+        "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, return_to, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'signin', '//evil.test', now() + interval '10 minutes')".to_owned(),
+    ] {
+        rejects(&pool, "23514", &sql).await;
+    }
+}
+
+#[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
+async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool) {
+    exec(&pool, &format!("
+        INSERT INTO discussions (id, host_id, episode_id)
+        VALUES ('00000000-0000-4000-8000-0000000000d1', '{ANA}', '00000000-0000-4000-8000-0000000005e1');
+        INSERT INTO comments (id, discussion_id, author_id, body)
+        VALUES ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000d1', '{BEN}', 'That ending surprised me.');
+        INSERT INTO reports (reporter_id, comment_id, reason)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000000c1', 'later_episode');
+        INSERT INTO jobs (user_id, kind) VALUES ('{ANA}', 'export');
+    ")).await;
+
+    rejects(
+        &pool,
+        "23505",
+        &format!(
+            "INSERT INTO discussions (host_id, episode_id)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005e1')"
+        ),
+    )
+    .await;
+    // Live comments need a body; removed comments must not keep one.
+    rejects(&pool, "23514", "INSERT INTO comments (discussion_id, body) VALUES ('00000000-0000-4000-8000-0000000000d1', NULL)").await;
+    rejects(&pool, "23514", "UPDATE comments SET removed_at = now()").await;
+    rejects(&pool, "23514", "INSERT INTO comments (discussion_id, body) VALUES ('00000000-0000-4000-8000-0000000000d1', '')").await;
+    rejects(
+        &pool,
+        "23514",
+        &format!("UPDATE reports SET reason = 'boring' WHERE reporter_id = '{ANA}'"),
+    )
+    .await;
+
+    // One open report per reporter+comment; a new one is allowed after review.
+    let report = format!(
+        "INSERT INTO reports (reporter_id, comment_id, reason)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000000c1', 'spam')"
+    );
+    rejects(&pool, "23505", &report).await;
+    rejects(&pool, "23514", "UPDATE reports SET state = 'resolved'").await;
+    exec(
+        &pool,
+        "UPDATE reports SET state = 'dismissed', reviewed_at = now()",
+    )
+    .await;
+    exec(&pool, &report).await;
+
+    // One active export per user; a finished export frees the slot.
+    let export = format!("INSERT INTO jobs (user_id, kind) VALUES ('{ANA}', 'export')");
+    rejects(&pool, "23505", &export).await;
+    exec(
+        &pool,
+        "UPDATE jobs SET state = 'ready', result_path = 'exports/fixture.json'",
+    )
+    .await;
+    exec(&pool, &export).await;
+
+    // Reveal grants are bound to a session, capped at 12 hours and revoked with it.
+    exec(&pool, &format!("
+        INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ('\\xaa', '{ANA}', now() + interval '7 days');
+        INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'discussion', '00000000-0000-4000-8000-0000000000d1', now() + interval '12 hours');
+        INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, session_id, expires_at)
+        VALUES ('\\x01', '\\x02', '\\x03', 'reauth', '\\xaa', now() + interval '10 minutes');
+    ")).await;
+    rejects(&pool, "23505", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'discussion', '00000000-0000-4000-8000-0000000000d1', now() + interval '1 hour')")).await;
+    rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '13 hours')")).await;
+    rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'everything', '00000000-0000-4000-8000-0000000005e2', now() + interval '1 hour')")).await;
+    exec(&pool, "DELETE FROM sessions WHERE id_hash = '\\xaa'").await;
+    assert_eq!(count(&pool, "SELECT count(*) FROM reveal_grants").await, 0);
+    assert_eq!(count(&pool, "SELECT count(*) FROM oauth_flows").await, 0);
+}
+
+#[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
+async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool: PgPool) {
+    const S1: &str = "00000000-0000-4000-8000-0000000005b1";
+    exec(&pool, &format!("
+        INSERT INTO mutation_actions (id, user_id, show_id, kind, undo_until)
+        VALUES ('00000000-0000-4000-8000-0000000000a1', '{ANA}', '00000000-0000-4000-8000-0000000005a1', 'episode_watched', now() + interval '10 minutes');
+        INSERT INTO episode_progress (user_id, episode_id, watched, revision, last_action_id)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005e2', true, 1, '00000000-0000-4000-8000-0000000000a1');
+        INSERT INTO tracking_show_state (user_id, show_id, revision)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 1);
+    ")).await;
+
+    // Duplicate active numbering is rejected; a deferred swap inside one import succeeds.
+    rejects(
+        &pool,
+        "23P01",
+        &format!("INSERT INTO episodes (tmdb_id, season_id, number) VALUES (919999, '{S1}', 2)"),
+    )
+    .await;
+    exec(
+        &pool,
+        "
+        BEGIN;
+        SET CONSTRAINTS episodes_active_season_number_key DEFERRED;
+        UPDATE episodes SET number = 3 WHERE tmdb_id = 910002;
+        UPDATE episodes SET number = 2 WHERE tmdb_id = 910003;
+        COMMIT;
+    ",
+    )
+    .await;
+    // An archived episode keeps its number and history; a new active episode may reuse it.
+    exec(
+        &pool,
+        &format!(
+            "
+        UPDATE episodes SET archived_at = now() WHERE tmdb_id = 910002;
+        INSERT INTO episodes (tmdb_id, season_id, number) VALUES (919999, '{S1}', 3);
+    "
+        ),
+    )
+    .await;
+    assert_eq!(
+        count(
+            &pool,
+            &format!("SELECT count(*) FROM episode_progress WHERE user_id = '{ANA}' AND watched")
+        )
+        .await,
+        1
+    );
+
+    // Catalog rows with history cannot be deleted.
+    rejects(
+        &pool,
+        "23503",
+        "DELETE FROM episodes WHERE tmdb_id = 910002",
+    )
+    .await;
+    rejects(&pool, "23503", "DELETE FROM shows").await;
+
+    // Revisions move forward, including true→false transitions, never back.
+    exec(
+        &pool,
+        "UPDATE episode_progress SET watched = false, revision = 2",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE episode_progress SET watched = true, revision = 1",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE tracking_show_state SET revision = 0",
+    )
+    .await;
+    rejects(&pool, "23514", "UPDATE shows SET catalog_revision = 0").await;
+    exec(
+        &pool,
+        "UPDATE shows SET catalog_revision = catalog_revision",
+    )
+    .await;
+}
+
+#[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
+async fn user_deletion_erases_private_state_without_cascading_shared_content(pool: PgPool) {
+    const CLEO: &str = "00000000-0000-4000-8000-00000000c0c1";
+    exec(&pool, &format!("
+        INSERT INTO library_entries (user_id, show_id, status, saved_at, revision)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'watching', now(), 1),
+               ('{BEN}', '00000000-0000-4000-8000-0000000005a1', 'watching', now(), 1);
+        INSERT INTO tracking_show_state (user_id, show_id, revision)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 1),
+               ('{BEN}', '00000000-0000-4000-8000-0000000005a1', 1);
+        INSERT INTO mutation_actions (id, user_id, show_id, kind, undo_until)
+        VALUES ('00000000-0000-4000-8000-0000000000a1', '{ANA}', '00000000-0000-4000-8000-0000000005a1', 'episode_watched', now() + interval '10 minutes'),
+               ('00000000-0000-4000-8000-0000000000b1', '{BEN}', '00000000-0000-4000-8000-0000000005a1', 'episode_watched', now() + interval '10 minutes');
+        INSERT INTO mutation_changes (action_id, entity, entity_key, field, before_value, after_revision)
+        VALUES ('00000000-0000-4000-8000-0000000000a1', 'episode_progress', '00000000-0000-4000-8000-0000000005e1', 'watched', 'false', 1);
+        INSERT INTO episode_progress (user_id, episode_id, watched, revision, last_action_id)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005e1', true, 1, '00000000-0000-4000-8000-0000000000a1'),
+               ('{BEN}', '00000000-0000-4000-8000-0000000005e1', true, 1, '00000000-0000-4000-8000-0000000000b1');
+        INSERT INTO activity_events (actor_id, kind, show_id, episode_id, action_id)
+        VALUES ('{ANA}', 'episode_watched', '00000000-0000-4000-8000-0000000005a1', '00000000-0000-4000-8000-0000000005e1', '00000000-0000-4000-8000-0000000000a1'),
+               ('{BEN}', 'episode_watched', '00000000-0000-4000-8000-0000000005a1', '00000000-0000-4000-8000-0000000005e1', '00000000-0000-4000-8000-0000000000b1');
+        INSERT INTO idempotency_records (user_id, key, request_hash, response, expires_at)
+        VALUES ('{ANA}', gen_random_uuid(), '\\x01', '{{}}', now() + interval '24 hours');
+        INSERT INTO catchup_previews (user_id, show_id, endpoint_episode_id, episode_ids, revisions, catalog_revision, expires_at)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', '00000000-0000-4000-8000-0000000005e2', '[]', '{{}}', 1, now() + interval '5 minutes');
+        INSERT INTO follows (follower_id, followee_id, state) VALUES ('{ANA}', '{BEN}', 'approved'), ('{BEN}', '{ANA}', 'approved');
+        INSERT INTO blocks (blocker_id, blocked_id) VALUES ('{ANA}', '{CLEO}');
+        INSERT INTO notifications (user_id, kind, actor_id) VALUES ('{ANA}', 'follow_request', '{BEN}'), ('{BEN}', 'follow_request', '{ANA}');
+        INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ('\\xaa', '{ANA}', now() + interval '7 days');
+        INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '1 hour');
+        INSERT INTO auth_tokens (token_hash, user_id, purpose, expires_at) VALUES ('\\xbb', '{ANA}', 'reset', now() + interval '30 minutes');
+        INSERT INTO jobs (user_id, kind, state, result_path) VALUES ('{ANA}', 'export', 'ready', 'exports/ana.json');
+
+        -- Ana hosts D1 (Ben comments there); Ben hosts D2 (Ana comments there).
+        INSERT INTO discussions (id, host_id, episode_id)
+        VALUES ('00000000-0000-4000-8000-0000000000d1', '{ANA}', '00000000-0000-4000-8000-0000000005e1'),
+               ('00000000-0000-4000-8000-0000000000d2', '{BEN}', '00000000-0000-4000-8000-0000000005e1');
+        INSERT INTO comments (id, discussion_id, author_id, body)
+        VALUES ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000d1', '{BEN}', 'Ben in Ana''s thread'),
+               ('00000000-0000-4000-8000-0000000000c2', '00000000-0000-4000-8000-0000000000d2', '{ANA}', 'Ana in Ben''s thread'),
+               ('00000000-0000-4000-8000-0000000000c3', '00000000-0000-4000-8000-0000000000d2', '{BEN}', 'Ben in his own thread');
+        INSERT INTO hidden_comments (user_id, comment_id) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000000c3');
+        INSERT INTO reports (id, reporter_id, comment_id, reason, state, reviewed_by, reviewed_at)
+        VALUES ('00000000-0000-4000-8000-0000000000e1', '{ANA}', '00000000-0000-4000-8000-0000000000c3', 'abuse', 'dismissed', '{CLEO}', now()),
+               ('00000000-0000-4000-8000-0000000000e2', '{BEN}', '00000000-0000-4000-8000-0000000000c2', 'spam', 'open', NULL, NULL);
+        INSERT INTO moderation_audit (operator_id, report_id, action)
+        VALUES ('{CLEO}', '00000000-0000-4000-8000-0000000000e1', 'dismiss');
+    ")).await;
+
+    // Deletion job: tombstone the user's shared comments, then remove the account row.
+    exec(&pool, &format!("
+        BEGIN;
+        UPDATE comments SET body = NULL, removed_at = now() WHERE author_id = '{ANA}' AND removed_at IS NULL;
+        DELETE FROM users WHERE id = '{ANA}';
+        COMMIT;
+    ")).await;
+
+    // Every user-keyed private table is empty for Ana.
+    for (table, column) in [
+        ("users", "id"),
+        ("password_credentials", "user_id"),
+        ("external_identities", "user_id"),
+        ("sessions", "user_id"),
+        ("auth_tokens", "user_id"),
+        ("library_entries", "user_id"),
+        ("tracking_show_state", "user_id"),
+        ("mutation_actions", "user_id"),
+        ("episode_progress", "user_id"),
+        ("idempotency_records", "user_id"),
+        ("catchup_previews", "user_id"),
+        ("follows", "follower_id"),
+        ("follows", "followee_id"),
+        ("blocks", "blocker_id"),
+        ("activity_events", "actor_id"),
+        ("hidden_comments", "user_id"),
+        ("notifications", "user_id"),
+        ("notifications", "actor_id"),
+        ("jobs", "user_id"),
+        ("reveal_grants", "user_id"),
+        ("comments", "author_id"),
+        ("reports", "reporter_id"),
+        ("discussions", "host_id"),
+    ] {
+        let remaining = count(
+            &pool,
+            &format!("SELECT count(*) FROM {table} WHERE {column} = '{ANA}'"),
+        )
+        .await;
+        assert_eq!(
+            remaining, 0,
+            "{table}.{column} still references the deleted user"
+        );
+    }
+    assert_eq!(
+        count(&pool, "SELECT count(*) FROM mutation_changes").await,
+        0
+    );
+
+    // Ben's private state and comments survive, including in the thread Ana hosted.
+    for table in [
+        "library_entries",
+        "tracking_show_state",
+        "episode_progress",
+        "mutation_actions",
+        "activity_events",
+    ] {
+        assert_eq!(
+            count(
+                &pool,
+                &format!(
+                    "SELECT count(*) FROM {table} WHERE {} = '{BEN}'",
+                    if table == "activity_events" {
+                        "actor_id"
+                    } else {
+                        "user_id"
+                    }
+                )
+            )
+            .await,
+            1,
+            "{table}"
+        );
+    }
+    assert_eq!(
+        count(
+            &pool,
+            &format!(
+                "SELECT count(*) FROM comments WHERE author_id = '{BEN}' AND body IS NOT NULL"
+            )
+        )
+        .await,
+        2
+    );
+    // Ana's thread survives hostless (inaccessible); her comment remains as an anonymous tombstone.
+    assert_eq!(count(&pool, "SELECT count(*) FROM discussions WHERE id = '00000000-0000-4000-8000-0000000000d1' AND host_id IS NULL").await, 1);
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM comments WHERE id = '00000000-0000-4000-8000-0000000000c2'
+        AND author_id IS NULL AND body IS NULL AND removed_at IS NOT NULL"
+        )
+        .await,
+        1
+    );
+    // Moderation history keeps anonymous report identifiers; Ben's open report stays.
+    assert_eq!(count(&pool, "SELECT count(*) FROM reports").await, 2);
+    assert_eq!(
+        count(&pool, "SELECT count(*) FROM moderation_audit").await,
+        1
+    );
+    // Catalog is untouched.
+    assert_eq!(count(&pool, "SELECT count(*) FROM episodes").await, 5);
+}

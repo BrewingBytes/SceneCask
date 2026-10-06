@@ -1,0 +1,47 @@
+-- R02 0006: in-app notifications, transactional outbox and leased background jobs.
+-- Payloads must never hold credentials, tokens or protected episode content.
+
+CREATE TABLE notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    kind text NOT NULL CHECK (kind IN ('follow_request')),
+    actor_id uuid REFERENCES users (id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    read_at timestamptz
+);
+CREATE INDEX notifications_user_idx ON notifications (user_id, created_at DESC, id DESC);
+CREATE INDEX notifications_actor_idx ON notifications (actor_id) WHERE actor_id IS NOT NULL;
+
+CREATE TABLE outbox (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    kind text NOT NULL CHECK (kind ~ '^[a-z][a-z_.]*$'),
+    payload jsonb NOT NULL DEFAULT '{}',
+    dedupe_key text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    available_at timestamptz NOT NULL DEFAULT now(),
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    delivered_at timestamptz
+);
+CREATE INDEX outbox_pending_idx ON outbox (available_at) WHERE delivered_at IS NULL;
+
+CREATE TABLE jobs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users (id) ON DELETE CASCADE,
+    kind text NOT NULL CHECK (kind IN ('export', 'delete', 'metadata_refresh')),
+    state text NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'ready', 'failed')),
+    payload jsonb NOT NULL DEFAULT '{}',
+    result_path text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz,
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    -- A crashed worker's claim expires here and the job becomes claimable again.
+    lease_until timestamptz,
+    CHECK (kind = 'metadata_refresh' OR user_id IS NOT NULL)
+);
+-- One active export (and one active deletion) per user; repeats return the active job.
+CREATE UNIQUE INDEX jobs_active_user_kind_key
+    ON jobs (user_id, kind) WHERE kind IN ('export', 'delete') AND state IN ('queued', 'running');
+CREATE INDEX jobs_claim_idx ON jobs (lease_until NULLS FIRST, created_at)
+    WHERE state IN ('queued', 'running');
+CREATE INDEX jobs_expires_idx ON jobs (expires_at) WHERE expires_at IS NOT NULL;
