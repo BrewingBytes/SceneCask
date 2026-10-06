@@ -25,7 +25,7 @@ CREATE TRIGGER library_entries_revision_forward
     BEFORE UPDATE ON library_entries
     FOR EACH ROW WHEN (NEW.revision < OLD.revision OR (NEW.revision = OLD.revision
         AND (NEW.saved, NEW.status, NEW.saved_at) IS DISTINCT FROM (OLD.saved, OLD.status, OLD.saved_at)))
-    EXECUTE FUNCTION reject_revision_decrease('revision');
+    EXECUTE FUNCTION reject_update('revision', 'revision must advance with every change and never decrease');
 
 -- Aggregate tracking revision; progress mutations serialize on this row.
 CREATE TABLE tracking_show_state (
@@ -37,7 +37,7 @@ CREATE TABLE tracking_show_state (
 CREATE TRIGGER tracking_show_state_revision_forward
     BEFORE UPDATE OF revision ON tracking_show_state
     FOR EACH ROW WHEN (NEW.revision < OLD.revision)
-    EXECUTE FUNCTION reject_revision_decrease('revision');
+    EXECUTE FUNCTION reject_update('revision', 'revision must advance with every change and never decrease');
 
 CREATE TABLE mutation_actions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,7 +82,7 @@ CREATE TRIGGER episode_progress_revision_forward
     BEFORE UPDATE ON episode_progress
     FOR EACH ROW WHEN (NEW.revision < OLD.revision
         OR (NEW.revision = OLD.revision AND NEW.watched IS DISTINCT FROM OLD.watched))
-    EXECUTE FUNCTION reject_revision_decrease('revision');
+    EXECUTE FUNCTION reject_update('revision', 'revision must advance with every change and never decrease');
 
 CREATE TABLE idempotency_records (
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,

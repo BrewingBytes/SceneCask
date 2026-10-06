@@ -1,14 +1,13 @@
 -- R02 0001: accounts, credentials, external identities, sessions and auth flows.
 -- Secrets are stored only as hashes or ciphertext; never log these columns.
 
--- Shared guard: revision counters only move forward (C02). Each trigger compares its own
--- columns in a WHEN clause, so PostgreSQL validates the column names at CREATE TRIGGER and the
--- function only runs for a rejected update: a decrease, or a tracked-state change that does not
--- advance the revision. The argument names the column in the error.
-CREATE FUNCTION reject_revision_decrease() RETURNS trigger
+-- Shared guard for rules a CHECK cannot express because they compare OLD and NEW. Each trigger
+-- states its rule in a WHEN clause, so PostgreSQL validates the column names at CREATE TRIGGER and
+-- the function only runs for a rejected update. Arguments: the column, then the error message.
+CREATE FUNCTION reject_update() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    RAISE EXCEPTION 'revision must advance with every change and never decrease'
+    RAISE EXCEPTION '%', TG_ARGV[1]
         USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = TG_ARGV[0];
 END;
 $$;
@@ -16,8 +15,11 @@ $$;
 CREATE TABLE users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     normalized_email text NOT NULL UNIQUE
+        -- Stored already trimmed and Unicode casefolded (C03). pg_unicode_fast gives full casefolding
+        -- (for example 'ß' to 'ss') regardless of the database collation; the API must normalize with
+        -- the same full casefold.
         CHECK (normalized_email <> '' AND normalized_email = btrim(normalized_email)
-               AND normalized_email = lower(normalized_email)),
+               AND normalized_email = casefold(normalized_email COLLATE pg_unicode_fast)),
     display_name text CHECK (char_length(display_name) BETWEEN 1 AND 80),
     handle text UNIQUE CHECK (handle ~ '^[a-z0-9_]{3,30}$'),
     visibility text NOT NULL DEFAULT 'private' CHECK (visibility IN ('private', 'public')),

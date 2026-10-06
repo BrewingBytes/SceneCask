@@ -13,22 +13,20 @@ CREATE TABLE reveal_grants (
     FOREIGN KEY (session_id, user_id) REFERENCES sessions (id_hash, user_id) ON DELETE CASCADE,
     CHECK (expires_at > created_at AND expires_at <= created_at + interval '12 hours')
 );
--- The 12-hour cap is measured from created_at, so created_at cannot be in the future. Compare
--- with the wall clock, not transaction start, so a created_at taken later in the transaction is
--- accepted. Writers derive expires_at from created_at in SQL so the cap check cannot drift.
-CREATE FUNCTION reveal_grants_created_not_future() RETURNS trigger
+-- The 12-hour cap is measured from created_at, so the database stamps it from its own wall clock
+-- on every insert or created_at change. A value bound by the writer is ignored, so neither a
+-- future created_at nor app-host clock skew can affect the cap. Writers derive expires_at in SQL
+-- (now() + interval '12 hours' or less), which this stamp never precedes.
+CREATE FUNCTION reveal_grants_stamp_created_at() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.created_at > clock_timestamp() THEN
-        RAISE EXCEPTION 'reveal grant created_at must not be in the future'
-            USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = 'created_at';
-    END IF;
+    NEW.created_at := clock_timestamp();
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER reveal_grants_created_not_future
+CREATE TRIGGER reveal_grants_stamp_created_at
     BEFORE INSERT OR UPDATE OF created_at ON reveal_grants
-    FOR EACH ROW EXECUTE FUNCTION reveal_grants_created_not_future();
+    FOR EACH ROW EXECUTE FUNCTION reveal_grants_stamp_created_at();
 -- Blocks and unfollows revoke a user's discussion grants.
 CREATE INDEX reveal_grants_user_idx ON reveal_grants (user_id, scope, resource_id);
 

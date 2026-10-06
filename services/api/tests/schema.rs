@@ -87,7 +87,10 @@ const SCHEMA: &[(&str, &[&str])] = &[
             "created_at",
         ],
     ),
-    ("seasons", &["id", "tmdb_id", "show_id", "number"]),
+    (
+        "seasons",
+        &["id", "tmdb_id", "show_id", "number", "archived_at"],
+    ),
     (
         "episodes",
         &[
@@ -226,7 +229,15 @@ const SCHEMA: &[(&str, &[&str])] = &[
     ("hidden_comments", &["user_id", "comment_id"]),
     (
         "notifications",
-        &["id", "user_id", "kind", "actor_id", "created_at", "read_at"],
+        &[
+            "id",
+            "user_id",
+            "kind",
+            "actor_id",
+            "follow_requester_id",
+            "created_at",
+            "read_at",
+        ],
     ),
     (
         "outbox",
@@ -419,6 +430,20 @@ async fn constraints_reject_duplicates_self_edges_and_invalid_values(pool: PgPoo
         VALUES (905001, '00000000-0000-4000-8000-0000000005a1', 7)",
     )
     .await;
+    rejects(
+        &pool,
+        "23P01",
+        "INSERT INTO seasons (tmdb_id, show_id, number)
+        VALUES (905009, '00000000-0000-4000-8000-0000000005a1', 1)",
+    )
+    .await;
+
+    // Emails are stored in full Unicode casefold, whatever the database collation.
+    exec(
+        &pool,
+        "INSERT INTO users (normalized_email) VALUES ('strasse@scenecask.test'), ('éva@scenecask.test')",
+    )
+    .await;
 
     // Follow and block graph.
     let follow = format!(
@@ -468,11 +493,20 @@ async fn constraints_reject_duplicates_self_edges_and_invalid_values(pool: PgPoo
         "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, return_to, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'signin', '/\t/evil.test', now() + interval '10 minutes')".to_owned(),
         "INSERT INTO oauth_flows (state_hash, nonce_hash, pkce_verifier_ciphertext, intent, return_to, expires_at) VALUES ('\\x01', '\\x02', '\\x03', 'signin', '/\n/evil.test', now() + interval '10 minutes')".to_owned(),
         "INSERT INTO users (normalized_email) VALUES ('Ana@scenecask.test')".to_owned(),
+        "INSERT INTO users (normalized_email) VALUES ('ÉVA@scenecask.test')".to_owned(),
+        "INSERT INTO users (normalized_email) VALUES ('straße@scenecask.test')".to_owned(),
+        // Release state uses AT TIME ZONE, so an unresolvable zone would break every read.
+        "UPDATE episodes SET release_timezone = 'America/Bogus' WHERE tmdb_id = 910001".to_owned(),
         format!("INSERT INTO jobs (user_id, kind, state) VALUES ('{ANA}', 'export', 'running')"),
         "INSERT INTO jobs (kind) VALUES ('delete')".to_owned(),
     ] {
         rejects(&pool, "23514", &sql).await;
     }
+    exec(
+        &pool,
+        "UPDATE episodes SET release_timezone = 'America/Bogota' WHERE tmdb_id = 910001",
+    )
+    .await;
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -546,6 +580,25 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
     )
     .await;
     exec(&pool, "DELETE FROM jobs WHERE kind = 'delete'").await;
+    // Only a claimed deletion job may lose its user: erasing a user whose job is still queued fails.
+    exec(&pool, "
+        INSERT INTO users (id, normalized_email) VALUES ('00000000-0000-4000-8000-00000000d0d1', 'dee@scenecask.test');
+        INSERT INTO jobs (user_id, kind) VALUES ('00000000-0000-4000-8000-00000000d0d1', 'delete');
+    ").await;
+    rejects(
+        &pool,
+        "23514",
+        "DELETE FROM users WHERE id = '00000000-0000-4000-8000-00000000d0d1'",
+    )
+    .await;
+    exec(
+        &pool,
+        "
+        DELETE FROM jobs WHERE user_id = '00000000-0000-4000-8000-00000000d0d1';
+        DELETE FROM users WHERE id = '00000000-0000-4000-8000-00000000d0d1';
+    ",
+    )
+    .await;
 
     // Reveal grants are bound to a session, capped at 12 hours and revoked with it.
     exec(&pool, &format!("
@@ -561,7 +614,8 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
         VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '13 hours')")).await;
     rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
         VALUES ('\\xaa', '{ANA}', 'everything', '00000000-0000-4000-8000-0000000005e2', now() + interval '1 hour')")).await;
-    // The cap counts from insertion: a future created_at cannot stretch the grant.
+    // The cap counts from insertion: the database stamps created_at, so a future value cannot
+    // stretch the grant.
     rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, created_at, expires_at)
         VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '30 days', now() + interval '30 days 12 hours')")).await;
     rejects(
@@ -570,8 +624,8 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
         "UPDATE reveal_grants SET created_at = now() + interval '30 days', expires_at = now() + interval '30 days 1 hour'",
     )
     .await;
-    // created_at is checked against the wall clock, so a grant written later in a transaction
-    // with expires_at derived from its own created_at is accepted.
+    // created_at is stamped from the wall clock, so a grant written later in a transaction with
+    // expires_at derived from an earlier clock reading is accepted.
     exec(&pool, &format!("
         BEGIN;
         SELECT pg_sleep(0.05);
@@ -580,6 +634,18 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
         FROM (SELECT clock_timestamp() AS t) AS clock;
         COMMIT;
     ")).await;
+    // A writer's created_at from a host clock running ahead is replaced, not rejected.
+    exec(&pool, &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, created_at, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'discussion', '00000000-0000-4000-8000-0000000000d2', now() + interval '200 milliseconds', now() + interval '12 hours')")).await;
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM reveal_grants
+             WHERE resource_id = '00000000-0000-4000-8000-0000000000d2' AND created_at <= clock_timestamp()",
+        )
+        .await,
+        1
+    );
     // A grant must belong to the session's owner.
     rejects(&pool, "23503", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
         VALUES ('\\xaa', '{BEN}', 'discussion', '00000000-0000-4000-8000-0000000000d9', now() + interval '1 hour')")).await;
@@ -670,7 +736,7 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         &format!(
             "
         BEGIN;
-        SET CONSTRAINTS seasons_show_number_key DEFERRED;
+        SET CONSTRAINTS seasons_active_show_number_key DEFERRED;
         UPDATE seasons SET number = 0 WHERE id = '{S1}';
         UPDATE seasons SET number = 1 WHERE id = '00000000-0000-4000-8000-0000000005b0';
         COMMIT;
@@ -694,6 +760,18 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
             "
         UPDATE episodes SET archived_at = now() WHERE tmdb_id = 910002;
         INSERT INTO episodes (tmdb_id, show_id, season_id, number) VALUES (919999, '{SHOW}', '{S1}', 3);
+    "
+        ),
+    )
+    .await;
+    // A season the provider removes is archived the same way, so a recreated season under a new
+    // tmdb_id can take its number while the archived row keeps its episodes and history.
+    exec(
+        &pool,
+        &format!(
+            "
+        UPDATE seasons SET archived_at = now() WHERE tmdb_id = 905000;
+        INSERT INTO seasons (tmdb_id, show_id, number) VALUES (905100, '{SHOW}', 0);
     "
         ),
     )
@@ -772,7 +850,7 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         "42703",
         "CREATE TRIGGER misconfigured_revision_forward BEFORE UPDATE ON misconfigured
             FOR EACH ROW WHEN (NEW.revison < OLD.revison)
-            EXECUTE FUNCTION reject_revision_decrease('revison')",
+            EXECUTE FUNCTION reject_update('revison', 'revision must not decrease')",
     )
     .await;
 
@@ -850,6 +928,7 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
             "INSERT INTO episodes (tmdb_id, show_id, season_id, number) VALUES (919998, '{SHOW}', '{S1}', 10)"
         ),
         format!("INSERT INTO seasons (tmdb_id, show_id, number) VALUES (905002, '{SHOW}', 2)"),
+        "UPDATE seasons SET archived_at = now() WHERE tmdb_id = 905002".to_owned(),
     ] {
         let previous = count(&pool, &catalog_revision).await;
         exec(&pool, &sql).await;
@@ -858,6 +937,17 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
             "catalog_revision did not advance for: {sql}"
         );
     }
+    // The triggers run per statement, so a bulk import advances the revision once, not per row.
+    let previous = count(&pool, &catalog_revision).await;
+    exec(
+        &pool,
+        &format!(
+            "INSERT INTO episodes (tmdb_id, show_id, season_id, number)
+             VALUES (919990, '{SHOW}', '{S1}', 20), (919991, '{SHOW}', '{S1}', 21), (919992, '{SHOW}', '{S1}', 22)"
+        ),
+    )
+    .await;
+    assert_eq!(count(&pool, &catalog_revision).await, previous + 1);
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -941,13 +1031,21 @@ async fn user_deletion_erases_private_state_without_cascading_shared_content(poo
         COMMIT;
     ")).await;
 
-    // The claimed deletion job survives, detached from the user, so the worker can finish it.
-    exec(
-        &pool,
-        "UPDATE jobs SET state = 'ready', lease_until = NULL
-         WHERE id = '00000000-0000-4000-8000-0000000000f1' AND user_id IS NULL",
-    )
-    .await;
+    // The claimed deletion job survives, detached from the user. Lease recovery or a retry can
+    // requeue it, and a worker can claim and finish it.
+    for sql in [
+        "UPDATE jobs SET state = 'queued', lease_until = NULL, attempts = attempts + 1",
+        "UPDATE jobs SET state = 'running', lease_until = now() + interval '5 minutes'",
+        "UPDATE jobs SET state = 'failed', lease_until = NULL",
+        "UPDATE jobs SET state = 'queued'",
+        "UPDATE jobs SET state = 'ready'",
+    ] {
+        exec(
+            &pool,
+            &format!("{sql} WHERE id = '00000000-0000-4000-8000-0000000000f1' AND user_id IS NULL"),
+        )
+        .await;
+    }
     assert_eq!(
         count(
             &pool,

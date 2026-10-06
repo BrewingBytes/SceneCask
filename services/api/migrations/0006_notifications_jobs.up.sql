@@ -7,16 +7,22 @@ CREATE TABLE notifications (
     kind text NOT NULL CHECK (kind IN ('follow_request')),
     -- Nullable per C02 for future actorless kinds; a follow request always names its requester.
     actor_id uuid CHECK (kind <> 'follow_request' OR actor_id IS NOT NULL),
+    -- The requester of a follow_request, NULL for every other kind, so the follow-edge rules
+    -- below bind only follow requests and a future kind can name an actor freely. A future kind
+    -- with an actor adds its own users reference for actor_id.
+    follow_requester_id uuid GENERATED ALWAYS AS
+        (CASE WHEN kind = 'follow_request' THEN actor_id END) STORED,
     created_at timestamptz NOT NULL DEFAULT now(),
     read_at timestamptz,
     -- A follow request notification lives as long as its follow edge: withdrawal, decline,
     -- follower removal, unfollow, block and either user's erasure delete the edge and the
     -- notification with it, so a later request can notify again. actor_id has no separate users
     -- reference: a SET NULL there could detach the row from its edge before the cascade.
-    FOREIGN KEY (actor_id, user_id) REFERENCES follows (follower_id, followee_id) ON DELETE CASCADE,
-    -- One notification per actor, recipient and kind, so follow retries cannot duplicate. Its
-    -- index also serves the (actor_id, user_id) cascade from follows.
-    CONSTRAINT notifications_actor_user_kind_key UNIQUE (actor_id, user_id, kind)
+    FOREIGN KEY (follow_requester_id, user_id)
+        REFERENCES follows (follower_id, followee_id) ON DELETE CASCADE,
+    -- One follow-request notification per requester and recipient, so follow retries cannot
+    -- duplicate. Its index also serves the cascade from follows.
+    CONSTRAINT notifications_follow_request_key UNIQUE (follow_requester_id, user_id)
 );
 CREATE INDEX notifications_user_idx ON notifications (user_id, created_at DESC, id DESC);
 
@@ -34,8 +40,9 @@ CREATE INDEX outbox_pending_idx ON outbox (available_at) WHERE delivered_at IS N
 
 CREATE TABLE jobs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- SET NULL keeps the claimed deletion job's row so its outcome can be recorded. Any other
-    -- user job then fails the CHECK below, so erasure must first delete export files and rows.
+    -- SET NULL keeps the claimed deletion job's row so its outcome can be recorded and the job can
+    -- be retried or recovered after a crash. Any other user job then fails the CHECK below, so
+    -- erasure must first delete export files and rows.
     user_id uuid REFERENCES users (id) ON DELETE SET NULL,
     kind text NOT NULL CHECK (kind IN ('export', 'delete', 'metadata_refresh')),
     state text NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'ready', 'failed')),
@@ -47,19 +54,22 @@ CREATE TABLE jobs (
     attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     -- A crashed worker's claim expires here and the job becomes claimable again.
     lease_until timestamptz,
-    CHECK (user_id IS NOT NULL OR kind = 'metadata_refresh' OR (kind = 'delete' AND state <> 'queued')),
+    CHECK (user_id IS NOT NULL OR kind IN ('metadata_refresh', 'delete')),
     -- A running job always holds a lease, so another worker cannot claim it immediately.
     CHECK (state <> 'running' OR lease_until IS NOT NULL)
 );
 -- The CHECK cannot tell a deletion job that lost its user to erasure from one that never had a
--- user. A delete job is created with its user and may only drop it once that user is gone.
+-- user. A delete job is created with its user and may only drop it once that user is gone, while
+-- a worker has claimed it. Afterwards the userless job may change state freely, so lease recovery
+-- and bounded retries can requeue it until its outcome is recorded.
 CREATE FUNCTION jobs_delete_target_required() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'INSERT' OR OLD.kind <> 'delete'
-        OR (OLD.user_id IS NOT NULL AND EXISTS (SELECT FROM users WHERE id = OLD.user_id))
+        OR (OLD.user_id IS NOT NULL
+            AND (OLD.state <> 'running' OR EXISTS (SELECT FROM users WHERE id = OLD.user_id)))
     THEN
-        RAISE EXCEPTION 'a deletion job needs its user until that user is erased'
+        RAISE EXCEPTION 'a deletion job needs its user until a claimed job erases that user'
             USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = 'user_id';
     END IF;
     RETURN NEW;
