@@ -84,9 +84,9 @@ Use an imperative description, such as `feat(auth): add email sign-in`.
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
 `chore`, `revert`. Use `!` and a `BREAKING CHANGE:` footer for breaking changes.
 
-Name new branches `codex/<type>/<issue-number>-<short-kebab-case-description>`,
-for example `codex/feat/6-cookie-sessions`. Omit the issue number when there is no
-issue, for example `codex/docs/contribution-guide`.
+Name new branches `<type>/<issue-number>-<short-kebab-case-description>`,
+for example `feat/6-cookie-sessions`. Omit the issue number when there is no
+issue, for example `docs/contribution-guide`.
 
 Use the [PR template](.github/pull_request_template.md) to describe implementation,
 actual validation results, and the issue closed on merge.
