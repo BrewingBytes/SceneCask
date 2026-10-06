@@ -31,3 +31,59 @@ test("client instances do not share server-forwarded viewer cookies", async () =
   await Promise.all([a.GET("/session"), b.GET("/session")]);
   assert.deepEqual(cookies.sort(), ["scenecask=synthetic-a", "scenecask=synthetic-b"]);
 });
+
+test("undefined baseUrl retains the /api/v1 prefix", async () => {
+  let captured;
+  class BrowserRequest extends Request {
+    constructor(input, init) { super(new URL(input, "https://scenecask.test"), init); }
+  }
+  const client = createSceneCaskClient({ baseUrl: undefined, Request: BrowserRequest, fetch: async request => {
+    captured = request;
+    return new Response(JSON.stringify({ user: null, csrfToken: "synthetic" }));
+  } });
+  await client.GET("/session");
+  assert.equal(captured.url, "https://scenecask.test/api/v1/session");
+});
+
+test("client resolves rotating CSRF tokens and server Origin once per mutation", async () => {
+  const captured = [];
+  let token = "synthetic-first";
+  const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", origin: "https://example.test", getCsrfToken: () => token, fetch: async request => {
+    captured.push(request);
+    return new Response(null, { status: 204 });
+  } });
+  await client.DELETE("/me/identities/google", { body: {} });
+  token = "synthetic-rotated";
+  await client.DELETE("/me/identities/google", { body: {} });
+  assert.deepEqual(captured.map(r => r.headers.get("X-CSRF-Token")), ["synthetic-first", "synthetic-rotated"]);
+  for (const request of captured) {
+    assert.equal(request.headers.get("Origin"), "https://example.test");
+    assert.equal(request.headers.get("Content-Type"), "application/json");
+    assert.deepEqual(await request.json(), {});
+  }
+});
+
+test("authenticated mutations fail before transport when the CSRF token is absent", async () => {
+  let called = false;
+  const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", fetch: async () => { called = true; return new Response(); } });
+  await assert.rejects(client.POST("/reveals", { body: { scope: "discussion", resourceId: "synthetic" } }), /session CSRF token is required/);
+  assert.equal(called, false);
+});
+
+test("browser mutations leave Origin to the browser even with client defaults", async () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let captured;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
+  try {
+    const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", origin: "https://wrong-origin.test", headers: { Origin: "https://wrong-origin.test" }, getCsrfToken: () => "synthetic", fetch: async request => {
+      captured = request;
+      return new Response(null, { status: 204 });
+    } });
+    await client.DELETE("/me/identities/google", { body: {} });
+    assert.equal(captured.headers.has("Origin"), false);
+    assert.equal(captured.headers.get("X-CSRF-Token"), "synthetic");
+  } finally {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else delete globalThis.window;
+  }
+});

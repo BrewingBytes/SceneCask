@@ -2,7 +2,7 @@
 
 `contracts/openapi.yaml` is the canonical OpenAPI 3.1 source for all 59 C03–C08 operations.
 Change it first, then run `yarn api:generate`. Never edit `src/generated/schema.ts`
-or `contracts/operation-issues.json` manually. The operation mapping is derived from
+or `src/generated/security.ts` or `contracts/operation-issues.json` manually. The operation mapping is derived from
 each operation's `x-issue` and `x-rebuild-owner` (issue numbers differ from rebuild IDs).
 
 This workspace pins openapi-typescript 7.13.0, openapi-fetch 0.17.0, Redocly CLI
@@ -29,11 +29,19 @@ Create a client per viewer/request. Browser cookies use same-origin credentials;
 SSR callers provide an absolute same-origin `baseUrl` and explicitly forward only
 the current viewer's cookie through `headers`. Responses use `cache: "no-store"`.
 Do not share a client with viewer cookies across SSR requests or shared caches.
-The browser supplies Origin; use the configured public origin in the typed header
-parameters. Session-paired `X-CSRF-Token` comes from `/session`, never a global
-server variable. Progress/library/catch-up/history/Undo headers also require a UUID
-`Idempotency-Key`; retry unknown outcomes with the same key. Bodyless mutations
-still declare JSON content type. Google start/callback are browser navigations with
+The browser supplies Origin automatically; the client removes script-set Origin
+values in browsers. For SSR mutations, configure `origin` once with the public origin.
+Configure `getCsrfToken` once per client to resolve the current session-paired token
+from `/session` on each mutation, including after rotation. The client refuses an
+authenticated mutation if neither the getter nor request headers supply a token.
+The generated wire contract retains required Origin/CSRF headers; the convenience
+client's types allow those defaults, while still requiring each write's UUID
+`Idempotency-Key`. A catch-up preview requires CSRF but no idempotency key because
+it does not mutate watched progress/library state. Retry unknown write outcomes
+with the same key. DELETEs with no domain payload send the required empty JSON body
+(`body: {}`), so Content-Type is described by requestBody, not an ignored header
+parameter. An undefined `baseUrl` preserves `/api/v1`; SSR still needs an absolute URL.
+Google start/callback are browser navigations with
 303 redirects; do not initiate Google sign-in through an AJAX redirect to Google.
 
 `Episode` is a closed union of locked, watched and revealed variants. Locked payloads
@@ -49,11 +57,13 @@ This supplies the required concrete download DTO without changing export scope.
 Release state uses `released`, `future`, `unknown`; undated releases use null date.
 These wire details follow the canonical behavior; there are no product contract changes.
 
-Run `yarn api:check` from the repository root. Its nine automated tests cover complete
+Run `yarn api:check` from the repository root. Its seventeen automated tests cover complete
 endpoint ownership, every schema/request/success/error example, forbidden spoiler
 fields, tombstones, mutation validation, security/pagination/caching declarations,
 deterministic generation and stale generated output, mutation transport, and isolated
-viewer cookies. The generated header fingerprints the entire parsed contract, so
+viewer cookies, returnTo redirect guards, actual pagination boundaries, consistent
+progress examples, base URL fallback, default security headers and CSRF rotation.
+The generated header reads the installed generator version and fingerprints the entire parsed contract, so
 example/description changes also require regeneration. Generation compares in memory
 and never repairs drift during check mode.
 
@@ -62,12 +72,20 @@ Verification for issue #3 (2026-10-06):
 | Automated check | Result |
 | --- | --- |
 | `yarn api:generate` | Generated schema and operation mapping |
-| `yarn api:check` | OpenAPI lint, 9 tests, strict client compile, drift check pass |
+| `yarn api:check` | OpenAPI lint, 17 tests, strict client compile, drift check pass after PR review fixes |
 | `yarn lint` | Web lint, pinned Rust format/clippy pass |
 | `yarn typecheck` | Web compile pass |
 | `yarn build` | Web production build and pinned Rust build pass |
 | `yarn test` with local environment loaded | 12 tests pass against real PostgreSQL/Mailpit |
 | `yarn test:e2e` with local environment loaded | 6 existing foundation browser tests pass |
+
+The root lint/typecheck/build and PostgreSQL/browser results above were recorded
+for the initial implementation. The review follow-up reran contract generation,
+OpenAPI lint, all 17 package tests, strict client compilation and drift checks; it
+changes no Rust handlers, database schema or UI. Regression coverage tests redirect
+guards against decoded control characters, encoded controls/separators and nested
+encoding. Backend OAuth handling must additionally enforce the documented route
+allowlist and same-origin URL check after decoding the query once.
 
 Local environment was loaded with Node's `--env-file=.env`, without printing values.
 The sandboxed first Rust test attempt could not connect to local services; the rerun

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
@@ -11,8 +12,16 @@ import { buildArtifacts, saveArtifacts } from "../scripts/generate.mjs";
 const spec = YAML.parse(await readFile(new URL("../../../contracts/openapi.yaml", import.meta.url), "utf8"));
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats(ajv);
-ajv.addSchema({ $id: "https://scenecask.test/contract", components: spec.components });
-const validate = (schema, value) => ajv.compile({ ...schema, components: spec.components })(value);
+const schemaId = "https://scenecask.test/contract";
+ajv.addSchema({ $id: schemaId, components: spec.components });
+const validators = new Map();
+const validate = (schema, value) => {
+  const key = JSON.stringify(schema);
+  if (!validators.has(key)) validators.set(key, schema.$ref
+    ? ajv.getSchema(`${schemaId}${schema.$ref}`)
+    : ajv.compile({ ...schema, components: spec.components }));
+  return validators.get(key)(value);
+};
 const methods = new Set(["get", "post", "put", "patch", "delete"]);
 const resolve = value => value?.$ref ? value.$ref.slice(2).split("/").reduce((node, key) => node[key], spec) : value;
 const operations = Object.entries(spec.paths).flatMap(([route, item]) => Object.entries(item)
@@ -85,15 +94,19 @@ test("tombstones, visible libraries and errors cannot acquire protected keys", (
   assert.equal(validate({ $ref: "#/components/schemas/Error" }, { error: { ...error.error, stillUrl: "https://example.test/still.png" } }), false);
 });
 
-test("session, CSRF, idempotency, response caching and pagination conventions", () => {
+test("session, CSRF, write-only idempotency, JSON bodies and response caching conventions", () => {
+  const idempotentWrites = new Set(["saveLibraryEntry", "updateLibraryStatus", "setEpisodeProgress", "commitCatchup", "eraseHistory", "undoAction"]);
   for (const { route, method, operation } of operations) {
     const parameters = (operation.parameters ?? []).map(p => p.$ref ? spec.components.parameters[p.$ref.split("/").at(-1)] : p);
     if (method !== "get") {
       assert.ok(parameters.some(p => p.name === "Origin" && p.required), operation.operationId);
       if (operation.security.length) assert.ok(parameters.some(p => p.name === "X-CSRF-Token" && p.required), operation.operationId);
     }
-    if (method !== "get" && (/^\/(library|progress|actions)\//.test(route) || /catch-up|\/history$/.test(route))) {
-      assert.ok(parameters.some(p => p.name === "Idempotency-Key" && p.required), operation.operationId);
+    assert.equal(parameters.some(p => p.name === "Idempotency-Key" && p.required), idempotentWrites.has(operation.operationId), operation.operationId);
+    assert.equal(parameters.some(p => p.in === "header" && p.name === "Content-Type"), false);
+    if (method !== "get") {
+      assert.equal(operation.requestBody.required, true, route);
+      assert.ok(operation.requestBody.content["application/json"], route);
     }
     for (const [status, value] of Object.entries(operation.responses)) {
       const response = resolve(value);
@@ -104,10 +117,75 @@ test("session, CSRF, idempotency, response caching and pagination conventions", 
   }
 });
 
+test("cursor pages declare valid envelopes and bounded limits, with the episode default", () => {
+  const paginated = new Set(["listEpisodes", "listLibrary", "searchPeople", "listPersonLibrary", "listFollowRequests", "listFollowers", "listBlocks", "listActivity", "listRecommendations", "listEpisodeDiscussions", "listComments", "listNotifications", "listOperatorReports"]);
+  for (const { operation } of operations.filter(o => paginated.has(o.operation.operationId))) {
+    const parameters = operation.parameters.map(resolve);
+    const cursor = parameters.find(p => p.name === "cursor");
+    const limit = parameters.find(p => p.name === "limit");
+    assert.equal(cursor.in, "query");
+    assert.equal(cursor.schema.type, "string");
+    assert.equal(validate(cursor.schema, ""), false);
+    assert.deepEqual([limit.schema.minimum, limit.schema.maximum, limit.schema.default], [1, 50, operation.operationId === "listEpisodes" ? 50 : 20]);
+    for (const invalid of [0, 51, "20", 1.5]) assert.equal(validate(limit.schema, invalid), false);
+    assert.ok(validate(limit.schema, 50));
+    const media = resolve(operation.responses["200"]).content["application/json"];
+    const schema = resolve(media.schema);
+    assert.ok(schema.required.includes("items"));
+    assert.ok(schema.required.includes("nextCursor"));
+    const example = media.examples.success.value;
+    assert.ok(validate(media.schema, { ...example, nextCursor: "opaque-next-page" }));
+    assert.ok(validate(media.schema, { ...example, nextCursor: null }));
+    assert.equal(validate(media.schema, { ...example, nextCursor: 20 }), false);
+    const { nextCursor, ...withoutCursor } = example;
+    assert.equal(validate(media.schema, withoutCursor), false);
+  }
+  assert.equal(operations.filter(o => paginated.has(o.operation.operationId)).length, paginated.size);
+});
+
+test("returnTo rejects redirect syntax including decoded and encoded controls", () => {
+  const schema = spec.paths["/auth/google/start"].get.parameters.find(p => p.name === "returnTo").schema;
+  for (const safe of ["/", "/home", "/onboarding/profile", "/settings?tab=privacy"]) {
+    assert.ok(validate(schema, safe), safe);
+    assert.equal(new URL(safe, "https://scenecask.test").origin, "https://scenecask.test");
+  }
+  const unsafe = ["//evil.example", "/\\evil.example", "/%09/evil.example", "/%0a/evil.example", "/%0D/evil.example", "/%2f/evil.example", "/%5Cevil.example", "/%2509/evil.example", "/home\n", "/ home", "https://evil.example"];
+  for (let code = 0; code <= 32; code++) unsafe.push(`/${String.fromCharCode(code)}/evil.example`);
+  unsafe.push(`/home${String.fromCharCode(127)}`);
+  for (const value of unsafe) assert.equal(validate(schema, value), false, JSON.stringify(value));
+  const decoded = new URLSearchParams("returnTo=/%09/evil.example").get("returnTo");
+  assert.equal(new URL(decoded, "https://scenecask.test").origin, "https://evil.example");
+  assert.equal(validate(schema, decoded), false);
+});
+
+test("reveal creation declares the concealed NOT_FOUND response", () => {
+  const response = resolve(spec.paths["/reveals"].post.responses["404"]);
+  assert.equal(response.content["application/json"].examples.not_found.value.error.code, "NOT_FOUND");
+});
+
+test("all embedded progress examples follow the canonical counts and state", () => {
+  let found = 0;
+  const visit = node => {
+    if (!node || typeof node !== "object") return;
+    if ("nextEpisode" in node && "outOfOrder" in node && "percent" in node && typeof node.total === "number") {
+      found++;
+      assert.ok(node.watched <= node.total);
+      assert.equal(node.percent, node.total ? Math.round(100 * node.watched / node.total) : 0);
+      if (!node.total) assert.ok(["not_yet_available", "release_unknown"].includes(node.state));
+      if (node.state === "in_progress") assert.ok(node.total > node.watched);
+    }
+    for (const child of Object.values(node)) visit(child);
+  };
+  visit(spec);
+  assert.ok(found > 1);
+});
+
 test("regeneration is deterministic and changed schemas fail drift check", async () => {
   const temp = await mkdtemp(path.join(tmpdir(), "scenecask-api-drift-"));
   try {
     const baseline = await buildArtifacts(spec);
+    const generatorVersion = createRequire(import.meta.url)("openapi-typescript/package.json").version;
+    assert.ok(baseline.get("packages/api-client/src/generated/schema.ts").includes(`openapi-typescript ${generatorVersion} from`));
     await saveArtifacts(baseline, temp, false);
     await saveArtifacts(await buildArtifacts(spec), temp, true);
     const changed = structuredClone(spec);

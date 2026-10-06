@@ -518,8 +518,13 @@ paths:
           required: false
           schema:
             type: string
-            pattern: ^/(?!/)[^\\]*$
+            pattern: ^(?!.*%(?:0[0-9A-Fa-f]|1[0-9A-Fa-f]|20|7[Ff]|2[Ff]|5[Cc]|25))/(?![/\\])[\x21-\x5B\x5D-\x7E]*(?![\s\S])
             default: /home
+          description: Decoded query value must be an allowlisted same-origin path. Reject controls,
+            whitespace, backslashes, protocol-relative paths and encoded controls/separators/percent
+            signs. Decode the query once, never decode returnTo again; resolve against the
+            configured public origin and verify its origin before redirecting. This pattern is a
+            syntax guard, not the route allowlist.
       responses:
         "303":
           description: Successful response. Unwrapped authoritative payload.
@@ -733,14 +738,6 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - name: Content-Type
-          in: header
-          required: true
-          schema:
-            type: string
-            enum:
-              - application/json
-          description: Authenticated mutations require JSON content type, including bodyless DELETE requests.
       responses:
         "204":
           description: Successful response. No response body.
@@ -763,6 +760,15 @@ paths:
           $ref: "#/components/responses/Error5034"
       x-email-verified: false
       x-rebuild-owner: R09
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyRequest"
+            examples:
+              request:
+                value: {}
   /me:
     patch:
       operationId: updateProfile
@@ -1426,12 +1432,15 @@ paths:
                       status: plan_to_watch
                       revision: 0
                       progress:
-                        watched: 0
-                        total: 0
-                        percent: 0
+                        watched: 2
+                        total: 6
+                        percent: 33
                         state: in_progress
-                        nextEpisode: null
-                        outOfOrder: false
+                        nextEpisode:
+                          id: 30000000-0000-4000-8000-000000000002
+                          season: 1
+                          number: 2
+                        outOfOrder: true
                         releaseInfoIncomplete: false
                     trackingRevision: 0
                     episodes: []
@@ -1516,12 +1525,15 @@ paths:
                       status: plan_to_watch
                       revision: 0
                       progress:
-                        watched: 0
-                        total: 0
-                        percent: 0
+                        watched: 2
+                        total: 6
+                        percent: 33
                         state: in_progress
-                        nextEpisode: null
-                        outOfOrder: false
+                        nextEpisode:
+                          id: 30000000-0000-4000-8000-000000000002
+                          season: 1
+                          number: 2
+                        outOfOrder: true
                         releaseInfoIncomplete: false
                     trackingRevision: 0
                     episodes: []
@@ -1613,12 +1625,15 @@ paths:
                       status: plan_to_watch
                       revision: 0
                       progress:
-                        watched: 0
-                        total: 0
-                        percent: 0
+                        watched: 2
+                        total: 6
+                        percent: 33
                         state: in_progress
-                        nextEpisode: null
-                        outOfOrder: false
+                        nextEpisode:
+                          id: 30000000-0000-4000-8000-000000000002
+                          season: 1
+                          number: 2
+                        outOfOrder: true
                         releaseInfoIncomplete: false
                     trackingRevision: 0
                     episodes: []
@@ -1661,6 +1676,8 @@ paths:
         Requires authenticated cookie session and verified email.
 
         Same-origin validation required. Authenticated mutations require session-paired X-CSRF-Token; body uses application/json. Errors never echo credentials, submitted content, protected strings or asset paths.
+
+        Preview creates a short-lived snapshot without modifying watched progress/library state; Idempotency-Key is not required. Confirmation performs the idempotent domain write.
       tags:
         - Tracking
       security:
@@ -1675,7 +1692,6 @@ paths:
             format: uuid
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - $ref: "#/components/parameters/Idempotency"
       responses:
         "200":
           description: Successful response. Unwrapped authoritative payload.
@@ -1692,8 +1708,8 @@ paths:
                     previewId: 10000000-0000-4000-8000-000000000001
                     expiresAt: 2026-10-06T12:00:00Z
                     through:
-                      season: 0
-                      episode: 0
+                      season: 2
+                      episode: 7
                     included: []
                     excluded:
                       alreadyWatched: []
@@ -1709,8 +1725,6 @@ paths:
           $ref: "#/components/responses/Error4038"
         "404":
           $ref: "#/components/responses/Error40414"
-        "409":
-          $ref: "#/components/responses/Error40917"
         "422":
           $ref: "#/components/responses/Error42218"
         "429":
@@ -1787,12 +1801,15 @@ paths:
                       status: plan_to_watch
                       revision: 0
                       progress:
-                        watched: 0
-                        total: 0
-                        percent: 0
+                        watched: 2
+                        total: 6
+                        percent: 33
                         state: in_progress
-                        nextEpisode: null
-                        outOfOrder: false
+                        nextEpisode:
+                          id: 30000000-0000-4000-8000-000000000002
+                          season: 1
+                          number: 2
+                        outOfOrder: true
                         releaseInfoIncomplete: false
                     trackingRevision: 0
                     episodes: []
@@ -1883,12 +1900,15 @@ paths:
                       status: plan_to_watch
                       revision: 0
                       progress:
-                        watched: 0
-                        total: 0
-                        percent: 0
+                        watched: 2
+                        total: 6
+                        percent: 33
                         state: in_progress
-                        nextEpisode: null
-                        outOfOrder: false
+                        nextEpisode:
+                          id: 30000000-0000-4000-8000-000000000002
+                          season: 1
+                          number: 2
+                        outOfOrder: true
                         releaseInfoIncomplete: false
                     trackingRevision: 0
                     episodes: []
@@ -1980,12 +2000,15 @@ paths:
                       status: plan_to_watch
                       revision: 0
                       progress:
-                        watched: 0
-                        total: 0
-                        percent: 0
+                        watched: 2
+                        total: 6
+                        percent: 33
                         state: in_progress
-                        nextEpisode: null
-                        outOfOrder: false
+                        nextEpisode:
+                          id: 30000000-0000-4000-8000-000000000002
+                          season: 1
+                          number: 2
+                        outOfOrder: true
                         releaseInfoIncomplete: false
         "400":
           $ref: "#/components/responses/Error4001"
@@ -2253,12 +2276,15 @@ paths:
                         saved: false
                         status: plan_to_watch
                         progress:
-                          watched: 0
-                          total: 0
-                          percent: 0
+                          watched: 2
+                          total: 6
+                          percent: 33
                           state: in_progress
-                          nextEpisode: null
-                          outOfOrder: false
+                          nextEpisode:
+                            id: 30000000-0000-4000-8000-000000000002
+                            season: 1
+                            number: 2
+                          outOfOrder: true
                           releaseInfoIncomplete: false
                     nextCursor: null
         "400":
@@ -2384,14 +2410,6 @@ paths:
             format: uuid
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - name: Content-Type
-          in: header
-          required: true
-          schema:
-            type: string
-            enum:
-              - application/json
-          description: Authenticated mutations require JSON content type, including bodyless DELETE requests.
       responses:
         "204":
           description: Successful response. No response body.
@@ -2415,6 +2433,15 @@ paths:
       x-email-verified: true
       x-feature-flag: social-beta
       x-rebuild-owner: R25
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyRequest"
+            examples:
+              request:
+                value: {}
   /me/follow-requests:
     get:
       operationId: listFollowRequests
@@ -2637,14 +2664,6 @@ paths:
             format: uuid
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - name: Content-Type
-          in: header
-          required: true
-          schema:
-            type: string
-            enum:
-              - application/json
-          description: Authenticated mutations require JSON content type, including bodyless DELETE requests.
       responses:
         "204":
           description: Successful response. No response body.
@@ -2668,6 +2687,15 @@ paths:
       x-email-verified: true
       x-feature-flag: social-beta
       x-rebuild-owner: R26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyRequest"
+            examples:
+              request:
+                value: {}
   /me/privacy:
     patch:
       operationId: updatePrivacy
@@ -2887,14 +2915,6 @@ paths:
             format: uuid
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - name: Content-Type
-          in: header
-          required: true
-          schema:
-            type: string
-            enum:
-              - application/json
-          description: Authenticated mutations require JSON content type, including bodyless DELETE requests.
       responses:
         "204":
           description: Successful response. No response body.
@@ -2918,6 +2938,15 @@ paths:
       x-email-verified: true
       x-feature-flag: social-beta
       x-rebuild-owner: R26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyRequest"
+            examples:
+              request:
+                value: {}
   /activity:
     get:
       operationId: listActivity
@@ -3379,14 +3408,6 @@ paths:
             format: uuid
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - name: Content-Type
-          in: header
-          required: true
-          schema:
-            type: string
-            enum:
-              - application/json
-          description: Authenticated mutations require JSON content type, including bodyless DELETE requests.
       responses:
         "204":
           description: Successful response. No response body.
@@ -3410,6 +3431,15 @@ paths:
       x-email-verified: true
       x-feature-flag: social-beta
       x-rebuild-owner: R31
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyRequest"
+            examples:
+              request:
+                value: {}
   /comments/{id}/reports:
     post:
       operationId: reportComment
@@ -3538,6 +3568,8 @@ paths:
           $ref: "#/components/responses/Error4019"
         "403":
           $ref: "#/components/responses/Error4038"
+        "404":
+          $ref: "#/components/responses/Error40414"
         "422":
           $ref: "#/components/responses/Error4222"
         "429":
@@ -3590,14 +3622,6 @@ paths:
             format: uuid
         - $ref: "#/components/parameters/Origin"
         - $ref: "#/components/parameters/CSRF"
-        - name: Content-Type
-          in: header
-          required: true
-          schema:
-            type: string
-            enum:
-              - application/json
-          description: Authenticated mutations require JSON content type, including bodyless DELETE requests.
       responses:
         "204":
           description: Successful response. No response body.
@@ -3620,6 +3644,15 @@ paths:
           $ref: "#/components/responses/Error5034"
       x-email-verified: true
       x-rebuild-owner: R18
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyRequest"
+            examples:
+              request:
+                value: {}
   /notifications:
     get:
       operationId: listNotifications
@@ -4167,7 +4200,9 @@ components:
       schema:
         type: string
         format: uri
-      description: Must match configured public origin; auth requests also validate Origin.
+      description: Must match configured public origin; auth requests also validate Origin. Browsers
+        supply this forbidden request header automatically; SSR clients must configure the public
+        origin. Never rely on a script-set browser Origin value.
   schemas:
     Visibility:
       type: string
@@ -4632,12 +4667,15 @@ components:
         released gaps mean in_progress; all released marked means caught_up; no releases means
         not_yet_available or release_unknown.
       example:
-        watched: 0
-        total: 0
-        percent: 0
+        watched: 2
+        total: 6
+        percent: 33
         state: in_progress
-        nextEpisode: null
-        outOfOrder: false
+        nextEpisode:
+          id: 30000000-0000-4000-8000-000000000002
+          season: 1
+          number: 2
+        outOfOrder: true
         releaseInfoIncomplete: false
     LibraryItem:
       type: object
@@ -4687,12 +4725,15 @@ components:
         status: plan_to_watch
         revision: 0
         progress:
-          watched: 0
-          total: 0
-          percent: 0
+          watched: 2
+          total: 6
+          percent: 33
           state: in_progress
-          nextEpisode: null
-          outOfOrder: false
+          nextEpisode:
+            id: 30000000-0000-4000-8000-000000000002
+            season: 1
+            number: 2
+          outOfOrder: true
           releaseInfoIncomplete: false
     VisibleLibraryItem:
       type: object
@@ -4737,12 +4778,15 @@ components:
         saved: false
         status: plan_to_watch
         progress:
-          watched: 0
-          total: 0
-          percent: 0
+          watched: 2
+          total: 6
+          percent: 33
           state: in_progress
-          nextEpisode: null
-          outOfOrder: false
+          nextEpisode:
+            id: 30000000-0000-4000-8000-000000000002
+            season: 1
+            number: 2
+          outOfOrder: true
           releaseInfoIncomplete: false
     Show:
       type: object
@@ -4859,12 +4903,15 @@ components:
           status: plan_to_watch
           revision: 0
           progress:
-            watched: 0
-            total: 0
-            percent: 0
+            watched: 2
+            total: 6
+            percent: 33
             state: in_progress
-            nextEpisode: null
-            outOfOrder: false
+            nextEpisode:
+              id: 30000000-0000-4000-8000-000000000002
+              season: 1
+              number: 2
+            outOfOrder: true
             releaseInfoIncomplete: false
         trackingRevision: 0
         episodes: []
@@ -4901,12 +4948,15 @@ components:
           status: plan_to_watch
           revision: 0
           progress:
-            watched: 0
-            total: 0
-            percent: 0
+            watched: 2
+            total: 6
+            percent: 33
             state: in_progress
-            nextEpisode: null
-            outOfOrder: false
+            nextEpisode:
+              id: 30000000-0000-4000-8000-000000000002
+              season: 1
+              number: 2
+            outOfOrder: true
             releaseInfoIncomplete: false
     CatchupPreview:
       type: object
@@ -4977,8 +5027,8 @@ components:
         previewId: 10000000-0000-4000-8000-000000000001
         expiresAt: 2026-10-06T12:00:00Z
         through:
-          season: 0
-          episode: 0
+          season: 2
+          episode: 7
         included: []
         excluded:
           alreadyWatched: []
@@ -5758,12 +5808,15 @@ components:
             saved: false
             status: plan_to_watch
             progress:
-              watched: 0
-              total: 0
-              percent: 0
+              watched: 2
+              total: 6
+              percent: 33
               state: in_progress
-              nextEpisode: null
-              outOfOrder: false
+              nextEpisode:
+                id: 30000000-0000-4000-8000-000000000002
+                season: 1
+                number: 2
+              outOfOrder: true
               releaseInfoIncomplete: false
         nextCursor: null
     BlocksPage:
@@ -6662,12 +6715,15 @@ components:
           status: plan_to_watch
           revision: 0
           progress:
-            watched: 0
-            total: 0
-            percent: 0
+            watched: 2
+            total: 6
+            percent: 33
             state: in_progress
-            nextEpisode: null
-            outOfOrder: false
+            nextEpisode:
+              id: 30000000-0000-4000-8000-000000000002
+              season: 1
+              number: 2
+            outOfOrder: true
             releaseInfoIncomplete: false
         trackingRevision: 0
         episodes: []
@@ -6732,12 +6788,15 @@ components:
           status: plan_to_watch
           revision: 0
           progress:
-            watched: 0
-            total: 0
-            percent: 0
+            watched: 2
+            total: 6
+            percent: 33
             state: in_progress
-            nextEpisode: null
-            outOfOrder: false
+            nextEpisode:
+              id: 30000000-0000-4000-8000-000000000002
+              season: 1
+              number: 2
+            outOfOrder: true
             releaseInfoIncomplete: false
         trackingRevision: 0
         episodes: []
