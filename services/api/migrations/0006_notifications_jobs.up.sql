@@ -5,20 +5,20 @@ CREATE TABLE notifications (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     kind text NOT NULL CHECK (kind IN ('follow_request')),
-    actor_id uuid NOT NULL,
+    -- Nullable per C02 for future actorless kinds; a follow request always names its requester.
+    actor_id uuid CHECK (kind <> 'follow_request' OR actor_id IS NOT NULL),
     created_at timestamptz NOT NULL DEFAULT now(),
     read_at timestamptz,
     -- A follow request notification lives as long as its follow edge: withdrawal, decline,
     -- follower removal, unfollow, block and either user's erasure delete the edge and the
     -- notification with it, so a later request can notify again. actor_id has no separate users
     -- reference: a SET NULL there could detach the row from its edge before the cascade.
-    FOREIGN KEY (actor_id, user_id) REFERENCES follows (follower_id, followee_id) ON DELETE CASCADE
+    FOREIGN KEY (actor_id, user_id) REFERENCES follows (follower_id, followee_id) ON DELETE CASCADE,
+    -- One notification per actor, recipient and kind, so follow retries cannot duplicate. Its
+    -- index also serves the (actor_id, user_id) cascade from follows.
+    CONSTRAINT notifications_actor_user_kind_key UNIQUE (actor_id, user_id, kind)
 );
 CREATE INDEX notifications_user_idx ON notifications (user_id, created_at DESC, id DESC);
--- One notification per recipient, kind and actor: follow retries cannot duplicate.
-CREATE UNIQUE INDEX notifications_user_kind_actor_key ON notifications (user_id, kind, actor_id);
--- Edge removal cascades on (actor_id, user_id); index it so the delete does not scan.
-CREATE INDEX notifications_actor_idx ON notifications (actor_id, user_id);
 
 CREATE TABLE outbox (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

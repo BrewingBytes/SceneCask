@@ -87,12 +87,13 @@ const SCHEMA: &[(&str, &[&str])] = &[
             "created_at",
         ],
     ),
-    ("seasons", &["id", "show_id", "number"]),
+    ("seasons", &["id", "tmdb_id", "show_id", "number"]),
     (
         "episodes",
         &[
             "id",
             "tmdb_id",
+            "show_id",
             "season_id",
             "number",
             "title",
@@ -407,8 +408,15 @@ async fn constraints_reject_duplicates_self_edges_and_invalid_values(pool: PgPoo
     rejects(
         &pool,
         "23505",
-        "INSERT INTO episodes (tmdb_id, season_id, number)
-        VALUES (910001, '00000000-0000-4000-8000-0000000005b1', 9)",
+        "INSERT INTO episodes (tmdb_id, show_id, season_id, number)
+        VALUES (910001, '00000000-0000-4000-8000-0000000005a1', '00000000-0000-4000-8000-0000000005b1', 9)",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23505",
+        "INSERT INTO seasons (tmdb_id, show_id, number)
+        VALUES (905001, '00000000-0000-4000-8000-0000000005a1', 7)",
     )
     .await;
 
@@ -433,13 +441,17 @@ async fn constraints_reject_duplicates_self_edges_and_invalid_values(pool: PgPoo
         format!("UPDATE users SET handle = 'Ana!' WHERE id = '{ANA}'"),
         format!("UPDATE follows SET state = 'declined' WHERE follower_id = '{ANA}'"),
         format!(
-            "INSERT INTO library_entries (user_id, show_id, status, saved_at) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'completed', now())"
+            "INSERT INTO library_entries (user_id, show_id, status, saved_at, revision) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'completed', now(), 1)"
         ),
         format!(
-            "INSERT INTO library_entries (user_id, show_id, status, saved_at) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'caught_up', now())"
+            "INSERT INTO library_entries (user_id, show_id, status, saved_at, revision) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'caught_up', now(), 1)"
         ),
         format!(
-            "INSERT INTO library_entries (user_id, show_id, saved) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', true)"
+            "INSERT INTO library_entries (user_id, show_id, saved, revision) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', true, 1)"
+        ),
+        // A stored entry starts at revision 1; revision 0 means no row.
+        format!(
+            "INSERT INTO library_entries (user_id, show_id, saved_at, revision) VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', now(), 0)"
         ),
         "UPDATE shows SET status = 'airing'".to_owned(),
         format!(
@@ -597,10 +609,10 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
     assert_eq!(count(&pool, "SELECT count(*) FROM notifications").await, 0);
     exec(&pool, &request).await;
     exec(&pool, &notification).await;
-    // Every notification names its actor, so none can exist without a follow edge.
+    // A follow request always names its actor, so none can exist without a follow edge.
     rejects(
         &pool,
-        "23502",
+        "23514",
         &format!("INSERT INTO notifications (user_id, kind) VALUES ('{ANA}', 'follow_request')"),
     )
     .await;
@@ -623,6 +635,7 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
 async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool: PgPool) {
+    const SHOW: &str = "00000000-0000-4000-8000-0000000005a1";
     const S1: &str = "00000000-0000-4000-8000-0000000005b1";
     exec(&pool, &format!("
         INSERT INTO mutation_actions (id, user_id, show_id, kind, undo_until)
@@ -637,7 +650,7 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
     rejects(
         &pool,
         "23P01",
-        &format!("INSERT INTO episodes (tmdb_id, season_id, number) VALUES (919999, '{S1}', 2)"),
+        &format!("INSERT INTO episodes (tmdb_id, show_id, season_id, number) VALUES (919999, '{SHOW}', '{S1}', 2)"),
     )
     .await;
     exec(
@@ -680,7 +693,7 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         &format!(
             "
         UPDATE episodes SET archived_at = now() WHERE tmdb_id = 910002;
-        INSERT INTO episodes (tmdb_id, season_id, number) VALUES (919999, '{S1}', 3);
+        INSERT INTO episodes (tmdb_id, show_id, season_id, number) VALUES (919999, '{SHOW}', '{S1}', 3);
     "
         ),
     )
@@ -769,10 +782,10 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         "
         INSERT INTO shows (id, tmdb_id, title, fetched_at)
         VALUES ('00000000-0000-4000-8000-0000000006a1', 900002, 'Other Show', now());
-        INSERT INTO seasons (id, show_id, number)
-        VALUES ('00000000-0000-4000-8000-0000000006b1', '00000000-0000-4000-8000-0000000006a1', 1);
-        INSERT INTO episodes (id, tmdb_id, season_id, number)
-        VALUES ('00000000-0000-4000-8000-0000000006e1', 920001, '00000000-0000-4000-8000-0000000006b1', 1);
+        INSERT INTO seasons (id, tmdb_id, show_id, number)
+        VALUES ('00000000-0000-4000-8000-0000000006b1', 925001, '00000000-0000-4000-8000-0000000006a1', 1);
+        INSERT INTO episodes (id, tmdb_id, show_id, season_id, number)
+        VALUES ('00000000-0000-4000-8000-0000000006e1', 920001, '00000000-0000-4000-8000-0000000006a1', '00000000-0000-4000-8000-0000000006b1', 1);
     ",
     )
     .await;
@@ -799,8 +812,16 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
     .await;
     rejects(
         &pool,
-        "23514",
+        "23503",
         "UPDATE episodes SET season_id = '00000000-0000-4000-8000-0000000005b1'
+         WHERE id = '00000000-0000-4000-8000-0000000006e1'",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE episodes SET show_id = '00000000-0000-4000-8000-0000000005a1',
+             season_id = '00000000-0000-4000-8000-0000000005b1'
          WHERE id = '00000000-0000-4000-8000-0000000006e1'",
     )
     .await;
@@ -810,6 +831,33 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
          WHERE id = '00000000-0000-4000-8000-0000000005e0'",
     )
     .await;
+
+    // Catalog changes that can affect a catch-up preview advance catalog_revision; display-only
+    // edits do not.
+    let catalog_revision = format!("SELECT catalog_revision FROM shows WHERE id = '{SHOW}'");
+    let before = count(&pool, &catalog_revision).await;
+    exec(
+        &pool,
+        "UPDATE episodes SET title = 'Retitled' WHERE tmdb_id = 910001",
+    )
+    .await;
+    assert_eq!(count(&pool, &catalog_revision).await, before);
+    for sql in [
+        "UPDATE episodes SET air_date = '2024-02-02' WHERE tmdb_id = 910001".to_owned(),
+        "UPDATE episodes SET archived_at = now() WHERE tmdb_id = 910001".to_owned(),
+        "UPDATE seasons SET number = 5 WHERE tmdb_id = 905000".to_owned(),
+        format!(
+            "INSERT INTO episodes (tmdb_id, show_id, season_id, number) VALUES (919998, '{SHOW}', '{S1}', 10)"
+        ),
+        format!("INSERT INTO seasons (tmdb_id, show_id, number) VALUES (905002, '{SHOW}', 2)"),
+    ] {
+        let previous = count(&pool, &catalog_revision).await;
+        exec(&pool, &sql).await;
+        assert!(
+            count(&pool, &catalog_revision).await > previous,
+            "catalog_revision did not advance for: {sql}"
+        );
+    }
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -825,7 +873,8 @@ async fn user_deletion_erases_private_state_without_cascading_shared_content(poo
         VALUES ('00000000-0000-4000-8000-0000000000a1', '{ANA}', '00000000-0000-4000-8000-0000000005a1', 'episode_watched', now() + interval '10 minutes'),
                ('00000000-0000-4000-8000-0000000000b1', '{BEN}', '00000000-0000-4000-8000-0000000005a1', 'episode_watched', now() + interval '10 minutes');
         INSERT INTO mutation_changes (action_id, entity, entity_key, field, before_value, after_revision)
-        VALUES ('00000000-0000-4000-8000-0000000000a1', 'episode_progress', '00000000-0000-4000-8000-0000000005e1', 'watched', 'false', 1);
+        VALUES ('00000000-0000-4000-8000-0000000000a1', 'episode_progress', '00000000-0000-4000-8000-0000000005e1', 'watched', 'false', 1),
+               ('00000000-0000-4000-8000-0000000000a1', 'library_entry', '00000000-0000-4000-8000-0000000005a1', 'saved', 'false', 1);
         INSERT INTO episode_progress (user_id, episode_id, watched, revision, last_action_id)
         VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005e1', true, 1, '00000000-0000-4000-8000-0000000000a1'),
                ('{BEN}', '00000000-0000-4000-8000-0000000005e1', true, 1, '00000000-0000-4000-8000-0000000000b1');

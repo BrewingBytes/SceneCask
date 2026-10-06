@@ -25,18 +25,25 @@ CREATE TRIGGER shows_catalog_revision_forward
 
 CREATE TABLE seasons (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- Provider identity, so numbering corrections match seasons by tmdb_id, never by number.
+    tmdb_id bigint NOT NULL UNIQUE CHECK (tmdb_id > 0),
     show_id uuid NOT NULL REFERENCES shows (id) ON DELETE RESTRICT,
     -- Season 0 holds specials.
     number integer NOT NULL CHECK (number >= 0),
     -- Deferrable so an import can swap corrected season numbers in one transaction. A deferrable
-    -- constraint cannot be an ON CONFLICT arbiter; imports lock the show row and look seasons up.
-    CONSTRAINT seasons_show_number_key UNIQUE (show_id, number) DEFERRABLE INITIALLY IMMEDIATE
+    -- constraint cannot be an ON CONFLICT arbiter; imports lock the show row and upsert on tmdb_id.
+    CONSTRAINT seasons_show_number_key UNIQUE (show_id, number) DEFERRABLE INITIALLY IMMEDIATE,
+    -- Target for the episodes (show_id, season_id) foreign key.
+    UNIQUE (show_id, id)
 );
 
 CREATE TABLE episodes (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tmdb_id bigint NOT NULL UNIQUE CHECK (tmdb_id > 0),
-    season_id uuid NOT NULL REFERENCES seasons (id) ON DELETE RESTRICT,
+    -- Denormalized from the season so rows pairing a show with an episode (previews, activity)
+    -- can reference (show_id, id) and PostgreSQL checks that the episode belongs to the show.
+    show_id uuid NOT NULL,
+    season_id uuid NOT NULL,
     number integer NOT NULL CHECK (number >= 0),
     title text,
     overview text,
@@ -44,6 +51,8 @@ CREATE TABLE episodes (
     air_date date,
     release_timezone text CHECK (release_timezone <> ''),
     archived_at timestamptz,
+    FOREIGN KEY (show_id, season_id) REFERENCES seasons (show_id, id) ON DELETE RESTRICT,
+    UNIQUE (show_id, id),
     -- Unique season+number among active episodes. Deferrable so an import can swap
     -- corrected numbers in one transaction; archived rows keep their old number. Its index
     -- also serves season/episode ordering of active episodes. An exclusion constraint cannot be
@@ -53,29 +62,47 @@ CREATE TABLE episodes (
         DEFERRABLE INITIALLY IMMEDIATE
 );
 
--- Catalog rows never move to another show: a season keeps its show, and an episode may only move
--- between seasons of the same show. Rows pairing a show with an episode (activity, previews)
--- therefore stay consistent through numbering corrections.
+-- Catalog rows never move to another show, so progress and history stay with their show through
+-- numbering corrections. An episode may still move between seasons of its show.
 CREATE FUNCTION catalog_show_unchanged() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    -- Nested so the seasons branch never resolves NEW.season_id.
-    IF TG_TABLE_NAME = 'episodes' THEN
-        IF (SELECT show_id FROM seasons WHERE id = NEW.season_id)
-           = (SELECT show_id FROM seasons WHERE id = OLD.season_id)
-        THEN
-            RETURN NEW;
-        END IF;
-    END IF;
     RAISE EXCEPTION 'catalog rows cannot move to another show'
-        USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = TG_ARGV[0];
+        USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = 'show_id';
 END;
 $$;
 CREATE TRIGGER seasons_show_unchanged
     BEFORE UPDATE OF show_id ON seasons
     FOR EACH ROW WHEN (NEW.show_id <> OLD.show_id)
-    EXECUTE FUNCTION catalog_show_unchanged('show_id');
+    EXECUTE FUNCTION catalog_show_unchanged();
 CREATE TRIGGER episodes_show_unchanged
-    BEFORE UPDATE OF season_id ON episodes
-    FOR EACH ROW WHEN (NEW.season_id <> OLD.season_id)
-    EXECUTE FUNCTION catalog_show_unchanged('season_id');
+    BEFORE UPDATE OF show_id ON episodes
+    FOR EACH ROW WHEN (NEW.show_id <> OLD.show_id)
+    EXECUTE FUNCTION catalog_show_unchanged();
+
+-- Any change to which episodes exist, their order, release dates or archival advances the show's
+-- catalog_revision, so a catch-up preview built on the old catalog fails as PREVIEW_STALE.
+-- Titles, overviews and artwork do not affect previews. Imports lock the show row first, so this
+-- update does not add a new lock order.
+CREATE FUNCTION advance_catalog_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE shows SET catalog_revision = catalog_revision + 1 WHERE id = NEW.show_id;
+    RETURN NULL;
+END;
+$$;
+CREATE TRIGGER seasons_insert_advances_catalog
+    AFTER INSERT ON seasons
+    FOR EACH ROW EXECUTE FUNCTION advance_catalog_revision();
+CREATE TRIGGER seasons_update_advances_catalog
+    AFTER UPDATE OF number ON seasons
+    FOR EACH ROW WHEN (NEW.number <> OLD.number)
+    EXECUTE FUNCTION advance_catalog_revision();
+CREATE TRIGGER episodes_insert_advances_catalog
+    AFTER INSERT ON episodes
+    FOR EACH ROW EXECUTE FUNCTION advance_catalog_revision();
+CREATE TRIGGER episodes_update_advances_catalog
+    AFTER UPDATE OF season_id, number, air_date, release_timezone, archived_at ON episodes
+    FOR EACH ROW WHEN ((NEW.season_id, NEW.number, NEW.air_date, NEW.release_timezone, NEW.archived_at)
+        IS DISTINCT FROM (OLD.season_id, OLD.number, OLD.air_date, OLD.release_timezone, OLD.archived_at))
+    EXECUTE FUNCTION advance_catalog_revision();

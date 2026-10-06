@@ -90,3 +90,5 @@ CREATE TABLE oauth_flows (
     CHECK (intent = 'signin' OR session_id IS NOT NULL)
 );
 CREATE INDEX oauth_flows_expires_idx ON oauth_flows (expires_at);
+-- Session deletion cascades here; index it so logout and expiry sweeps do not scan.
+CREATE INDEX oauth_flows_session_idx ON oauth_flows (session_id) WHERE session_id IS NOT NULL;

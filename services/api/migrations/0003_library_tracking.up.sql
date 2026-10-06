@@ -9,7 +9,9 @@ CREATE TABLE library_entries (
     status text NOT NULL DEFAULT 'plan_to_watch'
         CHECK (status IN ('plan_to_watch', 'watching', 'on_hold', 'dropped')),
     saved_at timestamptz,
-    revision bigint NOT NULL DEFAULT 0 CHECK (revision >= 0),
+    -- No row reads as revision 0, so the first write stores 1 and mutation_changes.after_revision
+    -- can always name it.
+    revision bigint NOT NULL CHECK (revision > 0),
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, show_id),
     CHECK (NOT saved OR saved_at IS NOT NULL)
@@ -97,31 +99,15 @@ CREATE TABLE catchup_previews (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     show_id uuid NOT NULL REFERENCES shows (id) ON DELETE RESTRICT,
-    endpoint_episode_id uuid NOT NULL REFERENCES episodes (id) ON DELETE RESTRICT,
+    endpoint_episode_id uuid NOT NULL,
     episode_ids jsonb NOT NULL CHECK (jsonb_typeof(episode_ids) = 'array'),
     revisions jsonb NOT NULL CHECK (jsonb_typeof(revisions) = 'object'),
     catalog_revision bigint NOT NULL CHECK (catalog_revision >= 0),
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL,
-    CHECK (expires_at > created_at)
+    CHECK (expires_at > created_at),
+    -- The endpoint episode belongs to the previewed show.
+    FOREIGN KEY (show_id, endpoint_episode_id) REFERENCES episodes (show_id, id) ON DELETE RESTRICT
 );
--- A preview's endpoint episode must belong to the previewed show.
-CREATE FUNCTION catchup_previews_episode_in_show() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT FROM episodes e JOIN seasons s ON s.id = e.season_id
-        WHERE e.id = NEW.endpoint_episode_id AND s.show_id = NEW.show_id
-    ) THEN
-        RAISE EXCEPTION 'endpoint episode must belong to the preview show'
-            USING ERRCODE = 'foreign_key_violation', TABLE = TG_TABLE_NAME,
-                  COLUMN = 'endpoint_episode_id';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-CREATE TRIGGER catchup_previews_episode_in_show
-    BEFORE INSERT OR UPDATE OF show_id, endpoint_episode_id ON catchup_previews
-    FOR EACH ROW EXECUTE FUNCTION catchup_previews_episode_in_show();
 CREATE INDEX catchup_previews_user_idx ON catchup_previews (user_id, show_id);
 CREATE INDEX catchup_previews_expires_idx ON catchup_previews (expires_at);
