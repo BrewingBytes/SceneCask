@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:oklch(0.9 0.006 80);font-family:'Schibsted Grotesk',sans-serif;color:oklch(0.21 0.015 50)}a{color:oklch(0.5 0.13 38)}a:hover{color:oklch(0.42 0.13 38)}</style>
+</helmet>
+<section data-screen-label="Overview" style="padding:64px 64px 24px;display:flex;flex-direction:column;gap:10px;max-width:1100px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.06em;color:oklch(0.4 0.01 60)">SCENECASK · DIRECTION B · BRIGHT EDITORIAL</div>
+<h1 style="margin:0;font-weight:800;font-size:64px;letter-spacing:-.05em;line-height:1">Layouts and states</h1>
+<p style="margin:0;font-family:Newsreader,serif;font-size:20px;line-height:1.45;color:oklch(0.32 0.01 60)">Every frame is the live prototype, opened in a fixed state. Click around inside any frame. The full journey starts in <a href="SceneCask%20Prototype%20v2.dc.html">SceneCask Prototype v2</a>. Prototype controls (Alpha/Beta switch, preset users, failed save, metadata update) are in the account menu, under the AR avatar. Frames marked beta show the social preview.</p>
+</section>
+
+<section data-screen-label="Mobile 390" style="padding:24px 64px;display:flex;flex-direction:column;gap:20px">
+<h2 style="margin:0;font-weight:800;font-size:32px;letter-spacing:-.03em">Mobile · 390</h2>
+<div style="display:flex;flex-wrap:wrap;gap:40px">
+<sc-for list="{{ mobile }}" as="f" hint-placeholder-count="6">
+<figure style="margin:0;display:flex;flex-direction:column;gap:10px">
+<figcaption style="display:flex;gap:10px;align-items:baseline"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);padding:3px 8px;border-radius:6px">{{ f.n }}</span><span style="font-size:16px;font-weight:700">{{ f.label }}</span></figcaption>
+<iframe src="{{ f.src }}" title="{{ f.label }}" loading="lazy" style="width:390px;height:844px;border:0;border-radius:24px;background:oklch(0.975 0.008 85);box-shadow:0 30px 60px -30px rgba(0,0,0,.35)"></iframe>
+<span style="font-size:14px;color:oklch(0.38 0.01 60);max-width:390px;line-height:1.4">{{ f.note }}</span>
+</figure>
+</sc-for>
+</div>
+</section>
+
+<section data-screen-label="Desktop 1440" style="padding:40px 64px;display:flex;flex-direction:column;gap:20px">
+<h2 style="margin:0;font-weight:800;font-size:32px;letter-spacing:-.03em">Desktop · 1440</h2>
+<div style="display:flex;flex-wrap:wrap;gap:48px">
+<sc-for list="{{ desktop }}" as="f" hint-placeholder-count="4">
+<figure style="margin:0;display:flex;flex-direction:column;gap:10px">
+<figcaption style="display:flex;gap:10px;align-items:baseline"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);padding:3px 8px;border-radius:6px">{{ f.n }}</span><span style="font-size:16px;font-weight:700">{{ f.label }}</span></figcaption>
+<iframe src="{{ f.src }}" title="{{ f.label }}" loading="lazy" style="width:1440px;height:960px;border:0;border-radius:14px;background:oklch(0.975 0.008 85);box-shadow:0 30px 60px -30px rgba(0,0,0,.35)"></iframe>
+</figure>
+</sc-for>
+</div>
+</section>
+
+<section data-screen-label="Components & tokens" style="padding:40px 64px 96px;display:flex;flex-direction:column;gap:28px;max-width:1440px">
+<h2 style="margin:0;font-weight:800;font-size:32px;letter-spacing:-.03em">Components and states</h2>
+<div style="background:oklch(0.975 0.008 85);border-radius:20px;padding:40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:40px 56px">
+
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">BUTTON · PRIMARY / SECONDARY</div>
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+<button style="height:48px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700">Default</button>
+<button style="height:48px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700;outline:3px solid oklch(0.5 0.13 38);outline-offset:2px">Focus</button>
+<button style="height:48px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700;opacity:.7">Saving…</button>
+<button disabled="{{ true }}" style="height:48px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700;opacity:.4">Disabled</button>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+<button style="height:48px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:15px;font-weight:600">Secondary</button>
+<button style="height:48px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.45 0.17 27);background:transparent;color:oklch(0.45 0.17 27);font-size:15px;font-weight:600">Destructive</button>
+<button style="height:48px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.95 0.03 90);color:oklch(0.42 0.09 150);font-size:15px;font-weight:700">On poster color</button>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">LIBRARY STATUS · RADIO PILLS</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.75 0.012 75);display:flex;align-items:center;font-size:14px;font-weight:600">Plan to watch</span>
+<span style="height:40px;padding:0 14px;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);display:flex;align-items:center;font-size:14px;font-weight:600">✓ Watching</span>
+<span style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.75 0.012 75);display:flex;align-items:center;font-size:14px;font-weight:600">On hold</span>
+<span style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.75 0.012 75);display:flex;align-items:center;font-size:14px;font-weight:600">Dropped</span>
+<span style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.75 0.012 75);display:flex;align-items:center;font-size:14px;font-weight:600">Completed</span>
+</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55);margin-top:6px">PROGRESS BADGES · TEXT + ICON, NEVER COLOR ALONE</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="font-size:12px;font-weight:700;background:oklch(0.93 0.014 80);border-radius:999px;padding:5px 10px">✓ Caught up</span>
+<span style="font-size:12px;font-weight:700;background:oklch(0.93 0.014 80);border-radius:999px;padding:5px 10px">✓ Completed series</span>
+<span style="font-size:13px;font-weight:700;border-radius:999px;padding:6px 12px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85)">✓ Watched</span>
+<span style="font-size:13px;font-weight:700;border-radius:999px;padding:6px 12px;background:oklch(0.945 0.012 80)">Not watched</span>
+<span style="font-size:13px;font-weight:700;border-radius:999px;padding:6px 12px;background:oklch(0.945 0.012 80)">Upcoming</span>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:0">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55);margin-bottom:8px">EPISODE ROW</div>
+<sc-for list="{{ rows }}" as="x" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:14px;min-height:64px;border-bottom:1px solid oklch(0.86 0.012 75)">
+<span style="width:44px;height:44px;flex:none;border-radius:50%;border:2px {{ x.ring }};background:{{ x.bg }};color:oklch(0.975 0.008 85);font-weight:700;display:flex;align-items:center;justify-content:center">{{ x.mark }}</span>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:15px;min-width:64px">{{ x.code }}</span>
+<span style="font-size:16px;flex:1;color:{{ x.color }}">{{ x.title }}</span>
+<span style="font-size:13px;color:oklch(0.46 0.02 55)">{{ x.sub }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">FEEDBACK · TOAST</div>
+<div style="background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);border-radius:20px;padding:8px 8px 8px 20px;display:flex;align-items:center;gap:14px;align-self:flex-start"><span style="font-size:14px">Marked S2 E7 watched</span><span style="height:40px;padding:0 14px;border-radius:999px;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);font-weight:700;font-size:14px;display:flex;align-items:center">Undo</span><span style="height:40px;padding:0 14px;border-radius:999px;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);font-weight:700;font-size:14px;display:flex;align-items:center">Discuss</span></div>
+<div style="background:oklch(0.42 0.15 27);color:oklch(0.975 0.008 85);border-radius:20px;padding:8px 8px 8px 20px;display:flex;align-items:center;gap:14px;align-self:flex-start"><span style="font-size:14px">Couldn’t save S2 E7. It’s back to unwatched.</span><span style="height:40px;padding:0 14px;border-radius:999px;background:oklch(0.975 0.008 85);color:oklch(0.42 0.15 27);font-weight:700;font-size:14px;display:flex;align-items:center">Retry</span></div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55);margin-top:6px">INLINE ERROR</div>
+<div style="font-size:14px;font-weight:600;color:oklch(0.42 0.15 27);background:oklch(0.95 0.03 27);border-radius:12px;padding:12px 14px">Couldn’t save your progress. Nothing was changed. Try again.</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">SPOILER BOUNDARY</div>
+<div style="font-weight:800;font-size:20px;letter-spacing:-.03em">Discussion locked</div>
+<div style="font-family:Newsreader,serif;font-size:17px;line-height:1.45">Opens when you’ve watched S2 E8. Nothing from this discussion is loaded until then.</div>
+<div style="font-size:14px;color:oklch(0.38 0.02 55);background:oklch(0.945 0.012 80);border-radius:8px;padding:8px 12px;align-self:flex-start">Locked · opens after you watch through S2 E7</div>
+<div style="padding:12px 14px;border-radius:12px;background:oklch(0.93 0.05 75);font-size:14px;font-weight:600">Spoilers revealed for S2 E8. Your progress hasn’t changed.</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">POSTER PLACEHOLDER · LOADING SKELETON</div>
+<div style="display:flex;gap:16px;align-items:flex-end">
+<div style="width:120px;aspect-ratio:2/3;border-radius:10px;position:relative;overflow:hidden;background:oklch(0.42 0.09 150);color:oklch(0.95 0.03 90);display:flex;flex-direction:column;justify-content:space-between;padding:10px;box-sizing:border-box"><span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 10px)"></span><span style="position:relative;font-family:'IBM Plex Mono',monospace;font-size:9px">POSTER ART</span><span style="position:relative;font-weight:800;font-size:16px;line-height:1">Hollow Orchard</span></div>
+<div style="width:80px;aspect-ratio:2/3;border-radius:8px;background:oklch(0.93 0.012 80)"></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="height:16px;width:70%;border-radius:4px;background:oklch(0.93 0.012 80)"></div><div style="height:12px;width:40%;border-radius:4px;background:oklch(0.93 0.012 80)"></div></div>
+</div>
+</div>
+</div>
+
+<h2 style="margin:24px 0 0;font-weight:800;font-size:32px;letter-spacing:-.03em">Tokens</h2>
+<div style="background:oklch(0.975 0.008 85);border-radius:20px;padding:40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:40px 56px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">COLOR</div>
+<sc-for list="{{ colors }}" as="c" hint-placeholder-count="8">
+<div style="display:flex;gap:12px;align-items:center"><span style="width:40px;height:40px;border-radius:10px;background:{{ c.v }};box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)"></span><span style="font-weight:600;font-size:14px;width:140px">{{ c.k }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:oklch(0.46 0.02 55)">{{ c.v }}</span></div>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">TYPE</div>
+<div style="font-weight:800;font-size:64px;letter-spacing:-.05em;line-height:.95">Display 64/40</div>
+<div style="font-weight:800;font-size:24px;letter-spacing:-.03em">Section 24 · Schibsted Grotesk 800</div>
+<div style="font-size:16px;font-weight:600">UI 15–17 · Schibsted Grotesk 500–700</div>
+<div style="font-family:Newsreader,serif;font-size:18px">Reading 17–20 · Newsreader, for descriptions and comments</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:15px">S2 E7 · IBM Plex Mono, episode codes and labels</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55);margin-top:10px">SPACING 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48 · 64 &nbsp; RADIUS 4 · 8 · 12 · 20 · pill</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">MOTION 150ms ease-out (state) · 300ms (progress) · none under reduced motion</div>
+</div>
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const P = 'SceneCask%20Prototype%20v2.dc.html';
+    const m = [
+      ['Welcome', '?start=new', 'Alpha onboarding: account, find a show, set progress.'],
+      ['Create account · validation', '?start=new&auth=create', 'Inline errors under each field. Provider failure shows a form-level alert.'],
+      ['Verify email', '?start=new&auth=verify', 'Verification and resend. Password reset lives under Sign in.'],
+      ['Search · disambiguation', '?start=returning&screen=discover&q=hollow', 'Two shows called Hollow Orchard. Year, genre and poster tell them apart.'],
+      ['Add · set progress scope', '?start=new&screen=show&id=ho&sheet=1', 'Shows exact range, count and what’s excluded before saving.'],
+      ['Home · returning', '?start=returning&screen=home', 'Paper Moons: E1 and E3 watched, so next is E2 (out-of-order).'],
+      ['Home · caught up', '?start=caught&screen=home', 'Caught up lists the next dated episode or “release date unknown”.'],
+      ['Home · empty', '?start=empty&screen=home', 'Useful with no library and no friends.'],
+      ['Show detail', '?start=returning&screen=show&id=ho', 'Remove from library keeps history. Erase history is separate.'],
+      ['Show · undated episode', '?start=returning&screen=show&id=sk&s=2', 'Canceled show with S2 E5 undated: Caught up, never Completed.'],
+      ['Show · not yet available', '?start=returning&screen=show&id=hl', 'Nothing released: “Not yet available”, not “Caught up”.'],
+      ['Catch-up confirmation', '?start=returning&screen=show&id=sk&s=3&e=8&dialog=through', 'Excluded undated episode and specials named before confirming.'],
+      ['Episode · details hidden (alpha)', '?start=returning&screen=episode&id=ho&s=2&e=8', 'Protected fields are absent. Reveal is per episode, per session.'],
+      ['Episode · details revealed', '?start=returning&screen=episode&id=ho&s=2&e=8&reveal=details', 'Progress unchanged. Hide again anytime.'],
+      ['Episode · discussion (beta)', '?start=returning&beta=1&screen=episode&id=ho&s=2&e=6', 'Hosted by Maya, a mutual follow.'],
+      ['Episode · participants (beta)', '?start=returning&beta=1&screen=episode&id=ho&s=2&e=7&reveal=disc', 'Theo is a participant you don’t follow. Priya’s thread isn’t listed (not mutual).'],
+      ['Episode · locked gap (beta)', '?start=returning&beta=1&screen=episode&id=pm&s=1&e=3', 'E3 watched but E2 isn’t, so discussions stay locked.'],
+      ['Library', '?start=returning&screen=library', 'Search and status filters. Derived state in each row.'],
+      ['Friends (beta)', '?start=returning&beta=1&screen=friends', 'Private/public accounts, requests, mutual follows.'],
+      ['Search · provider error', '?start=returning&screen=discover&fail=1', 'Type anything: the first search fails with Try again.']
+    ].map((x, i) => ({ n: String(i + 1).padStart(2, '0'), label: x[0], src: P + x[1], note: x[2] }));
+    const d = [
+      ['Home · returning', '?start=returning&screen=home'],
+      ['Show detail', '?start=returning&screen=show&id=ho'],
+      ['Episode · discussion (beta)', '?start=returning&beta=1&screen=episode&id=ho&s=2&e=6'],
+      ['Library', '?start=returning&screen=library']
+    ].map((x, i) => ({ n: 'D' + (i + 1), label: x[0], src: P + x[1] }));
+    const INK = 'oklch(0.21 0.015 50)';
+    return {
+      mobile: m, desktop: d,
+      rows: [
+        { code: 'S2 E6', title: 'Fair Weather', sub: 'Watched', mark: '✓', bg: INK, ring: 'solid ' + INK, color: INK },
+        { code: 'S2 E7', title: 'Title hidden', sub: '', mark: '', bg: 'transparent', ring: 'solid ' + INK, color: 'oklch(0.46 0.02 55)' },
+        { code: 'S1 E5', title: 'Not aired yet', sub: 'Airs Tue, Oct 6', mark: '', bg: 'transparent', ring: 'dashed oklch(0.75 0.012 75)', color: 'oklch(0.46 0.02 55)' },
+        { code: 'Special 1', title: 'Title hidden', sub: 'Doesn’t count to progress', mark: '', bg: 'transparent', ring: 'solid ' + INK, color: 'oklch(0.46 0.02 55)' }
+      ],
+      colors: [
+        { k: 'paper', v: 'oklch(0.975 0.008 85)' }, { k: 'paper-2', v: 'oklch(0.945 0.012 80)' }, { k: 'line', v: 'oklch(0.86 0.012 75)' },
+        { k: 'ink', v: INK }, { k: 'ink-muted', v: 'oklch(0.46 0.02 55)' }, { k: 'accent (links)', v: 'oklch(0.5 0.13 38)' },
+        { k: 'error', v: 'oklch(0.42 0.15 27)' }, { k: 'reveal notice', v: 'oklch(0.93 0.05 75)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

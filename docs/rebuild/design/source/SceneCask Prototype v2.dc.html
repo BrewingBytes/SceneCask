@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);font-family:'Schibsted Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:oklch(0.5 0.13 38)}a:hover{color:oklch(0.42 0.13 38)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+:focus-visible{outline:3px solid oklch(0.5 0.13 38);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="min-height:100vh;position:relative">
+
+<sc-if value="{{ wideNav }}" hint-placeholder-val="{{ false }}">
+<header style="position:sticky;top:0;z-index:20;background:oklch(0.975 0.008 85);border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="max-width:1240px;margin:0 auto;padding:0 48px;height:72px;display:flex;align-items:center;gap:24px">
+<button onClick="{{ goHome }}" aria-label="SceneCask home" style="flex:none;border:0;background:none;padding:0;font-weight:800;font-size:24px;letter-spacing:-.035em">SceneCask</button>
+<nav aria-label="Main" style="flex:none;display:flex;gap:6px">
+<sc-for list="{{ nav }}" as="n" hint-placeholder-count="3">
+<button onClick="{{ n.onClick }}" aria-current="{{ n.current }}" style="border:0;height:40px;padding:0 16px;border-radius:999px;font-size:15px;font-weight:{{ n.weight }};background:{{ n.pillBg }};color:{{ n.pillFg }}">{{ n.label }}</button>
+</sc-for>
+</nav>
+<button onClick="{{ goSearch }}" style="margin-left:auto;flex:0 1 280px;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:42px;border-radius:999px;border:1px solid oklch(0.86 0.012 75);background:oklch(0.99 0.004 85);color:oklch(0.46 0.02 55);text-align:left;padding:0 18px;font-size:14px">Search shows</button>
+<button onClick="{{ toggleAccount }}" aria-label="Account menu" aria-expanded="{{ acct.open }}" style="flex:none;width:42px;height:42px;border-radius:50%;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:13px;font-weight:700">AR</button>
+</div>
+</header>
+</sc-if>
+<sc-if value="{{ narrowNav }}" hint-placeholder-val="{{ true }}">
+<header style="position:sticky;top:0;z-index:20;background:oklch(0.975 0.008 85);height:60px;padding:0 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid oklch(0.92 0.01 80)">
+<button onClick="{{ goHome }}" aria-label="SceneCask home" style="border:0;background:none;padding:0;font-weight:800;font-size:22px;letter-spacing:-.035em">SceneCask</button>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;color:oklch(0.46 0.02 55);border:1px solid oklch(0.86 0.012 75);border-radius:6px;padding:2px 6px">{{ releaseTag }}</span>
+<button onClick="{{ toggleAccount }}" aria-label="Account menu" aria-expanded="{{ acct.open }}" style="margin-left:auto;width:44px;height:44px;border-radius:50%;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:13px;font-weight:700">AR</button>
+</header>
+</sc-if>
+
+<main style="max-width:1240px;margin:0 auto;padding:0 {{ pad }} {{ padBottom }};box-sizing:border-box">
+
+<sc-if value="{{ onboarding }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:640px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0;border-bottom:1px solid oklch(0.86 0.012 75);margin-bottom:24px">
+<div style="display:flex;flex-direction:column;gap:2px">
+<span style="font-weight:800;font-size:20px;letter-spacing:-.035em">SceneCask</span>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">{{ onbLabel }}</span>
+</div>
+<sc-if value="{{ canSkipOnb }}" hint-placeholder-val="{{ false }}"><button onClick="{{ skipOnb }}" style="height:44px;padding:0 16px;border-radius:999px;border:0;background:oklch(0.945 0.012 80);font-size:14px;font-weight:600">Skip</button></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isWelcome }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Welcome" style="max-width:560px;margin:0 auto;padding:24px 0 48px;display:flex;flex-direction:column;gap:28px">
+<h1 style="margin:0;font-weight:800;font-size:{{ h1Size }};letter-spacing:-.045em;line-height:.98">Keep track of your shows. Without spoilers.</h1>
+<p style="margin:0;font-family:Newsreader,serif;font-size:20px;line-height:1.45;color:oklch(0.38 0.02 55)">Episode titles, stills and summaries stay hidden until you’ve watched them. SceneCask doesn’t stream video; it keeps your place.</p>
+<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;border-top:1px solid oklch(0.86 0.012 75)">
+<sc-for list="{{ welcomeSteps }}" as="w" hint-placeholder-count="3">
+<li style="display:flex;gap:16px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75);font-size:16px"><span style="font-family:'IBM Plex Mono',monospace;color:oklch(0.46 0.02 55)">{{ w.n }}</span>{{ w.label }}</li>
+</sc-for>
+</ol>
+<div style="display:flex;flex-direction:column;gap:12px">
+<button onClick="{{ goCreate }}" style="height:52px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:16px;font-weight:700">Create account</button>
+<button onClick="{{ goSignin }}" style="height:48px;border:1.5px solid oklch(0.21 0.015 50);border-radius:999px;background:transparent;font-size:15px;font-weight:600">Sign in</button>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{ isAuth }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Account access" style="max-width:480px;margin:0 auto;padding:8px 0 48px;display:flex;flex-direction:column;gap:18px">
+<sc-if value="{{ auth.isForm }}" hint-placeholder-val="{{ true }}">
+<h1 style="margin:0;font-weight:800;font-size:36px;letter-spacing:-.045em;line-height:1">{{ auth.title }}</h1>
+<p style="margin:0;font-family:Newsreader,serif;font-size:18px;line-height:1.45;color:oklch(0.38 0.02 55)">{{ auth.sub }}</p>
+<sc-if value="{{ auth.hasFormErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;font-weight:600;color:oklch(0.42 0.15 27);background:oklch(0.95 0.03 27);border-radius:12px;padding:12px 14px">{{ auth.formErr }}</div></sc-if>
+<div style="display:flex;flex-direction:column;gap:6px">
+<label for="sc-email" style="font-weight:700;font-size:15px">Email</label>
+<input id="sc-email" type="email" autocomplete="email" value="{{ auth.email }}" onChange="{{ auth.onEmail }}" aria-invalid="{{ auth.emailInvalid }}" aria-describedby="sc-email-err" style="height:50px;border-radius:12px;border:1.5px solid {{ auth.emailBorder }};background:oklch(0.99 0.004 85);padding:0 14px;font-size:16px">
+<span id="sc-email-err" style="font-size:13px;font-weight:600;color:oklch(0.42 0.15 27);min-height:18px">{{ auth.emailErr }}</span>
+</div>
+<sc-if value="{{ auth.needsPw }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:6px">
+<label for="sc-pw" style="font-weight:700;font-size:15px">Password</label>
+<input id="sc-pw" type="password" autocomplete="{{ auth.pwAuto }}" value="{{ auth.pw }}" onChange="{{ auth.onPw }}" aria-invalid="{{ auth.pwInvalid }}" aria-describedby="sc-pw-hint" style="height:50px;border-radius:12px;border:1.5px solid {{ auth.pwBorder }};background:oklch(0.99 0.004 85);padding:0 14px;font-size:16px">
+<span id="sc-pw-hint" style="font-size:13px;font-weight:{{ auth.pwHintWeight }};color:{{ auth.pwHintColor }};min-height:18px">{{ auth.pwHint }}</span>
+</div>
+</sc-if>
+<button onClick="{{ auth.onSubmit }}" disabled="{{ auth.busy }}" style="height:52px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:16px;font-weight:700;opacity:{{ auth.busyOpacity }}">{{ auth.submitLabel }}</button>
+<sc-if value="{{ auth.isSignin }}" hint-placeholder-val="{{ false }}"><button onClick="{{ auth.onForgot }}" style="align-self:flex-start;border:0;background:none;padding:8px 0;font-size:15px;font-weight:600;color:oklch(0.5 0.13 38);text-decoration:underline;text-underline-offset:3px">Forgot password?</button></sc-if>
+<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:15px;color:oklch(0.38 0.02 55);padding-top:8px;border-top:1px solid oklch(0.86 0.012 75)">{{ auth.switchText }}<button onClick="{{ auth.onSwitch }}" style="border:0;background:none;padding:0;font-weight:700;color:oklch(0.5 0.13 38);text-decoration:underline;text-underline-offset:3px">{{ auth.switchLabel }}</button></div>
+</sc-if>
+<sc-if value="{{ auth.isVerify }}" hint-placeholder-val="{{ false }}">
+<h1 style="margin:0;font-weight:800;font-size:36px;letter-spacing:-.045em;line-height:1">Check your inbox</h1>
+<p style="margin:0;font-family:Newsreader,serif;font-size:18px;line-height:1.45">We sent a verification link to <strong>{{ auth.email }}</strong>. Verifying lets you recover your account and keeps your progress safe.</p>
+<button onClick="{{ auth.onVerified }}" style="height:52px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:16px;font-weight:700">I’ve verified my email</button>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<button onClick="{{ auth.onResend }}" style="height:44px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Resend link</button>
+<button onClick="{{ goCreate }}" style="height:44px;padding:0 16px;border-radius:999px;border:0;background:oklch(0.945 0.012 80);font-size:14px;font-weight:600">Use a different email</button>
+</div>
+<p style="margin:0;font-size:13px;color:oklch(0.46 0.02 55)">Prototype: “I’ve verified my email” stands in for clicking the link.</p>
+</sc-if>
+<sc-if value="{{ auth.isResetSent }}" hint-placeholder-val="{{ false }}">
+<h1 style="margin:0;font-weight:800;font-size:36px;letter-spacing:-.045em;line-height:1">Check your inbox</h1>
+<p style="margin:0;font-family:Newsreader,serif;font-size:18px;line-height:1.45">If there’s an account for <strong>{{ auth.email }}</strong>, a reset link is on its way. It expires in 1 hour.</p>
+<button onClick="{{ goSignin }}" style="height:48px;border:1.5px solid oklch(0.21 0.015 50);border-radius:999px;background:transparent;font-size:15px;font-weight:600">Back to sign in</button>
+</sc-if>
+<button onClick="{{ goWelcome }}" style="align-self:flex-start;border:0;background:none;padding:8px 0;font-size:14px;font-weight:600">← Back</button>
+</section>
+</sc-if>
+
+<sc-if value="{{ isOnbFriends }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Onboarding · Friends (beta)" style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding-bottom:40px">
+<h1 style="margin:0;font-weight:800;font-size:{{ h1Size }};letter-spacing:-.045em;line-height:1">Follow people you know</h1>
+<p style="margin:0;font-family:Newsreader,serif;font-size:18px;line-height:1.45;color:oklch(0.38 0.02 55)">Private accounts approve each request. Public accounts can be followed right away. Following is one-way. SceneCask works fine without friends.</p>
+<div>
+<sc-for list="{{ onbPeople }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="width:44px;height:44px;border-radius:50%;flex:none;background:{{ p.av }};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">{{ p.ini }}</div>
+<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:16px">{{ p.name }}</div><div style="font-size:14px;color:oklch(0.46 0.02 55)">{{ p.handle }} · {{ p.detail }}</div></div>
+<button onClick="{{ p.onBtn }}" style="height:44px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:{{ p.btnBg }};color:{{ p.btnFg }};font-size:14px;font-weight:600;flex:none">{{ p.btnLabel }}</button>
+</div>
+</sc-for>
+</div>
+<button onClick="{{ onbDone }}" style="height:52px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:16px;font-weight:700">Go to Home</button>
+</section>
+</sc-if>
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<section data-screen-label="Home">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:3px solid oklch(0.21 0.015 50);padding:24px 0 12px;margin-bottom:24px">
+<h1 style="margin:0;font-weight:800;font-size:{{ h1Size }};letter-spacing:-.05em;line-height:.95">Up next</h1>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">MON 5 OCT · YOUR SHOWS</span>
+</div>
+<sc-if value="{{ home.hasUp }}" hint-placeholder-val="{{ true }}">
+<div style="background:{{ home.first.bg }};color:{{ home.first.fg }};border-radius:22px;padding:{{ bandPad }};display:flex;flex-wrap:wrap;gap:24px 32px;align-items:stretch">
+<div style="display:flex;gap:20px;flex:1 1 320px;min-width:0">
+<button onClick="{{ home.first.onShow }}" aria-label="Open {{ home.first.title }}" style="width:{{ featPoster }};aspect-ratio:2/3;flex:none;border:0;border-radius:10px;position:relative;overflow:hidden;background:{{ home.first.bg }};color:{{ home.first.fg }};box-shadow:0 0 0 1px rgba(255,255,255,.25),0 16px 30px -12px rgba(0,0,0,.5);display:flex;align-items:flex-end;padding:10px;box-sizing:border-box;text-align:left">
+<span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 10px)"></span>
+<span style="position:relative;font-weight:800;font-size:16px;letter-spacing:-.02em;line-height:1">{{ home.first.title }}</span>
+</button>
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+<button onClick="{{ home.first.onShow }}" style="border:0;background:none;padding:0;text-align:left;color:inherit;font-weight:800;font-size:{{ featTitle }};letter-spacing:-.04em;line-height:1">{{ home.first.title }}</button>
+<div style="font-size:15px">{{ home.first.year }} · {{ home.first.genre }}</div>
+<div style="margin-top:auto;font-size:15px;font-weight:600">{{ home.first.progress }}</div>
+<div role="progressbar" aria-label="Series progress" aria-valuenow="{{ home.first.pctNum }}" aria-valuemin="0" aria-valuemax="100" style="height:6px;border-radius:3px;background:rgba(255,255,255,.25);width:200px;max-width:100%"><div style="height:6px;border-radius:3px;background:{{ home.first.fg }};width:{{ home.first.pct }};transition:width .3s"></div></div>
+</div>
+</div>
+<div style="flex:1 1 280px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end">
+<div style="font-size:12px;font-weight:700;letter-spacing:.06em">NEXT EPISODE</div>
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:500;line-height:1">{{ home.first.code }}</span><span style="font-size:14px">{{ home.first.avail }}</span></div>
+<div style="font-size:14px">Title hidden until you watch</div>
+<button onClick="{{ home.first.onMark }}" style="margin-top:6px;height:52px;border:0;border-radius:999px;background:{{ home.first.fg }};color:{{ home.first.bg }};font-size:16px;font-weight:700">{{ home.first.markLabel }}</button>
+<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<button onClick="{{ home.first.onView }}" style="border:0;background:none;color:inherit;padding:8px 0;font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px">View episode</button>
+<button onClick="{{ home.first.onCatchUp }}" style="border:0;background:none;color:inherit;padding:8px 0;font-size:14px;font-weight:500">Watched more? Catch up</button>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ home.allCaught }}" hint-placeholder-val="{{ false }}">
+<div style="padding:8px 0 24px;display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="flex:1 1 300px"><div style="font-weight:800;font-size:30px;letter-spacing:-.04em">✓ You’re caught up</div><div style="font-family:Newsreader,serif;font-size:18px;line-height:1.45;color:oklch(0.38 0.02 55);margin-top:4px">Every released episode of the shows you’re watching is marked. What’s coming is below.</div></div>
+<button onClick="{{ goDiscover }}" style="height:48px;padding:0 22px;border-radius:999px;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-weight:700;font-size:15px">Find something new</button>
+</div>
+</sc-if>
+<sc-if value="{{ home.emptyLib }}" hint-placeholder-val="{{ false }}">
+<div style="padding:8px 0 24px;display:flex;flex-direction:column;gap:12px;max-width:560px">
+<div style="font-weight:800;font-size:30px;letter-spacing:-.04em">Nothing to track yet</div>
+<div style="font-family:Newsreader,serif;font-size:18px;line-height:1.45;color:oklch(0.38 0.02 55)">Add a show you’re watching and we’ll keep your next episode here.</div>
+<button onClick="{{ goSearch }}" style="align-self:flex-start;height:48px;padding:0 22px;border-radius:999px;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-weight:700;font-size:15px">Find a show</button>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:0 48px;margin-top:8px">
+<sc-for list="{{ home.rest }}" as="s" hint-placeholder-count="2">
+<div style="display:flex;gap:16px;padding:18px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<button onClick="{{ s.onShow }}" aria-label="Open {{ s.title }}" style="width:60px;aspect-ratio:2/3;flex:none;border:0;border-radius:6px;position:relative;overflow:hidden;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:flex-end;padding:5px;box-sizing:border-box;text-align:left"><span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px)"></span><span style="position:relative;font-weight:800;font-size:9px;line-height:1">{{ s.title }}</span></button>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<button onClick="{{ s.onShow }}" style="border:0;background:none;padding:0;text-align:left;font-size:18px;font-weight:700;letter-spacing:-.02em">{{ s.title }}</button>
+<div style="font-size:14px;color:oklch(0.46 0.02 55)"><span style="font-family:'IBM Plex Mono',monospace;color:oklch(0.21 0.015 50)">{{ s.code }}</span> next · {{ s.progress }}</div>
+<div style="height:4px;border-radius:2px;background:oklch(0.9 0.012 75);margin-top:4px;max-width:240px"><div style="height:4px;border-radius:2px;background:{{ s.bg }};width:{{ s.pct }};transition:width .3s"></div></div>
+</div>
+<button onClick="{{ s.onMark }}" aria-label="{{ s.markLabel }}" style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600;flex:none">Mark watched</button>
+</div>
+</sc-for>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:48px 64px;margin-top:48px">
+<sc-if value="{{ home.hasCaught }}" hint-placeholder-val="{{ true }}">
+<div>
+<h2 style="margin:0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:24px;letter-spacing:-.03em">Waiting on new episodes</h2>
+<sc-for list="{{ home.caught }}" as="c" hint-placeholder-count="2">
+<button onClick="{{ c.onShow }}" style="width:100%;display:flex;gap:14px;padding:14px 0;border:0;border-bottom:1px solid oklch(0.86 0.012 75);background:none;align-items:center;text-align:left">
+<span style="width:36px;aspect-ratio:2/3;flex:none;border-radius:4px;background:{{ c.bg }}"></span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">{{ c.title }}</span><span style="font-size:14px;color:oklch(0.46 0.02 55)">{{ c.note }}</span></span>
+<span style="font-size:12px;font-weight:700;background:oklch(0.93 0.014 80);border-radius:999px;padding:5px 10px;flex:none">{{ c.label }}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ beta }}" hint-placeholder-val="{{ false }}">
+<div>
+<h2 style="margin:0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:24px;letter-spacing:-.03em">From people you follow</h2>
+<sc-if value="{{ home.noFriends }}" hint-placeholder-val="{{ false }}">
+<div style="padding:18px 0;display:flex;flex-direction:column;gap:10px">
+<div style="font-family:Newsreader,serif;font-size:18px;line-height:1.45">Follow people to see what they’re watching. Your tracking works the same without them.</div>
+<button onClick="{{ goFriends }}" style="align-self:flex-start;height:44px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Find people</button>
+</div>
+</sc-if>
+<sc-for list="{{ home.friends }}" as="f" hint-placeholder-count="3">
+<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:flex-start">
+<div style="width:40px;height:40px;border-radius:50%;flex:none;background:{{ f.av }};font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ f.ini }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+<div style="font-family:Newsreader,serif;font-size:18px;line-height:1.35"><span style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:15px">{{ f.name }}</span> {{ f.action }} <em>{{ f.show }}</em> <span style="font-family:'IBM Plex Mono',monospace;font-size:14px">{{ f.code }}</span></div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:oklch(0.46 0.02 55)">{{ f.time }}</div>
+<sc-if value="{{ f.isLocked }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:oklch(0.38 0.02 55);background:oklch(0.945 0.012 80);border-radius:8px;padding:8px 12px;align-self:flex-start">Locked · {{ f.lockNote }}</div></sc-if>
+<sc-if value="{{ f.isOpen }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.onOpen }}" style="align-self:flex-start;border:0;background:none;padding:6px 0;font-size:14px;font-weight:700;color:oklch(0.5 0.13 38)">View episode</button></sc-if>
+<sc-if value="{{ f.isAdd }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.onAdd }}" aria-pressed="{{ f.added }}" style="align-self:flex-start;height:40px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">{{ f.addLabel }}</button></sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{ isDiscover }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Discover / Search" style="max-width:{{ disMax }};margin:0 auto">
+<h1 style="margin:0;padding:{{ disH1Pad }};font-weight:800;font-size:{{ h1Size }};letter-spacing:-.05em;line-height:.95">{{ dis.title }}</h1>
+<sc-if value="{{ onboarding }}" hint-placeholder-val="{{ false }}"><p style="margin:12px 0 0;font-family:Newsreader,serif;font-size:18px;color:oklch(0.38 0.02 55)">Search for one show to start. You can add more later.</p></sc-if>
+<div style="position:relative;margin:20px 0 8px">
+<label for="sc-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search TV shows</label>
+<input id="sc-search" type="search" value="{{ q }}" onChange="{{ onQ }}" placeholder="Search TV shows by title" autocomplete="off" style="width:100%;box-sizing:border-box;height:56px;border-radius:14px;border:1.5px solid oklch(0.21 0.015 50);background:oklch(0.99 0.004 85);padding:0 18px;font-size:17px">
+</div>
+<div style="font-size:13px;color:oklch(0.46 0.02 55);min-height:20px">{{ dis.hint }}</div>
+<sc-if value="{{ dis.searching }}" hint-placeholder-val="{{ false }}">
+<div aria-busy="true">
+<sc-for list="{{ dis.skeleton }}" as="k" hint-placeholder-count="3">
+<div style="display:flex;gap:16px;padding:16px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center"><div style="width:56px;aspect-ratio:2/3;border-radius:6px;background:oklch(0.93 0.012 80)"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="height:16px;width:50%;border-radius:4px;background:oklch(0.93 0.012 80)"></div><div style="height:12px;width:30%;border-radius:4px;background:oklch(0.93 0.012 80)"></div></div></div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ dis.error }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="margin-top:16px;padding:18px;border-radius:14px;background:oklch(0.95 0.03 27);color:oklch(0.38 0.12 27);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+<div><div style="font-weight:700">Show search isn’t responding</div><div style="font-size:14px">Our show listings provider didn’t answer. Try again in a moment.</div></div>
+<button onClick="{{ dis.retry }}" style="height:44px;padding:0 18px;border-radius:999px;border:0;background:oklch(0.38 0.12 27);color:oklch(0.98 0.01 27);font-weight:700">Try again</button>
+</div>
+</sc-if>
+<sc-if value="{{ dis.noResults }}" hint-placeholder-val="{{ false }}">
+<div style="padding:24px 0;display:flex;flex-direction:column;gap:6px"><div style="font-weight:700;font-size:20px">No shows match “{{ q }}”</div><div style="font-family:Newsreader,serif;font-size:17px;color:oklch(0.38 0.02 55)">Check the spelling, or try the original title. Try “hollow”.</div></div>
+</sc-if>
+<sc-if value="{{ dis.hasResults }}" hint-placeholder-val="{{ false }}">
+<div role="list" aria-label="Search results">
+<sc-for list="{{ dis.results }}" as="r" hint-placeholder-count="2">
+<div role="listitem" style="display:flex;gap:16px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<button onClick="{{ r.onOpen }}" style="flex:1;min-width:0;display:flex;gap:16px;align-items:center;border:0;background:none;padding:0;text-align:left">
+<span style="width:60px;aspect-ratio:2/3;flex:none;border-radius:6px;position:relative;overflow:hidden;background:{{ r.bg }};color:{{ r.fg }};display:flex;align-items:flex-end;padding:5px;box-sizing:border-box"><span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px)"></span><span style="position:relative;font-weight:800;font-size:9px;line-height:1">{{ r.title }}</span></span>
+<span style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:18px;font-weight:700;letter-spacing:-.02em">{{ r.title }} <span style="font-weight:500;color:oklch(0.46 0.02 55)">({{ r.year }})</span></span><span style="font-size:14px;color:oklch(0.46 0.02 55)">{{ r.meta }}</span></span>
+</button>
+<sc-if value="{{ r.inLib }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;font-weight:700;background:oklch(0.93 0.014 80);border-radius:999px;padding:5px 10px;flex:none">✓ In library</span></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ dis.showRecs }}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{ dis.groups }}" as="g" hint-placeholder-count="2">
+<div style="margin-top:36px">
+<h2 style="margin:0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:22px;letter-spacing:-.03em">{{ g.title }}</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:0 40px">
+<sc-for list="{{ g.items }}" as="r" hint-placeholder-count="3">
+<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<button onClick="{{ r.onOpen }}" aria-label="Open {{ r.title }}" style="width:56px;aspect-ratio:2/3;flex:none;border:0;border-radius:6px;position:relative;overflow:hidden;background:{{ r.bg }};color:{{ r.fg }};display:flex;align-items:flex-end;padding:5px;box-sizing:border-box;text-align:left"><span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px)"></span><span style="position:relative;font-weight:800;font-size:9px;line-height:1">{{ r.title }}</span></button>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+<button onClick="{{ r.onOpen }}" style="border:0;background:none;padding:0;text-align:left;font-size:17px;font-weight:700;letter-spacing:-.02em">{{ r.title }} <span style="font-weight:500;color:oklch(0.46 0.02 55)">({{ r.year }})</span></button>
+<div style="font-size:14px;color:oklch(0.38 0.02 55)">{{ r.reason }}</div>
+</div>
+<button onClick="{{ r.onAdd }}" aria-pressed="{{ r.inLib }}" style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:{{ r.btnBg }};color:{{ r.btnFg }};font-size:14px;font-weight:600;flex:none">{{ r.addLabel }}</button>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{ isShow }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Show detail" style="padding-top:16px">
+<sc-if value="{{ hasBack }}" hint-placeholder-val="{{ true }}"><button onClick="{{ back }}" style="height:44px;padding:0 4px;border:0;background:none;font-size:15px;font-weight:600">← Back</button></sc-if>
+<sc-if value="{{ show.loading }}" hint-placeholder-val="{{ false }}">
+<div aria-busy="true" style="display:flex;flex-wrap:wrap;gap:24px;padding:16px 0">
+<div style="width:{{ showPoster }};aspect-ratio:2/3;border-radius:12px;background:oklch(0.93 0.012 80)"></div>
+<div style="flex:1 1 260px;display:flex;flex-direction:column;gap:12px"><div style="height:36px;width:60%;border-radius:6px;background:oklch(0.93 0.012 80)"></div><div style="height:14px;width:40%;border-radius:4px;background:oklch(0.93 0.012 80)"></div><div style="height:60px;width:90%;border-radius:6px;background:oklch(0.93 0.012 80)"></div><span style="font-size:14px;color:oklch(0.46 0.02 55)">Loading show…</span></div>
+</div>
+</sc-if>
+<sc-if value="{{ show.ready }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-wrap:wrap;gap:24px 40px;padding:16px 0 28px;border-bottom:3px solid oklch(0.21 0.015 50)">
+<div role="img" aria-label="{{ show.title }} poster placeholder" style="width:{{ showPoster }};aspect-ratio:2/3;flex:none;border-radius:12px;position:relative;overflow:hidden;background:{{ show.bg }};color:{{ show.fg }};display:flex;flex-direction:column;justify-content:space-between;padding:14px;box-sizing:border-box;box-shadow:0 18px 36px -18px rgba(0,0,0,.45)">
+<span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 10px)"></span>
+<span style="position:relative;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em">POSTER ART</span>
+<span style="position:relative;font-weight:800;font-size:22px;letter-spacing:-.03em;line-height:1">{{ show.title }}</span>
+</div>
+<div style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<h1 style="margin:0;font-weight:800;font-size:{{ h1Size }};letter-spacing:-.05em;line-height:.95">{{ show.title }}</h1>
+<div style="font-size:15px;color:oklch(0.46 0.02 55)">{{ show.meta }}</div>
+<p style="margin:0;font-family:Newsreader,serif;font-size:19px;line-height:1.45;max-width:620px;text-wrap:pretty">{{ show.desc }}</p>
+<sc-if value="{{ show.notInLib }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+<button onClick="{{ show.onAdd }}" style="align-self:flex-start;height:52px;padding:0 26px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:16px;font-weight:700">{{ show.addLabel }}</button>
+<sc-if value="{{ show.hasHistory }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:oklch(0.38 0.02 55)">You removed this show earlier. Your history is kept: {{ show.progressText }}. <button onClick="{{ show.onErase }}" style="border:0;background:none;padding:0;color:oklch(0.45 0.17 27);font-weight:700;text-decoration:underline">Erase history</button></div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ show.inLib }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:12px;margin-top:6px;padding:16px;border-radius:16px;background:oklch(0.945 0.012 80)">
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-weight:700;font-size:16px">{{ show.progressText }}</span><span style="font-size:14px;color:oklch(0.3 0.02 55);font-weight:600">{{ show.stateText }}</span></div>
+<div role="progressbar" aria-label="Series progress" aria-valuenow="{{ show.pctNum }}" aria-valuemin="0" aria-valuemax="100" style="height:6px;border-radius:3px;background:oklch(0.88 0.012 75)"><div style="height:6px;border-radius:3px;background:{{ show.bg }};width:{{ show.pct }};transition:width .3s"></div></div>
+<div role="radiogroup" aria-label="Library status" style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ show.statuses }}" as="st" hint-placeholder-count="5">
+<button role="radio" aria-checked="{{ st.active }}" onClick="{{ st.onClick }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid {{ st.border }};background:{{ st.bg }};color:{{ st.fg }};font-size:14px;font-weight:600">{{ st.label }}</button>
+</sc-for>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:10px">
+<sc-if value="{{ show.hasNext }}" hint-placeholder-val="{{ true }}"><button onClick="{{ show.onNext }}" style="height:48px;padding:0 20px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700">{{ show.nextLabel }}</button></sc-if>
+<sc-if value="{{ show.canCatchUp }}" hint-placeholder-val="{{ true }}"><button onClick="{{ show.onSetProgress }}" style="height:48px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:15px;font-weight:600">Catch up…</button></sc-if>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px 18px;padding-top:4px;border-top:1px solid oklch(0.88 0.012 75)">
+<button onClick="{{ show.onRemove }}" style="border:0;background:none;padding:10px 0;font-size:14px;font-weight:600">Remove from library</button>
+<sc-if value="{{ show.hasHistory }}" hint-placeholder-val="{{ false }}"><button onClick="{{ show.onErase }}" style="border:0;background:none;padding:10px 0;font-size:14px;font-weight:600;color:oklch(0.45 0.17 27)">Erase watch history…</button></sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+<sc-if value="{{ show.hasUndated }}" hint-placeholder-val="{{ false }}">
+<div role="note" style="margin-top:20px;padding:14px 16px;border-radius:12px;border:1.5px dashed oklch(0.6 0.02 60);font-size:14px;line-height:1.5"><strong>Release info incomplete.</strong> {{ show.undatedText }} It isn’t suggested as next or included in catch-up, but you can mark it watched yourself.</div>
+</sc-if>
+<div role="tablist" aria-label="Seasons" style="display:flex;gap:6px;flex-wrap:wrap;padding:20px 0 8px">
+<sc-for list="{{ show.tabs }}" as="t" hint-placeholder-count="3">
+<button role="tab" aria-selected="{{ t.active }}" onClick="{{ t.onClick }}" style="height:44px;padding:0 16px;border-radius:999px;border:0;background:{{ t.bg }};color:{{ t.fg }};font-size:15px;font-weight:600">{{ t.label }}</button>
+</sc-for>
+</div>
+<p style="margin:4px 0 8px;font-size:13px;color:oklch(0.46 0.02 55);max-width:640px">{{ show.tabNote }}</p>
+<div role="list" aria-label="Episodes">
+<sc-for list="{{ show.eps }}" as="x" hint-placeholder-count="6">
+<div role="listitem" style="border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="display:flex;align-items:center;gap:14px;min-height:64px">
+<button onClick="{{ x.onToggle }}" disabled="{{ x.future }}" aria-label="{{ x.toggleLabel }}" aria-pressed="{{ x.watched }}" style="width:44px;height:44px;flex:none;border-radius:50%;border:2px {{ x.ringStyle }} {{ x.ringColor }};background:{{ x.checkBg }};color:{{ x.checkFg }};font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ x.mark }}</button>
+<button onClick="{{ x.onOpen }}" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border:0;background:none;padding:10px 0;text-align:left">
+<span style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;min-width:64px">{{ x.code }}</span>
+<span style="font-size:16px;font-weight:{{ x.titleWeight }};color:{{ x.titleColor }}">{{ x.title }}</span>
+<span style="font-size:13px;color:oklch(0.46 0.02 55)">{{ x.sub }}</span>
+</button>
+<button onClick="{{ x.onMenu }}" aria-label="More actions for {{ x.code }}" aria-expanded="{{ x.menuOpen }}" style="width:44px;height:44px;flex:none;border-radius:50%;border:0;background:{{ x.menuBg }};font-size:18px;font-weight:700">⋯</button>
+</div>
+<sc-if value="{{ x.menuOpen }}" hint-placeholder-val="{{ false }}">
+<div role="menu" style="display:flex;flex-wrap:wrap;gap:8px;padding:0 0 14px 58px">
+<sc-if value="{{ x.canThrough }}" hint-placeholder-val="{{ false }}"><button role="menuitem" onClick="{{ x.onThrough }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Mark watched through {{ x.code }}…</button></sc-if>
+<button role="menuitem" onClick="{{ x.onOpen }}" style="height:40px;padding:0 14px;border-radius:999px;border:0;background:oklch(0.945 0.012 80);font-size:14px;font-weight:600">View episode</button>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{ show.hasAfter }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 0;font-size:14px;color:oklch(0.46 0.02 55);font-family:'IBM Plex Mono',monospace">{{ show.afterNote }}</div></sc-if>
+</sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{ isEpisode }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Episode" style="max-width:760px;padding-top:16px">
+<button onClick="{{ back }}" style="height:44px;padding:0 4px;border:0;background:none;font-size:15px;font-weight:600">← Back</button>
+<div style="display:flex;gap:16px;align-items:center;padding:12px 0 20px;border-bottom:3px solid oklch(0.21 0.015 50)">
+<button onClick="{{ ep.onShow }}" aria-label="Open {{ ep.showTitle }}" style="width:48px;aspect-ratio:2/3;flex:none;border:0;border-radius:5px;background:{{ ep.bg }}"></button>
+<div style="flex:1;min-width:0">
+<button onClick="{{ ep.onShow }}" style="border:0;background:none;padding:0;font-size:15px;font-weight:700;text-align:left">{{ ep.showTitle }}</button>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:{{ epCodeSize }};font-weight:500;line-height:1.05">{{ ep.code }}</div>
+</div>
+<span style="font-size:13px;font-weight:700;border-radius:999px;padding:6px 12px;background:{{ ep.badgeBg }};color:{{ ep.badgeFg }};flex:none">{{ ep.badge }}</span>
+</div>
+<sc-if value="{{ ep.unknownRel }}" hint-placeholder-val="{{ false }}"><div role="note" style="margin-top:16px;padding:12px 14px;border-radius:12px;border:1.5px dashed oklch(0.6 0.02 60);font-size:14px;line-height:1.5">No confirmed release date. This episode isn’t suggested as next or included in catch-up. You can still mark it watched.</div></sc-if>
+<sc-if value="{{ ep.detailsRevealedOnly }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="margin-top:16px;padding:14px 16px;border-radius:12px;background:oklch(0.93 0.05 75);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+<span style="font-size:14px;font-weight:600;flex:1 1 260px">Showing details for {{ ep.code }} until you close SceneCask. Nothing is marked watched, and later episodes stay hidden.</span>
+<button onClick="{{ ep.onHideDetails }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Hide again</button>
+</div>
+</sc-if>
+<sc-if value="{{ ep.detailsVisible }}" hint-placeholder-val="{{ false }}">
+<div style="padding:20px 0;display:flex;flex-direction:column;gap:12px">
+<div role="img" aria-label="Episode still placeholder" style="aspect-ratio:16/9;border-radius:14px;background:{{ ep.bg }};color:{{ ep.fg }};position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:14px;box-sizing:border-box"><span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 10px)"></span><span style="position:relative;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em">EPISODE STILL</span></div>
+<h1 style="margin:0;font-weight:800;font-size:32px;letter-spacing:-.04em;line-height:1.05">{{ ep.title }}</h1>
+<div style="font-size:14px;color:oklch(0.46 0.02 55)">{{ ep.airText }}</div>
+<p style="margin:0;font-family:Newsreader,serif;font-size:19px;line-height:1.5">{{ ep.summary }}</p>
+</div>
+</sc-if>
+<sc-if value="{{ ep.detailsHidden }}" hint-placeholder-val="{{ true }}">
+<div style="padding:20px 0;display:flex;flex-direction:column;gap:8px">
+<div style="font-size:16px;font-weight:700">{{ ep.airText }}</div>
+<div style="font-size:15px;color:oklch(0.38 0.02 55)">Title, summary and still are hidden until you watch this episode.</div>
+<sc-if value="{{ ep.canRevealDetails }}" hint-placeholder-val="{{ true }}"><button onClick="{{ ep.onRevealDetails }}" style="align-self:flex-start;margin-top:4px;height:44px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Reveal episode details…</button></sc-if>
+</div>
+</sc-if>
+<div style="display:flex;flex-wrap:wrap;gap:10px;padding-bottom:24px">
+<sc-if value="{{ ep.canMark }}" hint-placeholder-val="{{ true }}"><button onClick="{{ ep.onMark }}" style="height:50px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:16px;font-weight:700">Mark {{ ep.code }} watched</button></sc-if>
+<sc-if value="{{ ep.watched }}" hint-placeholder-val="{{ false }}"><button onClick="{{ ep.onUnmark }}" style="height:50px;padding:0 20px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:15px;font-weight:600">Mark unwatched</button></sc-if>
+<sc-if value="{{ ep.canThrough }}" hint-placeholder-val="{{ false }}"><button onClick="{{ ep.onThrough }}" style="height:50px;padding:0 18px;border-radius:999px;border:0;background:oklch(0.945 0.012 80);font-size:15px;font-weight:600">Mark watched through {{ ep.code }}…</button></sc-if>
+</div>
+
+<sc-if value="{{ beta }}" hint-placeholder-val="{{ false }}">
+<h2 style="margin:0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:24px;letter-spacing:-.03em">Discussions</h2>
+<sc-if value="{{ ep.discLocked }}" hint-placeholder-val="{{ true }}">
+<div style="padding:24px 0;display:flex;flex-direction:column;gap:12px">
+<div style="font-weight:800;font-size:22px;letter-spacing:-.03em">Discussions locked</div>
+<div style="font-family:Newsreader,serif;font-size:18px;line-height:1.45;color:oklch(0.3 0.02 55)">{{ ep.lockText }}</div>
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px">
+<sc-if value="{{ ep.showLockPrimary }}" hint-placeholder-val="{{ true }}"><button onClick="{{ ep.onLockPrimary }}" style="height:48px;padding:0 20px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700">{{ ep.lockPrimaryLabel }}</button></sc-if>
+<sc-if value="{{ ep.canRevealDisc }}" hint-placeholder-val="{{ true }}"><button onClick="{{ ep.onRevealDisc }}" style="height:48px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:15px;font-weight:600">Reveal discussions…</button></sc-if>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ ep.discOpen }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ ep.discRevealedOnly }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="margin-top:16px;padding:14px 16px;border-radius:12px;background:oklch(0.93 0.05 75);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+<span style="font-size:14px;font-weight:600;flex:1 1 260px">Discussions revealed until you close SceneCask. They may include spoilers for {{ ep.code }} and earlier. Your progress hasn’t changed.</span>
+<button onClick="{{ ep.onHideDisc }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Hide again</button>
+</div>
+</sc-if>
+<div role="group" aria-label="Reactions" style="display:flex;flex-wrap:wrap;gap:8px;padding:18px 0 6px">
+<sc-for list="{{ ep.reactions }}" as="r" hint-placeholder-count="4">
+<button onClick="{{ r.onClick }}" aria-pressed="{{ r.active }}" style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};font-size:14px;font-weight:600">{{ r.label }} · {{ r.count }}</button>
+</sc-for>
+</div>
+<p style="margin:10px 0 14px;font-size:14px;line-height:1.5;color:oklch(0.38 0.02 55)">You can open discussions you host and ones hosted by people you follow who follow you back. Everyone in a discussion sees each other’s comments. That doesn’t give access to anyone’s library.</p>
+<div role="tablist" aria-label="Discussions for this episode" style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ ep.threads }}" as="t" hint-placeholder-count="1">
+<button role="tab" aria-selected="{{ t.active }}" onClick="{{ t.onClick }}" style="height:44px;padding:0 16px;border-radius:999px;border:0;background:{{ t.bg }};color:{{ t.fg }};font-size:14px;font-weight:600">{{ t.label }}</button>
+</sc-for>
+<sc-if value="{{ ep.canStart }}" hint-placeholder-val="{{ false }}"><button onClick="{{ ep.onStart }}" style="height:44px;padding:0 16px;border-radius:999px;border:1.5px dashed oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">+ Start a discussion</button></sc-if>
+</div>
+<sc-if value="{{ ep.noThreads }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 0;font-size:15px;color:oklch(0.38 0.02 55)">No discussions you can open for {{ ep.code }} yet. Start one and people you follow mutually can join.</div></sc-if>
+<sc-if value="{{ ep.hasThread }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 0 0;font-size:14px;font-weight:700">{{ ep.threadLabel }}</div>
+<sc-if value="{{ ep.threadEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:12px 0;font-size:15px;color:oklch(0.38 0.02 55)">No comments yet. Start the conversation.</div></sc-if>
+<sc-for list="{{ ep.comments }}" as="c" hint-placeholder-count="2">
+<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="width:40px;height:40px;border-radius:50%;flex:none;background:{{ c.av }};font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ c.ini }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-weight:700;font-size:15px">{{ c.name }}</span><span style="font-size:13px;color:oklch(0.46 0.02 55)">{{ c.handle }} · {{ c.time }} · {{ c.relLabel }}</span></div>
+<p style="margin:0;font-family:Newsreader,serif;font-size:18px;line-height:1.45">{{ c.text }}</p>
+<sc-if value="{{ c.menuOpen }}" hint-placeholder-val="{{ false }}">
+<div role="menu" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+<sc-if value="{{ c.notMine }}" hint-placeholder-val="{{ true }}"><button role="menuitem" onClick="{{ c.onReport }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Report comment</button></sc-if>
+<sc-if value="{{ c.notMine }}" hint-placeholder-val="{{ true }}"><button role="menuitem" onClick="{{ c.onBlock }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.5 0.17 27);background:transparent;color:oklch(0.45 0.17 27);font-size:14px;font-weight:600">Block {{ c.handle }}</button></sc-if>
+<sc-if value="{{ c.canDelete }}" hint-placeholder-val="{{ false }}"><button role="menuitem" onClick="{{ c.onDelete }}" style="height:40px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.5 0.17 27);background:transparent;color:oklch(0.45 0.17 27);font-size:14px;font-weight:600">{{ c.deleteLabel }}</button></sc-if>
+</div>
+</sc-if>
+</div>
+<button onClick="{{ c.onMenu }}" aria-label="Actions for comment by {{ c.name }}" aria-expanded="{{ c.menuOpen }}" style="width:44px;height:44px;flex:none;border-radius:50%;border:0;background:transparent;font-size:18px;font-weight:700">⋯</button>
+</div>
+</sc-for>
+<sc-if value="{{ ep.hasHidden }}" hint-placeholder-val="{{ false }}"><div style="padding:12px 0;font-size:14px;color:oklch(0.46 0.02 55)">{{ ep.hiddenNote }}</div></sc-if>
+<div style="display:flex;flex-direction:column;gap:10px;padding:20px 0">
+<label for="sc-comment" style="font-weight:700;font-size:15px">Add a comment</label>
+<textarea id="sc-comment" value="{{ ep.draft }}" onChange="{{ ep.onDraft }}" rows="3" placeholder="What did you think of {{ ep.code }}?" style="border-radius:12px;border:1.5px solid oklch(0.21 0.015 50);background:oklch(0.99 0.004 85);padding:12px 14px;font-family:Newsreader,serif;font-size:17px;resize:vertical"></textarea>
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+<span style="font-size:13px;color:oklch(0.46 0.02 55);max-width:440px">Talk about {{ ep.code }} and earlier episodes only. Never mention later episodes.</span>
+<button onClick="{{ ep.onPost }}" disabled="{{ ep.cantPost }}" style="height:44px;padding:0 20px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700;opacity:{{ ep.postOpacity }}">Post</button>
+</div>
+</div>
+</sc-if>
+</sc-if>
+</sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{ isLibrary }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Library">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:3px solid oklch(0.21 0.015 50);padding:24px 0 12px">
+<h1 style="margin:0;font-weight:800;font-size:{{ h1Size }};letter-spacing:-.05em;line-height:.95">Library</h1>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">{{ lib.countText }}</span>
+</div>
+<sc-if value="{{ lib.empty }}" hint-placeholder-val="{{ false }}">
+<div style="padding:32px 0;display:flex;flex-direction:column;gap:12px;max-width:520px">
+<div style="font-weight:800;font-size:28px;letter-spacing:-.04em">Your library is empty</div>
+<div style="font-family:Newsreader,serif;font-size:18px;line-height:1.45;color:oklch(0.38 0.02 55)">Shows you add appear here with your progress. If you remove a show, its watch history is kept in case you add it back.</div>
+<button onClick="{{ goSearch }}" style="align-self:flex-start;height:48px;padding:0 22px;border-radius:999px;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-weight:700;font-size:15px">Find a show</button>
+</div>
+</sc-if>
+<sc-if value="{{ lib.hasAny }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:18px 0 6px">
+<label for="sc-libq" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search your library</label>
+<input id="sc-libq" type="search" value="{{ lib.q }}" onChange="{{ lib.onQ }}" placeholder="Search your library" style="flex:1 1 240px;max-width:360px;height:46px;border-radius:999px;border:1.5px solid oklch(0.86 0.012 75);background:oklch(0.99 0.004 85);padding:0 18px;font-size:15px">
+<div role="group" aria-label="Filter by status" style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ lib.chips }}" as="ch" hint-placeholder-count="6">
+<button onClick="{{ ch.onClick }}" aria-pressed="{{ ch.active }}" style="height:40px;padding:0 14px;border-radius:999px;border:0;background:{{ ch.bg }};color:{{ ch.fg }};font-size:14px;font-weight:600">{{ ch.label }} <span style="font-family:'IBM Plex Mono',monospace;font-weight:400">{{ ch.count }}</span></button>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ lib.noMatch }}" hint-placeholder-val="{{ false }}"><div style="padding:24px 0;font-size:16px;color:oklch(0.38 0.02 55)">No shows in your library match this search and filter.</div></sc-if>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:0 48px">
+<sc-for list="{{ lib.items }}" as="s" hint-placeholder-count="4">
+<button onClick="{{ s.onOpen }}" style="display:flex;gap:16px;padding:16px 0;border:0;border-bottom:1px solid oklch(0.86 0.012 75);background:none;align-items:center;text-align:left;width:100%">
+<span style="width:52px;aspect-ratio:2/3;flex:none;border-radius:5px;position:relative;overflow:hidden;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:flex-end;padding:4px;box-sizing:border-box"><span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px)"></span><span style="position:relative;font-weight:800;font-size:8px;line-height:1">{{ s.title }}</span></span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<span style="font-size:17px;font-weight:700;letter-spacing:-.02em">{{ s.title }} <span style="font-weight:500;color:oklch(0.46 0.02 55)">({{ s.year }})</span></span>
+<span style="font-size:14px;color:oklch(0.38 0.02 55)">{{ s.progressText }}</span>
+<span style="height:4px;border-radius:2px;background:oklch(0.9 0.012 75);max-width:220px;display:block"><span style="display:block;height:4px;border-radius:2px;background:{{ s.bg }};width:{{ s.pct }}"></span></span>
+</span>
+<span style="font-size:12px;font-weight:700;background:oklch(0.93 0.014 80);border-radius:999px;padding:5px 10px;flex:none">{{ s.status }}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+</section>
+</sc-if>
+
+<sc-if value="{{ isFriends }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="Friends (beta)" style="max-width:760px">
+<div style="border-bottom:3px solid oklch(0.21 0.015 50);padding:24px 0 12px"><h1 style="margin:0;font-weight:800;font-size:{{ h1Size }};letter-spacing:-.05em;line-height:.95">Friends</h1></div>
+<p style="margin:16px 0 0;font-family:Newsreader,serif;font-size:17px;line-height:1.45;color:oklch(0.38 0.02 55)">Your account is private. People can find your name and @ana.r, but only followers you approve see your library, progress and activity. Following is one-way.</p>
+<sc-if value="{{ fr.hasRequests }}" hint-placeholder-val="{{ false }}">
+<h2 style="margin:28px 0 0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:22px;letter-spacing:-.03em">Follow requests</h2>
+<sc-for list="{{ fr.requests }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="width:44px;height:44px;border-radius:50%;flex:none;background:{{ p.av }};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">{{ p.ini }}</div>
+<div style="flex:1 1 180px;min-width:0"><div style="font-weight:700">{{ p.name }} wants to follow you</div><div style="font-size:14px;color:oklch(0.46 0.02 55)">{{ p.handle }} · Approving lets them see your library, progress and activity</div></div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ p.onApprove }}" style="height:44px;padding:0 16px;border-radius:999px;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:14px;font-weight:700">Approve</button>
+<button onClick="{{ p.onDecline }}" style="height:44px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:14px;font-weight:600">Decline</button>
+</div>
+</div>
+</sc-for>
+</sc-if>
+<h2 style="margin:28px 0 0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:22px;letter-spacing:-.03em">People</h2>
+<label for="sc-fq" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search people by name or handle</label>
+<input id="sc-fq" type="search" value="{{ fr.q }}" onChange="{{ fr.onQ }}" placeholder="Search by name or @handle" style="margin:14px 0 4px;width:100%;box-sizing:border-box;height:46px;border-radius:999px;border:1.5px solid oklch(0.86 0.012 75);background:oklch(0.99 0.004 85);padding:0 18px;font-size:15px">
+<sc-for list="{{ fr.people }}" as="p" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="width:44px;height:44px;border-radius:50%;flex:none;background:{{ p.av }};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">{{ p.ini }}</div>
+<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:16px">{{ p.name }} <span style="font-weight:500;font-size:14px;color:oklch(0.46 0.02 55)">{{ p.handle }}</span></div><div style="font-size:14px;color:oklch(0.38 0.02 55)">{{ p.detail }}</div></div>
+<button onClick="{{ p.onBtn }}" style="height:44px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:{{ p.btnBg }};color:{{ p.btnFg }};font-size:14px;font-weight:600;flex:none">{{ p.btnLabel }}</button>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+</main>
+
+<sc-if value="{{ narrowNav }}" hint-placeholder-val="{{ true }}">
+<nav aria-label="Main" style="position:fixed;left:0;right:0;bottom:0;z-index:30;height:72px;background:oklch(0.975 0.008 85);border-top:1px solid oklch(0.86 0.012 75);display:grid;grid-template-columns:repeat({{ navCols }},1fr)">
+<sc-for list="{{ nav }}" as="n" hint-placeholder-count="3">
+<button onClick="{{ n.onClick }}" aria-current="{{ n.current }}" style="border:0;border-top:3px solid {{ n.bar }};background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:{{ n.color }};font-size:12px;font-weight:{{ n.weight }}"><span style="width:{{ n.iw }};height:{{ n.ih }};border-radius:{{ n.ir }};border:2px solid currentColor;background:{{ n.ibg }};box-sizing:border-box"></span>{{ n.label }}</button>
+</sc-for>
+</nav>
+</sc-if>
+
+<sc-if value="{{ toast.has }}" hint-placeholder-val="{{ false }}">
+<div role="{{ toast.role }}" aria-live="polite" style="position:fixed;left:50%;transform:translateX(-50%);bottom:{{ toastBottom }};z-index:40;width:max-content;max-width:calc(100% - 32px);box-sizing:border-box;background:{{ toast.bg }};color:{{ toast.fg }};border-radius:20px;padding:8px 8px 8px 20px;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;box-shadow:0 10px 30px rgba(0,0,0,.25)">
+<span style="font-size:14px;line-height:1.35;flex:1 1 160px">{{ toast.msg }}</span>
+<div style="display:flex;gap:6px">
+<sc-for list="{{ toast.actions }}" as="a" hint-placeholder-count="1">
+<button onClick="{{ a.fn }}" style="height:40px;padding:0 14px;border:0;border-radius:999px;background:{{ a.bg }};color:{{ a.fg }};font-weight:700;font-size:14px">{{ a.label }}</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ acct.open }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ toggleAccount }}" style="position:fixed;inset:0;z-index:44"></div>
+<div role="menu" aria-label="Account" style="position:fixed;top:{{ acctTop }};right:16px;z-index:45;width:320px;max-width:calc(100% - 32px);max-height:calc(100vh - 90px);overflow-y:auto;background:oklch(0.99 0.004 85);border:1px solid oklch(0.86 0.012 75);border-radius:16px;box-shadow:0 20px 40px -10px rgba(0,0,0,.25);padding:8px;box-sizing:border-box">
+<div style="padding:10px 12px 12px;border-bottom:1px solid oklch(0.9 0.01 80)"><div style="font-weight:700">Ana Reyes</div><div style="font-size:14px;color:oklch(0.46 0.02 55)">{{ acct.email }}</div><div style="margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;color:oklch(0.46 0.02 55)">{{ releaseTag }}</div></div>
+<sc-for list="{{ acct.items }}" as="m" hint-placeholder-count="2">
+<button role="menuitem" disabled="{{ true }}" style="width:100%;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border:0;background:none;font-size:15px;color:oklch(0.38 0.02 55)">{{ m }}<span style="font-size:11px;font-family:'IBM Plex Mono',monospace">NEXT PASS</span></button>
+</sc-for>
+<button role="menuitem" onClick="{{ acct.signOut }}" style="width:100%;height:44px;text-align:left;padding:0 12px;border:0;background:none;font-size:15px;font-weight:600">Sign out</button>
+<div style="margin-top:6px;padding:12px;border-radius:12px;background:oklch(0.945 0.012 80);display:flex;flex-direction:column;gap:6px">
+<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;color:oklch(0.38 0.02 55)">PROTOTYPE CONTROLS · SIMULATED</div>
+<div role="radiogroup" aria-label="Release" style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+<sc-for list="{{ acct.releases }}" as="r" hint-placeholder-count="2">
+<button role="radio" aria-checked="{{ r.active }}" onClick="{{ r.fn }}" style="height:44px;border-radius:8px;border:1.5px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};font-size:13px;font-weight:700;line-height:1.1">{{ r.label }}</button>
+</sc-for>
+</div>
+<sc-for list="{{ acct.presets }}" as="p" hint-placeholder-count="4">
+<button role="menuitem" onClick="{{ p.fn }}" style="height:40px;text-align:left;padding:0 10px;border-radius:8px;border:0;background:oklch(0.99 0.004 85);font-size:14px;font-weight:600">{{ p.label }}</button>
+</sc-for>
+<button role="menuitemcheckbox" aria-checked="{{ failNext }}" onClick="{{ toggleFail }}" style="height:40px;text-align:left;padding:0 10px;border-radius:8px;border:1.5px solid {{ failBorder }};background:oklch(0.99 0.004 85);font-size:14px;font-weight:600">{{ failLabel }}</button>
+<button role="menuitemcheckbox" aria-checked="{{ metaOn }}" onClick="{{ toggleMeta }}" style="min-height:40px;text-align:left;padding:8px 10px;border-radius:8px;border:1.5px solid {{ metaBorder }};background:oklch(0.99 0.004 85);font-size:14px;font-weight:600">{{ metaLabel }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheet.open }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:50;background:rgba(30,22,15,.45);display:flex;align-items:{{ overlayAlign }};justify-content:center">
+<div role="dialog" aria-modal="true" aria-labelledby="sc-sheet-title" style="width:100%;max-width:560px;max-height:90vh;overflow-y:auto;background:oklch(0.975 0.008 85);border-radius:{{ sheetRadius }};padding:24px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+<div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">{{ sheet.kicker }}</div>
+<h2 id="sc-sheet-title" style="margin:4px 0 0;font-weight:800;font-size:26px;letter-spacing:-.035em">{{ sheet.heading }}</h2>
+</div>
+<sc-if value="{{ sheet.showNone }}" hint-placeholder-val="{{ true }}"><button onClick="{{ sheet.onNone }}" aria-pressed="{{ sheet.noneActive }}" style="height:48px;border-radius:12px;border:1.5px solid {{ sheet.noneBorder }};background:{{ sheet.noneBg }};color:{{ sheet.noneFg }};font-size:15px;font-weight:600;text-align:left;padding:0 16px">Haven’t started yet</button></sc-if>
+<div style="font-weight:700;font-size:15px">{{ sheet.pickLabel }}</div>
+<div role="tablist" aria-label="Season" style="display:flex;gap:6px;flex-wrap:wrap">
+<sc-for list="{{ sheet.seasons }}" as="t" hint-placeholder-count="2">
+<button role="tab" aria-selected="{{ t.active }}" onClick="{{ t.onClick }}" style="height:40px;padding:0 14px;border-radius:999px;border:0;background:{{ t.bg }};color:{{ t.fg }};font-size:14px;font-weight:600">{{ t.label }}</button>
+</sc-for>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px">
+<sc-for list="{{ sheet.eps }}" as="x" hint-placeholder-count="10">
+<button onClick="{{ x.onClick }}" aria-pressed="{{ x.active }}" aria-label="{{ x.aria }}" style="height:44px;border-radius:10px;border:1.5px solid {{ x.border }};background:{{ x.bg }};color:{{ x.fg }};font-family:'IBM Plex Mono',monospace;font-size:14px">{{ x.label }}</button>
+</sc-for>
+</div>
+<div aria-live="polite" style="font-size:14px;line-height:1.5;color:oklch(0.3 0.02 55);background:oklch(0.945 0.012 80);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+<span style="font-weight:700">{{ sheet.summary }}</span>
+<span>{{ sheet.excl }}</span>
+</div>
+<sc-if value="{{ sheet.hasError }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;font-weight:600;color:oklch(0.42 0.15 27);background:oklch(0.95 0.03 27);border-radius:12px;padding:12px 14px">Couldn’t save. Nothing was changed. Try again.</div></sc-if>
+<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+<button onClick="{{ sheet.onCancel }}" style="height:48px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:15px;font-weight:600">Cancel</button>
+<button onClick="{{ sheet.onSave }}" disabled="{{ sheet.disabled }}" style="height:48px;padding:0 22px;border:0;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:15px;font-weight:700;opacity:{{ sheet.opacity }}">{{ sheet.saveLabel }}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ dialog.open }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:55;background:rgba(30,22,15,.45);display:flex;align-items:{{ overlayAlign }};justify-content:center">
+<div role="alertdialog" aria-modal="true" aria-labelledby="sc-dlg-title" aria-describedby="sc-dlg-body" style="width:100%;max-width:480px;background:oklch(0.975 0.008 85);border-radius:{{ sheetRadius }};padding:24px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px">
+<h2 id="sc-dlg-title" style="margin:0;font-weight:800;font-size:24px;letter-spacing:-.035em">{{ dialog.title }}</h2>
+<p id="sc-dlg-body" style="margin:0;font-family:Newsreader,serif;font-size:18px;line-height:1.45">{{ dialog.body }}</p>
+<sc-if value="{{ dialog.hasExtra }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font-size:14px;line-height:1.5;color:oklch(0.3 0.02 55);background:oklch(0.945 0.012 80);border-radius:12px;padding:12px 14px">{{ dialog.extra }}</p></sc-if>
+<sc-if value="{{ dialog.isReport }}" hint-placeholder-val="{{ false }}">
+<div role="radiogroup" aria-label="Reason" style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ dialog.reasons }}" as="r" hint-placeholder-count="4">
+<button role="radio" aria-checked="{{ r.active }}" onClick="{{ r.onClick }}" style="height:44px;border-radius:10px;border:1.5px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};text-align:left;padding:0 14px;font-size:15px;font-weight:600">{{ r.label }}</button>
+</sc-for>
+</div>
+</sc-if>
+<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px">
+<button onClick="{{ dialog.onCancel }}" style="height:48px;padding:0 18px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;font-size:15px;font-weight:600">Cancel</button>
+<button onClick="{{ dialog.onConfirm }}" disabled="{{ dialog.disabled }}" style="height:48px;padding:0 22px;border:0;border-radius:999px;background:{{ dialog.confirmBg }};color:oklch(0.975 0.008 85);font-size:15px;font-weight:700;opacity:{{ dialog.opacity }}">{{ dialog.confirmLabel }}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;start&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;new&quot;,&quot;returning&quot;,&quot;caught&quot;,&quot;empty&quot;],&quot;default&quot;:&quot;new&quot;,&quot;tsType&quot;:&quot;'new'|'returning'|'caught'|'empty'&quot;}}">
+class Component extends DCLogic {
+  INK = 'oklch(0.21 0.015 50)'; BG = 'oklch(0.975 0.008 85)'; P2 = 'oklch(0.945 0.012 80)'; MUTED = 'oklch(0.46 0.02 55)'; RED = 'oklch(0.45 0.17 27)';
+  KEY = 'scenecask-proto-v2';
+  POOL = ['The Long Table','First Frost','Open House','A Small Favor','Low Tide','Market Day','The Visitor','Paper Trail','Old Roads','Crossing','Lights Out','Inventory','The Ledger','Night Bus','Fair Weather','Second Shift','The Window','Homecoming','Loose Ends','Common Ground','Signal','Daybreak','Kindling','The Quiet Part','Small Hours','Overtime','Sea Glass','Roll Call','Full House','Last Orders'];
+  SUMS = ['Plans for the week fall apart in a small, funny way.','An old friend turns up with a request nobody wants to answer.','A long day ends with an honest conversation.','Everyone gets ready for a big event in town.','A practical problem forces two rivals to work together.','A storm keeps everyone indoors for the night.'];
+  CAT = {
+    ho: { title: 'Hollow Orchard', year: 2024, genre: 'Drama', bg: 'oklch(0.42 0.09 150)', fg: 'oklch(0.95 0.03 90)', desc: 'Three siblings come home to run their late mother’s apple orchard, in a town that remembers why they left.', seasons: [{ n: 1, eps: 10 }, { n: 2, eps: 10 }], specials: [{ e: 1, title: 'A Winter Visit' }], after: 'Season 3 · date not announced' },
+    ho98: { title: 'Hollow Orchard', year: 1998, genre: 'Mystery', bg: 'oklch(0.5 0.06 70)', fg: 'oklch(0.97 0.02 85)', desc: 'A retired detective solves small village cases from her kitchen table.', seasons: [{ n: 1, eps: 6 }, { n: 2, eps: 6 }, { n: 3, eps: 6 }], ended: true },
+    lc: { title: 'The Lantern Coast', year: 2025, genre: 'Thriller', bg: 'oklch(0.36 0.08 245)', fg: 'oklch(0.93 0.06 85)', desc: 'A lighthouse keeper starts logging ships that don’t appear on any register.', seasons: [{ n: 1, eps: 8 }], after: 'Season 2 · expected 2027' },
+    pm: { title: 'Paper Moons', year: 2026, genre: 'Comedy', bg: 'oklch(0.47 0.12 35)', fg: 'oklch(0.96 0.025 80)', desc: 'Two rival stationery shops share a wall, a landlord and, slowly, a sense of humor.', seasons: [{ n: 1, eps: 6, rel: 4 }], air: { '1-5': 'Tue, Oct 6' }, undated: { '1-6': true } },
+    nm: { title: 'Night Shift at Meridian', year: 2019, genre: 'Medical drama', bg: 'oklch(0.32 0.07 295)', fg: 'oklch(0.93 0.04 30)', desc: 'The overnight team at a city hospital, one shift at a time.', seasons: [{ n: 1, eps: 12 }, { n: 2, eps: 12 }, { n: 3, eps: 12 }, { n: 4, eps: 12, rel: 11 }], air: { '4-12': 'Fri, Oct 9' }, after: 'Season 5 · date not announced' },
+    sk: { title: 'Saltwater Kings', year: 2021, genre: 'Adventure', bg: 'oklch(0.4 0.06 200)', fg: 'oklch(0.95 0.02 90)', desc: 'A fishing crew takes on one unlikely contract each season.', seasons: [{ n: 1, eps: 8 }, { n: 2, eps: 8 }, { n: 3, eps: 8 }], undated: { '2-5': true }, ended: true, endedLabel: 'Canceled' },
+    qy: { title: 'The Quiet Year', year: 2025, genre: 'Drama', bg: 'oklch(0.44 0.05 120)', fg: 'oklch(0.96 0.02 95)', desc: 'A composer moves to a remote island to finish one piece of music.', seasons: [{ n: 1, eps: 6 }], ended: true },
+    gh: { title: 'Glasshouse', year: 2023, genre: 'Sci-fi', bg: 'oklch(0.38 0.07 180)', fg: 'oklch(0.94 0.04 150)', desc: 'Botanists aboard a research station tend the last seed bank.', seasons: [{ n: 1, eps: 8 }, { n: 2, eps: 8 }], after: 'Season 3 · date not announced' },
+    tr: { title: 'Tidewater Radio', year: 2022, genre: 'Comedy', bg: 'oklch(0.45 0.1 15)', fg: 'oklch(0.96 0.02 70)', desc: 'A tiny coastal radio station refuses to go off air.', seasons: [{ n: 1, eps: 10 }, { n: 2, eps: 10 }], ended: true },
+    no: { title: 'North of Ordinary', year: 2020, genre: 'Documentary', bg: 'oklch(0.35 0.04 260)', fg: 'oklch(0.95 0.02 230)', desc: 'Five people who live far above the Arctic Circle, through one winter.', seasons: [{ n: 1, eps: 5 }], ended: true },
+    hl: { title: 'Harbor Lights', year: 2026, genre: 'Drama', bg: 'oklch(0.4 0.08 265)', fg: 'oklch(0.94 0.05 80)', desc: 'A ferry crew keeps a small island connected to the mainland.', seasons: [{ n: 1, eps: 8, rel: 0 }], air: { '1-1': 'Thu, Nov 12' } }
+  };
+  PEOPLE = {
+    maya: { name: 'Maya Okafor', handle: '@maya.ok', ini: 'MO', av: 'oklch(0.82 0.08 40)', shows: ['ho', 'lc', 'gh', 'nm'], pub: false, approves: true },
+    theo: { name: 'Theo Lind', handle: '@theolind', ini: 'TL', av: 'oklch(0.82 0.07 230)', shows: ['lc', 'ho', 'tr'], pub: false, approves: true },
+    priya: { name: 'Priya Shah', handle: '@priyashah', ini: 'PS', av: 'oklch(0.82 0.08 150)', shows: ['qy', 'pm', 'ho'], pub: false, approves: true },
+    jonas: { name: 'Jonas Weber', handle: '@jonasw', ini: 'JW', av: 'oklch(0.82 0.07 300)', shows: ['nm', 'qy', 'sk'], pub: true },
+    rui: { name: 'Rui Matsuda', handle: '@rui.m', ini: 'RM', av: 'oklch(0.85 0.08 95)', shows: [], pub: false, approves: false }
+  };
+  ACT = [
+    { who: 'maya', kind: 'ep', show: 'ho', s: 2, e: 7, time: '2 hours ago', verb: 'watched' },
+    { who: 'theo', kind: 'ep', show: 'lc', s: 1, e: 2, time: '5 hours ago', verb: 'reacted to' },
+    { who: 'priya', kind: 'add', show: 'qy', time: 'Yesterday' },
+    { who: 'jonas', kind: 'ep', show: 'nm', s: 4, e: 11, time: 'Yesterday', verb: 'commented on' },
+    { who: 'maya', kind: 'add', show: 'gh', time: '2 days ago' }
+  ];
+  THREADS = {
+    'ho-2-6': [{ id: 't1', host: 'maya', comments: [{ id: 'c1', who: 'maya', text: 'The quiet dinner scene did more than any big speech could.', time: '3d' }] }],
+    'ho-2-7': [{ id: 't2', host: 'maya', comments: [{ id: 'c2', who: 'maya', text: 'That last scene in the barn. I need to talk about it with someone.', time: '2h' }, { id: 'c3', who: 'theo', text: 'The music in the opening minutes was so good. Who scores this show?', time: '1h' }, { id: 'c4', who: 'jonas', text: 'Rewatched the market sequence twice. The pacing is perfect.', time: '40m' }] },
+      { id: 't3', host: 'priya', comments: [{ id: 'c10', who: 'priya', text: 'Hosting this one for my book club group.', time: '1h' }] }],
+    'ho-2-8': [{ id: 't4', host: 'maya', comments: [{ id: 'c5', who: 'maya', text: 'Okay, this one changed how I see the whole season so far.', time: '1h' }] }],
+    'lc-1-2': [{ id: 't5', host: 'jonas', comments: [{ id: 'c6', who: 'theo', text: 'The fog effects in this one are unreal for a TV budget.', time: '5h' }, { id: 'c7', who: 'jonas', text: 'I’m keeping a list of every ship name now.', time: '4h' }] }],
+    'nm-4-11': [{ id: 't6', host: 'jonas', comments: [{ id: 'c8', who: 'jonas', text: 'Best ensemble episode of the season, easily.', time: '1d' }, { id: 'c9', who: 'priya', text: 'The night nurse storyline keeps getting better.', time: '20h' }] }]
+  };
+  REACTS = ['Loved it', 'Laughed', 'Gasped', 'Teared up'];
+  STATUSES = ['Plan to watch', 'Watching', 'On hold', 'Dropped', 'Completed'];
+  rootRef = React.createRef();
+  timers = [];
+  state = this.init();
+
+  init() {
+    let q = null; try { q = new URLSearchParams(window.location.search); } catch (e) {}
+    const hasQ = !!(q && Array.from(q.keys()).length);
+    this.persist = !hasQ;
+    let st;
+    if (!hasQ) {
+      st = this.preset((this.props && this.props.start) || 'new');
+      let saved = null; try { saved = JSON.parse(localStorage.getItem(this.KEY) || 'null'); } catch (e) {}
+      if (saved && saved.account) {
+        st = { ...this.preset('new'), lib: saved.lib || {}, order: saved.order || [], account: saved.account, beta: !!saved.beta, meta: saved.meta || {}, follow: saved.follow || {}, followers: saved.followers || {}, blocked: saved.blocked || {} };
+        if (saved.account.signedIn) { st.screen = 'home'; st.onboarding = false; }
+      }
+    } else {
+      st = this.preset(q.get('start') || 'new');
+      if (q.get('beta')) st.beta = true;
+      if (q.get('auth')) { st.screen = 'auth'; st.authMode = q.get('auth'); st.onboarding = true; if (q.get('auth') === 'verify') st.authEmail = 'ana@example.com'; }
+      if (q.get('screen')) {
+        st.screen = q.get('screen'); st.onboarding = false;
+        st.params = { id: q.get('id') || 'ho', s: +(q.get('s') || 1), e: +(q.get('e') || 1) };
+        const k = st.params.id + '-' + st.params.s + '-' + st.params.e;
+        if (q.get('reveal') === 'details') st.revealD = { [k]: true };
+        if (q.get('reveal') === 'disc') st.revealC = { [k]: true };
+        if (q.get('q')) st.q = q.get('q');
+        if (q.get('sheet')) st.sheet = { id: st.params.id, mode: 'add', s: 2, e: 6, none: false, saving: false, error: false };
+        if (q.get('dialog') === 'through') st.dialog = { type: 'through', id: st.params.id, s: st.params.s, e: st.params.e };
+      }
+      if (q.get('fail')) st.failNext = true;
+      if (q.get('meta')) st.meta = { nm12: true };
+    }
+    st.width = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    return st;
+  }
+  relDefault(id, s, e) { const c = this.CAT[id], k = s + '-' + e; if (c.undated && c.undated[k]) return 'unknown'; const se = c.seasons.find(x => x.n === s); return e <= (se.rel != null ? se.rel : se.eps) ? 'yes' : 'future'; }
+  relThroughDefault(id, s, e) { const w = {}; this.CAT[id].seasons.forEach(se => { for (let x = 1; x <= se.eps; x++) if ((se.n < s || (se.n === s && x <= e)) && this.relDefault(id, se.n, x) === 'yes') w[se.n + '-' + x] = true; }); return w; }
+  preset(k) {
+    const T = (id, s, e) => this.relThroughDefault(id, s, e);
+    const base = { screen: 'home', params: {}, hist: [], q: '', searching: false, searchErr: false, toast: null, dialog: null, sheet: null, menu: null, acct: false, failNext: false, onboarding: false, onbStep: 'friends', authMode: 'create', authEmail: '', authPw: '', authErr: {}, authBusy: false, revealD: {}, revealC: {}, season: {}, thread: {}, myThreads: {}, myComments: {}, deleted: {}, myReact: {}, hidden: {}, blocked: {}, loading: false, lfilter: 'All', lq: '', fq: '', draft: '', reportReason: null, beta: false, meta: {}, account: { signedIn: false, email: '' }, follow: {}, followers: {}, lib: {}, order: [] };
+    const sv = (status, w) => ({ saved: true, status, w });
+    if (k === 'returning' || k === 'caught') {
+      const c = k === 'caught';
+      return { ...base, account: { signedIn: true, email: 'ana@example.com' },
+        lib: { ho: sv('Watching', T('ho', 2, c ? 10 : 6)), lc: sv('Watching', T('lc', 1, c ? 8 : 3)), pm: sv('Watching', c ? T('pm', 1, 4) : { '1-1': true, '1-3': true }), nm: sv('Watching', T('nm', 4, 12)), sk: sv('Watching', T('sk', 3, 8)), qy: sv('Completed', T('qy', 1, 6)), gh: sv('Plan to watch', {}), tr: sv('On hold', T('tr', 1, 2)), hl: sv('Plan to watch', {}) },
+        order: ['ho', 'lc', 'pm', 'nm', 'sk', 'qy', 'gh', 'tr', 'hl'], follow: { maya: 'following', priya: 'following', jonas: 'following' }, followers: { maya: 'approved', jonas: 'approved', theo: 'pending' } };
+    }
+    if (k === 'empty') return { ...base, screen: 'library', account: { signedIn: true, email: 'ana@example.com' } };
+    return { ...base, screen: 'welcome', onboarding: true };
+  }
+  componentDidMount() {
+    this.onResize = () => { this.setState({ width: window.innerWidth }); };
+    window.addEventListener('resize', this.onResize);
+    this.onResize(); requestAnimationFrame(this.onResize); this.later(this.onResize, 150);
+    this.onKey = e => { if (e.key === 'Escape') this.setState({ dialog: null, sheet: null, acct: false, menu: null }); };
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentDidUpdate() {
+    if (!this.persist) return;
+    const s = this.state;
+    try { localStorage.setItem(this.KEY, JSON.stringify({ lib: s.lib, order: s.order, account: s.account, beta: s.beta, meta: s.meta, follow: s.follow, followers: s.followers, blocked: s.blocked })); } catch (e) {}
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this.onResize); window.removeEventListener('keydown', this.onKey); this.timers.forEach(clearTimeout); clearTimeout(this.tt); clearTimeout(this.st); }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+
+  relOf(id, s, e) { let r = this.relDefault(id, s, e); if (id === 'nm' && s === 4 && e === 12 && this.state && this.state.meta && this.state.meta.nm12) r = 'yes'; return r; }
+  regs(id) { const c = this.CAT[id], out = []; c.seasons.forEach(se => { for (let e = 1; e <= se.eps; e++) { const k = se.n + '-' + e; const rel = this.relOf(id, se.n, e); out.push({ s: se.n, e, k, rel, air: rel === 'future' && c.air ? c.air[k] : null }); } }); return out; }
+  L(id) { return this.state.lib[id]; }
+  saved(id) { const l = this.L(id); return !!(l && l.saved); }
+  W(id) { const l = this.L(id); return l ? l.w : {}; }
+  code(s, e) { return s === 0 ? `Special ${e}` : `S${s} E${e}`; }
+  epTitle(id, s, e) { if (s === 0) return this.CAT[id].specials[e - 1].title; const h = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0); return this.POOL[(h + s * 11 + e * 7) % this.POOL.length]; }
+  epSum(id, s, e) { return this.SUMS[(id.length + s * 3 + e) % this.SUMS.length]; }
+  before(x, s, e) { return x.s < s || (x.s === s && x.e <= e); }
+  thru(id, s, e) { const w = this.W(id); return this.regs(id).filter(x => this.before(x, s, e)).every(x => w[x.k]); }
+  info(id) {
+    const r = this.regs(id), w = this.W(id), c = this.CAT[id];
+    const watched = r.filter(x => w[x.k]).length;
+    const released = r.filter(x => x.rel === 'yes');
+    const next = released.find(x => !w[x.k]);
+    const undated = r.filter(x => x.rel === 'unknown');
+    const future = r.filter(x => x.rel === 'future');
+    const avail = released.filter(x => !w[x.k]).length;
+    const outOfOrder = !!next && r.some(x => w[x.k] && (x.s > next.s || (x.s === next.s && x.e > next.e)));
+    let state, note = '';
+    if (released.length === 0) { state = 'notyet'; note = future[0] && future[0].air ? `Premieres ${future[0].air}` : 'Release information unknown'; }
+    else if (next) state = 'up';
+    else if (c.ended && watched === r.length && undated.length === 0) { state = 'complete'; note = 'Every episode watched'; }
+    else { state = 'caught'; const f = future[0], u = undated.find(x => !w[x.k]);
+      note = f ? (f.air ? `${this.code(f.s, f.e)} airs ${f.air}` : `${this.code(f.s, f.e)} · date not announced`) : u ? `${this.code(u.s, u.e)} release date unknown` : (c.after || (c.ended ? (c.endedLabel || 'Ended') + ' · release info incomplete' : 'More to come')); }
+    const pctNum = Math.round(watched / r.length * 100);
+    return { watched, total: r.length, next, avail, state, note, pct: pctNum + '%', pctNum, undated, outOfOrder };
+  }
+  stateBadge(i) { return i.state === 'complete' ? '✓ Completed' : i.state === 'caught' ? '✓ Caught up' : i.state === 'notyet' ? 'Not yet available' : ''; }
+
+  // Change engine: each action records exactly what it changed, so undo / failure only reverses its own edits.
+  getF(l, c) { if (!l) return c.f === 'w' ? false : c.f === 'saved' ? false : undefined; return c.f === 'w' ? !!l.w[c.k] : c.f === 'saved' ? !!l.saved : l.status; }
+  writeChanges(id, ch, dir) {
+    const cur = this.state.lib[id] || { saved: false, status: 'Plan to watch', w: {} };
+    const n = { ...cur, w: { ...cur.w } };
+    ch.forEach(c => { const v = c[dir]; if (c.f === 'w') { if (v) n.w[c.k] = true; else delete n.w[c.k]; } else if (c.f === 'saved') n.saved = v; else n.status = v; });
+    const order = this.state.order.includes(id) ? this.state.order : [id, ...this.state.order];
+    this.setState({ lib: { ...this.state.lib, [id]: n }, order });
+  }
+  revert(id, ch) {
+    const l = this.state.lib[id]; const ok = [], skipped = [];
+    ch.forEach(c => { (this.getF(l, c) === c.to ? ok : skipped).push(c); });
+    if (ok.length) this.writeChanges(id, ok, 'from');
+    return skipped.length;
+  }
+  apply(id, patch, o) {
+    const l = this.state.lib[id], ch = [];
+    Object.keys(patch.w || {}).forEach(k => { const from = !!(l && l.w[k]), to = !!patch.w[k]; if (from !== to) ch.push({ f: 'w', k, from, to }); });
+    if (patch.status !== undefined && patch.status !== (l && l.status)) ch.push({ f: 'status', from: l ? l.status : undefined, to: patch.status });
+    if (patch.saved !== undefined && patch.saved !== !!(l && l.saved)) ch.push({ f: 'saved', from: !!(l && l.saved), to: patch.saved });
+    if (!ch.length) { this.toast({ msg: o.noop || 'Nothing to change', kind: 'ok', actions: [] }); return; }
+    const fail = this.state.failNext;
+    this.writeChanges(id, ch, 'to');
+    if (fail) this.setState({ failNext: false });
+    this.toast({ msg: o.msg, kind: 'ok', actions: [{ label: 'Undo', fn: () => { const sk = this.revert(id, ch); this.toast({ msg: sk ? `Undone. ${sk} change${sk > 1 ? 's' : ''} you made afterwards ${sk > 1 ? 'were' : 'was'} kept.` : (o.undoMsg || 'Undone'), kind: 'ok', actions: [] }); } }, ...(o.actions || [])] });
+    if (fail) this.later(() => { this.revert(id, ch); this.toast({ msg: o.failMsg, kind: 'err', actions: [{ label: 'Retry', fn: () => o.retry() }, { label: 'Dismiss', fn: () => {} }] }); }, 900);
+  }
+  toast(t) { clearTimeout(this.tt); this.setState({ toast: t }); if (t && t.kind !== 'err') this.tt = setTimeout(() => this.setState({ toast: null }), 6000); }
+  autoStatus(id) { const l = this.L(id); return !l || !l.saved || !l.status || l.status === 'Plan to watch' ? 'Watching' : undefined; }
+  markOne(id, s, e) {
+    const c = this.code(s, e), wasSaved = this.saved(id);
+    this.apply(id, { w: { [s + '-' + e]: true }, saved: true, status: this.autoStatus(id) }, { msg: `Marked ${c} watched${wasSaved ? '' : ' · added to Library'}`, undoMsg: `${c} is unwatched again`, failMsg: `Couldn’t save ${c}. It’s back to unwatched.`, retry: () => this.markOne(id, s, e),
+      actions: this.state.beta && s > 0 ? [{ label: 'Discuss', fn: () => this.go('episode', { id, s, e }) }] : [] });
+  }
+  unmarkOne(id, s, e) { const c = this.code(s, e); this.apply(id, { w: { [s + '-' + e]: false } }, { msg: `Marked ${c} unwatched`, undoMsg: `${c} is watched again`, failMsg: `Couldn’t save. ${c} is still watched.`, retry: () => this.unmarkOne(id, s, e) }); }
+  catchUp(id, s, e) {
+    const r = this.regs(id).filter(x => this.before(x, s, e)), w = this.W(id);
+    return { change: r.filter(x => x.rel === 'yes' && !w[x.k]), already: r.filter(x => x.rel === 'yes' && w[x.k]).length, undated: r.filter(x => x.rel === 'unknown' && !w[x.k]), future: r.filter(x => x.rel === 'future').length, hasSpecials: !!this.CAT[id].specials };
+  }
+  rangeText(list) { const by = {}; list.forEach(x => { (by[x.s] = by[x.s] || []).push(x.e); }); return Object.keys(by).map(s => { const a = by[s]; let out = [], st = a[0], pv = a[0]; for (let i = 1; i <= a.length; i++) { if (a[i] === pv + 1) { pv = a[i]; continue; } out.push(st === pv ? `E${st}` : `E${st}–E${pv}`); st = pv = a[i]; } return `S${s} ${out.join(', ')}`; }).join('; '); }
+  exclText(cu) { const parts = []; if (cu.undated.length) parts.push(`${this.rangeText(cu.undated)} (release date unknown)`); if (cu.future) parts.push(`${cu.future} unreleased`); if (cu.hasSpecials) parts.push('specials'); if (cu.already) parts.push(`${cu.already} already watched stay as they are`); return parts.length ? 'Not included: ' + parts.join(', ') + '.' : ''; }
+  markThrough(id, s, e) {
+    const cu = this.catchUp(id, s, e), n = cu.change.length, c = this.code(s, e), w = {}; cu.change.forEach(x => { w[x.k] = true; });
+    this.apply(id, { w, saved: true, status: this.autoStatus(id) }, { msg: `Marked ${n} episode${n === 1 ? '' : 's'} watched through ${c}`, undoMsg: `Undone. Episodes you’d already watched are still marked.`, failMsg: `Couldn’t save. Episodes through ${c} are back the way they were.`, retry: () => this.markThrough(id, s, e) });
+  }
+  setStatus(id, status) { this.apply(id, { status, saved: true }, { msg: `${this.CAT[id].title}: ${status}`, failMsg: 'Couldn’t change the status. It’s back to what it was.', retry: () => this.setStatus(id, status) }); }
+  addPlan(id) {
+    if (this.saved(id)) { this.openShow(id); return; }
+    const l = this.L(id);
+    this.apply(id, { saved: true, status: l && l.status ? undefined : 'Plan to watch' }, { msg: l && Object.keys(l.w).length ? `${this.CAT[id].title} is back in your library with your progress` : `Added ${this.CAT[id].title} to Plan to watch`, failMsg: `Couldn’t add ${this.CAT[id].title}. Try again.`, retry: () => this.addPlan(id) });
+  }
+  removeShow(id) { this.apply(id, { saved: false }, { msg: `Removed ${this.CAT[id].title}. Your watch history is kept.`, failMsg: 'Couldn’t remove it. It’s still in your library.', retry: () => this.removeShow(id) }); }
+  eraseHistory(id) { const w = {}; Object.keys(this.W(id)).forEach(k => { w[k] = false; }); this.apply(id, { w }, { msg: `Erased watch history for ${this.CAT[id].title}`, failMsg: 'Couldn’t erase history. Nothing changed.', retry: () => this.eraseHistory(id) }); }
+
+  go(screen, params = {}) { this.setState(st => ({ hist: [...st.hist, { screen: st.screen, params: st.params }], screen, params, menu: null, acct: false, sheet: null, dialog: null, draft: '' })); try { window.scrollTo(0, 0); } catch (e) {} }
+  tab(screen) { this.setState({ screen, params: {}, hist: [], menu: null, acct: false, onboarding: false }); try { window.scrollTo(0, 0); } catch (e) {} }
+  back() { this.setState(st => { const h = [...st.hist]; const p = h.pop() || { screen: 'home', params: {} }; return { hist: h, screen: p.screen, params: p.params, menu: null }; }); }
+  openShow(id) { this.go('show', { id }); this.setState({ loading: true }); this.later(() => this.setState({ loading: false }), 450); }
+  setQ(v) { this.setState({ q: v, searching: !!v.trim(), searchErr: false }); clearTimeout(this.st); if (v.trim()) this.st = setTimeout(() => { if (this.state.failNext) this.setState({ searching: false, searchErr: true, failNext: false }); else this.setState({ searching: false }); }, 550); }
+  openSheet(id, mode) { const i = this.info(id); const s = i.next ? i.next.s : 1; this.setState({ sheet: { id, mode, s, e: null, none: false, saving: false, error: false }, menu: null }); }
+  saveSheet() {
+    const sh = this.state.sheet; if (!sh || sh.saving) return;
+    this.setState({ sheet: { ...sh, saving: true, error: false } });
+    this.later(() => {
+      if (this.state.failNext) { this.setState({ failNext: false, sheet: { ...this.state.sheet, saving: false, error: true } }); return; }
+      const id = sh.id, wasOnb = this.state.onboarding, w = {};
+      if (!sh.none) this.catchUp(id, sh.s, sh.e).change.forEach(x => { w[x.k] = true; });
+      this.setState({ sheet: null });
+      const l = this.L(id);
+      const status = sh.none ? (l && l.status ? undefined : 'Plan to watch') : this.autoStatus(id);
+      const before = this.state.lib;
+      this.apply(id, { w, saved: true, status }, { msg: sh.mode === 'add' ? `${this.CAT[id].title} added` : 'Progress saved', failMsg: 'Couldn’t save. Nothing was changed.', retry: () => this.saveSheet(), noop: 'Saved. Nothing new to mark.' });
+      if (wasOnb) { if (this.state.beta) this.setState({ screen: 'onb', onbStep: 'friends', hist: [] }); else this.tab('home'); }
+    }, 700);
+  }
+  follows(w) { return this.state.follow[w] === 'following' && !this.state.blocked[w]; }
+  mutual(w) { return this.follows(w) && this.state.followers[w] === 'approved'; }
+  requestFollow(who) {
+    const p = this.PEOPLE[who];
+    if (p.pub) { this.setState(st => ({ follow: { ...st.follow, [who]: 'following' } })); this.toast({ msg: `Following ${p.name}. Public accounts don’t need approval.`, kind: 'ok', actions: [] }); return; }
+    this.setState(st => ({ follow: { ...st.follow, [who]: 'requested' } }));
+    this.toast({ msg: `Request sent to ${p.name}`, kind: 'ok', actions: [] });
+    if (p.approves) this.later(() => { if (this.state.follow[who] === 'requested') { this.setState(st => ({ follow: { ...st.follow, [who]: 'following' } })); this.toast({ msg: `${p.name} approved your request`, kind: 'ok', actions: [] }); } }, 2500);
+  }
+  personBtn(who) {
+    const f = this.state.follow[who], b = this.state.blocked[who], p = this.PEOPLE[who];
+    if (b) return { stateLabel: 'Blocked', btnLabel: 'Unblock', onBtn: () => this.setState(st => ({ blocked: { ...st.blocked, [who]: false } })), solid: false };
+    if (f === 'following') return { stateLabel: 'Following', btnLabel: 'Following ✓', onBtn: () => { this.setState(st => ({ follow: { ...st.follow, [who]: 'none' } })); this.toast({ msg: `Unfollowed ${p.name}`, kind: 'ok', actions: [{ label: 'Undo', fn: () => this.setState(st => ({ follow: { ...st.follow, [who]: 'following' } })) }] }); }, solid: false };
+    if (f === 'requested') return { stateLabel: 'Request pending', btnLabel: 'Withdraw request', onBtn: () => this.setState(st => ({ follow: { ...st.follow, [who]: 'none' } })), solid: false };
+    return { stateLabel: 'Not following', btnLabel: p.pub ? 'Follow' : 'Request to follow', onBtn: () => this.requestFollow(who), solid: true };
+  }
+  validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); }
+  submitAuth() {
+    const st = this.state, m = st.authMode, err = {};
+    if (!this.validEmail(st.authEmail)) err.email = st.authEmail.trim() ? 'Enter a valid email address, like name@example.com.' : 'Enter your email address.';
+    if (m === 'create' && st.authPw.length < 8) err.pw = 'Use at least 8 characters.';
+    if (m === 'signin' && !st.authPw) err.pw = 'Enter your password.';
+    this.setState({ authErr: err }); if (Object.keys(err).length) return;
+    this.setState({ authBusy: true });
+    this.later(() => {
+      if (this.state.failNext) { this.setState({ authBusy: false, failNext: false, authErr: { form: 'Couldn’t reach SceneCask. Check your connection and try again.' } }); return; }
+      const email = this.state.authEmail.trim();
+      if (m === 'create') this.setState({ authBusy: false, authMode: 'verify', authEmail: email });
+      else if (m === 'reset') this.setState({ authBusy: false, authMode: 'resetSent', authEmail: email });
+      else {
+        if (!Object.keys(this.state.lib).length) { const p = this.preset('returning'); this.setState({ lib: p.lib, order: p.order, follow: p.follow, followers: p.followers }); }
+        this.setState({ authBusy: false, account: { signedIn: true, email }, authPw: '' }); this.tab('home'); this.toast({ msg: 'Signed in. Your progress is here.', kind: 'ok', actions: [] });
+      }
+    }, 700);
+  }
+
+  renderVals() {
+    const st = this.state, wide = st.width >= 860, INK = this.INK, BG = this.BG, P2 = this.P2, beta = st.beta;
+    const lib = st.lib, follows = w => this.follows(w);
+    const anyFollow = Object.keys(this.PEOPLE).some(follows);
+    const showNav = !st.onboarding;
+    const NAV = [['home', 'Home', '16px', '16px', '4px'], ['discover', 'Discover', '16px', '16px', '50%'], ['library', 'Library', '13px', '17px', '2px']].concat(beta ? [['friends', 'Friends', '20px', '14px', '7px']] : []);
+    const tabOf = ['home', 'discover', 'library', 'friends'].includes(st.screen) ? st.screen : null;
+    const nav = NAV.map(([k, label, iw, ih, ir]) => { const a = tabOf === k; return { label, onClick: () => this.tab(k), current: a ? 'page' : undefined, weight: a ? 700 : 500, pillBg: a ? INK : 'transparent', pillFg: a ? BG : 'oklch(0.35 0.02 55)', color: a ? INK : this.MUTED, bar: a ? INK : 'transparent', iw, ih, ir, ibg: a ? INK : 'transparent' }; });
+    const card = id => { const c = this.CAT[id]; return { id, title: c.title, year: c.year, genre: c.genre, bg: c.bg, fg: c.fg }; };
+    const savedIds = st.order.filter(id => this.saved(id));
+
+    // Home
+    const up = [], caught = [];
+    savedIds.filter(id => lib[id].status === 'Watching').forEach(id => {
+      const i = this.info(id), base = card(id);
+      if (i.next) { const code = this.code(i.next.s, i.next.e);
+        up.push({ ...base, code, progress: `${i.watched} of ${i.total} watched${i.outOfOrder ? ' · some out of order' : ''}`, pct: i.pct, pctNum: i.pctNum, avail: i.avail > 1 ? `${i.avail} released, unwatched` : 'Released', markLabel: `Mark ${code} watched`,
+          onMark: () => this.markOne(id, i.next.s, i.next.e), onView: () => this.go('episode', { id, s: i.next.s, e: i.next.e }), onShow: () => this.openShow(id), onCatchUp: () => this.openSheet(id, 'edit') }); }
+      else caught.push({ ...base, label: this.stateBadge(i), note: i.note, onShow: () => this.openShow(id) });
+    });
+    const friends = beta ? this.ACT.filter(a => follows(a.who)).map(a => {
+      const p = this.PEOPLE[a.who], c = this.CAT[a.show];
+      if (a.kind === 'add') { const inL = this.saved(a.show); return { name: p.name, ini: p.ini, av: p.av, action: 'added', show: c.title, code: `(${c.year})`, time: a.time, isAdd: true, isLocked: false, isOpen: false, added: inL, addLabel: inL ? '✓ In your library' : 'Add to library', onAdd: () => this.addPlan(a.show) }; }
+      const unlocked = this.thru(a.show, a.s, a.e), code = this.code(a.s, a.e);
+      return { name: p.name, ini: p.ini, av: p.av, action: a.verb, show: c.title, code, time: a.time, isAdd: false, isLocked: !unlocked, isOpen: unlocked, lockNote: `details hidden until you’ve watched through ${code}`, onOpen: () => this.go('episode', { id: a.show, s: a.s, e: a.e }) };
+    }) : [];
+    const watchingCount = savedIds.filter(id => lib[id].status === 'Watching').length;
+    const home = { hasUp: up.length > 0, first: up[0] || {}, rest: up.slice(1), caught, hasCaught: caught.length > 0, allCaught: watchingCount > 0 && up.length === 0, emptyLib: watchingCount === 0, friends, noFriends: !anyFollow };
+
+    // Discover
+    const qq = st.q.trim().toLowerCase();
+    const results = qq ? Object.keys(this.CAT).filter(id => this.CAT[id].title.toLowerCase().includes(qq)).sort((a, b) => this.CAT[b].year - this.CAT[a].year).map(id => { const c = this.CAT[id]; const n = c.seasons.length; return { ...card(id), meta: `TV · ${c.genre} · ${n} season${n > 1 ? 's' : ''}${c.ended ? ' · ' + (c.endedLabel || 'Ended') : ''}`, inLib: this.saved(id), onOpen: () => this.openShow(id) }; }) : [];
+    const rec = (id, reason) => { const inLib = this.saved(id); return { ...card(id), reason, inLib, addLabel: inLib ? '✓ In library' : 'Add to library', btnBg: inLib ? 'transparent' : INK, btnFg: inLib ? INK : BG, onAdd: () => this.addPlan(id), onOpen: () => this.openShow(id) }; };
+    const groups = [];
+    if (beta && anyFollow) {
+      const items = Object.keys(this.CAT).filter(id => !this.saved(id)).map(id => ({ id, ws: Object.keys(this.PEOPLE).filter(w => follows(w) && this.PEOPLE[w].shows.includes(id)) })).filter(x => x.ws.length).sort((a, b) => b.ws.length - a.ws.length).slice(0, 4)
+        .map(x => rec(x.id, x.ws.length > 1 ? `Watched by ${x.ws.length} people you follow` : `Watched by ${this.PEOPLE[x.ws[0]].name}, who you follow`));
+      if (items.length) groups.push({ title: 'From people you follow', items });
+    }
+    groups.push({ title: st.onboarding ? 'Popular right now' : 'Popular on SceneCask this week', items: ['lc', 'ho', 'nm', 'gh'].map(id => rec(id, `${this.CAT[id].genre} · ${['lc', 'ho'].includes(id) ? 'Most added this week' : 'Most tracked this month'}`)) });
+    if (!st.onboarding) groups.push({ title: 'Short series to start', items: ['qy', 'no', 'pm'].map(id => rec(id, `${this.regs(id).length} episodes · ${this.CAT[id].ended ? 'Complete' : 'Airing weekly'}`)) });
+    const dis = { title: st.onboarding ? 'What are you watching?' : 'Discover', searching: st.searching, error: st.searchErr, hasResults: !st.searching && !st.searchErr && results.length > 0, noResults: !!qq && !st.searching && !st.searchErr && results.length === 0, showRecs: !qq, results, groups, skeleton: [1, 2, 3], retry: () => this.setQ(st.q),
+      hint: qq ? (st.searching ? 'Searching…' : results.length > 1 ? `${results.length} shows · check the year and poster to pick the right one` : '') : 'Search by title. Results show year and poster so you can pick the right one.' };
+
+    // Show
+    const sid = st.params.id && this.CAT[st.params.id] ? st.params.id : 'ho';
+    const sc = this.CAT[sid], si = this.info(sid), sl = lib[sid], isSaved = this.saved(sid), hist = Object.keys(this.W(sid)).length > 0;
+    const selSeason = st.season[sid] != null ? st.season[sid] : (si.next ? si.next.s : 1);
+    const tabs = sc.seasons.map(se => ({ label: `Season ${se.n}`, n: se.n })).concat(sc.specials ? [{ label: 'Specials', n: 0 }] : []).map(t => ({ label: t.label, active: t.n === selSeason, bg: t.n === selSeason ? INK : P2, fg: t.n === selSeason ? BG : INK, onClick: () => this.setState(s2 => ({ season: { ...s2.season, [sid]: t.n }, menu: null })) }));
+    const wS = this.W(sid);
+    const epRows = selSeason === 0 ? sc.specials.map(sp => ({ s: 0, e: sp.e, k: '0-' + sp.e, rel: 'yes' })) : this.regs(sid).filter(x => x.s === selSeason);
+    const eps = epRows.map(x => {
+      const watched = !!wS[x.k], code = this.code(x.s, x.e), shown = watched || st.revealD[sid + '-' + x.k];
+      const mk = 'ep:' + sid + ':' + x.k, menuOpen = st.menu === mk, future = x.rel === 'future';
+      return { code, watched, future, title: future ? 'Not released yet' : shown ? this.epTitle(sid, x.s, x.e) : 'Title hidden', titleWeight: shown ? 600 : 400, titleColor: shown ? INK : this.MUTED,
+        sub: future ? (x.air ? `Airs ${x.air}` : 'Date not announced') : x.rel === 'unknown' ? 'Release date unknown' : watched ? 'Watched' : '',
+        mark: watched ? '✓' : x.rel === 'unknown' ? '?' : '', checkBg: watched ? INK : 'transparent', checkFg: watched ? BG : INK, ringColor: future ? 'oklch(0.75 0.012 75)' : INK, ringStyle: future || x.rel === 'unknown' ? 'dashed' : 'solid',
+        toggleLabel: future ? `${code} hasn’t been released` : watched ? `Mark ${code} unwatched` : `Mark ${code} watched`,
+        onToggle: () => { if (future) return; watched ? this.unmarkOne(sid, x.s, x.e) : this.markOne(sid, x.s, x.e); },
+        onOpen: () => this.go('episode', { id: sid, s: x.s, e: x.e }),
+        menuOpen, menuBg: menuOpen ? P2 : 'transparent', onMenu: () => this.setState({ menu: menuOpen ? null : mk }),
+        canThrough: x.s > 0 && x.rel === 'yes', onThrough: () => this.setState({ menu: null, dialog: { type: 'through', id: sid, s: x.s, e: x.e } }) };
+    });
+    const isLastSeason = selSeason === sc.seasons[sc.seasons.length - 1].n;
+    const stateText = si.state === 'up' ? `Next: ${this.code(si.next.s, si.next.e)}` : `${this.stateBadge(si)} · ${si.note}`;
+    const show = { loading: st.loading, ready: !st.loading, ...card(sid), meta: `${sc.year} · ${sc.genre} · ${sc.seasons.length} season${sc.seasons.length > 1 ? 's' : ''}${sc.ended ? ' · ' + (sc.endedLabel || 'Ended') : ''}`, desc: sc.desc,
+      inLib: isSaved, notInLib: !isSaved, hasHistory: hist, addLabel: hist ? 'Add back to library' : 'Add to library',
+      onAdd: () => hist ? this.addPlan(sid) : this.openSheet(sid, 'add'),
+      progressText: si.state === 'notyet' ? `Not yet available · ${si.note}` : `${si.watched} of ${si.total} episodes watched`, pct: si.pct, pctNum: si.pctNum, stateText: si.state === 'notyet' ? '' : stateText,
+      statuses: this.STATUSES.map(s2 => { const a = sl && sl.status === s2; return { label: (a ? '✓ ' : '') + s2, active: !!a, bg: a ? INK : 'transparent', fg: a ? BG : INK, border: a ? INK : 'oklch(0.75 0.012 75)', onClick: () => !a && this.setStatus(sid, s2) }; }),
+      hasNext: !!si.next, nextLabel: si.next ? `Mark ${this.code(si.next.s, si.next.e)} watched` : '', onNext: () => si.next && this.markOne(sid, si.next.s, si.next.e),
+      canCatchUp: si.state !== 'notyet', onSetProgress: () => this.openSheet(sid, 'edit'),
+      onRemove: () => this.removeShow(sid), onErase: () => this.setState({ dialog: { type: 'erase', id: sid } }),
+      hasUndated: si.undated.length > 0, undatedText: si.undated.length ? `${si.undated.map(x => this.code(x.s, x.e)).join(', ')} ${si.undated.length > 1 ? 'have' : 'has'} no confirmed release date.` : '',
+      tabs, eps, tabNote: selSeason === 0 ? 'Specials are tracked separately. They don’t count toward progress, next episode, catch-up or completion.' : 'Release dates come from TV listings, at midnight in the show’s home time zone. Streaming services may differ.',
+      hasAfter: isLastSeason && selSeason !== 0 && !!sc.after, afterNote: `NEXT · ${sc.after || ''}` };
+
+    // Episode
+    const ei = st.params.id && this.CAT[st.params.id] ? st.params.id : 'ho', es = st.params.s != null ? st.params.s : 1, ee = st.params.e || 1;
+    const ekey = ei + '-' + es + '-' + ee, ec = this.CAT[ei], ecode = this.code(es, ee), isSpecial = es === 0;
+    const erel = isSpecial ? 'yes' : this.relOf(ei, es, ee);
+    const ereg = isSpecial ? {} : (this.regs(ei).find(x => x.s === es && x.e === ee) || {});
+    const ewatched = !!this.W(ei)[es + '-' + ee], ethru = !isSpecial && this.thru(ei, es, ee);
+    const detailsVisible = ewatched || !!st.revealD[ekey];
+    const discAuto = !isSpecial && ethru, discOpen = discAuto || !!st.revealC[ekey];
+    const missing = isSpecial ? [] : this.regs(ei).filter(x => this.before(x, es, ee) && !this.W(ei)[x.k]);
+    const onlySelf = missing.length === 1 && missing[0].s === es && missing[0].e === ee;
+    const lockText = isSpecial ? 'Specials can include spoilers for any part of the series, so their discussions always need an explicit reveal.'
+      : erel === 'future' ? `${ecode} ${ereg.air ? 'airs ' + ereg.air : 'has no release date yet'}. Discussions open once you’ve watched it and every episode before it.`
+      : onlySelf ? `Opens automatically when you’ve watched ${ecode}. Nothing from these discussions is loaded until then.`
+      : `Opens automatically when you’ve watched every regular episode through ${ecode}. Still unwatched: ${this.rangeText(missing)}.`;
+    const airText = erel === 'future' ? (ereg.air ? `Airs ${ereg.air}` : 'Release date not announced') : erel === 'unknown' ? 'Release date unknown' : isSpecial ? 'Special' : `Season ${es}, episode ${ee} · Released`;
+    // Hosted discussions (beta)
+    const canRead = h => h === 'me' || (this.mutual(h) && !st.blocked[h]);
+    const threads = (this.THREADS[ekey] || []).filter(t => canRead(t.host)).concat(st.myThreads[ekey] ? [{ id: 'mine-' + ekey, host: 'me', comments: [] }] : []);
+    const selT = threads.find(t => t.id === st.thread[ekey]) || threads[0];
+    const hostName = h => h === 'me' ? 'Your discussion' : `${this.PEOPLE[h].name.split(' ')[0]}’s discussion`;
+    let comments = [], blockedCount = 0;
+    if (selT) {
+      const all = selT.comments.concat(st.myComments[selT.id] || []).filter(c => !st.deleted[c.id]);
+      blockedCount = all.filter(c => st.blocked[c.who]).length;
+      comments = all.filter(c => !st.blocked[c.who] && !st.hidden[c.id]).map(c => {
+        const me = c.who === 'me'; const p = me ? { name: 'Ana Reyes', handle: '@ana.r', ini: 'AR', av: 'oklch(0.85 0.06 60)' } : this.PEOPLE[c.who]; const mk = 'c:' + c.id, open = st.menu === mk;
+        const relLabel = me ? 'You' : c.who === selT.host ? 'Host' : follows(c.who) ? 'You follow' : 'Participant';
+        return { name: p.name, handle: p.handle, ini: p.ini, av: p.av, time: c.time, text: c.text, notMine: !me, canDelete: me || selT.host === 'me', deleteLabel: me ? 'Delete my comment' : 'Remove from my discussion', relLabel, menuOpen: open, onMenu: () => this.setState({ menu: open ? null : mk }),
+          onReport: () => this.setState({ menu: null, dialog: { type: 'report', cid: c.id }, reportReason: null }), onBlock: () => this.setState({ menu: null, dialog: { type: 'block', who: c.who } }),
+          onDelete: () => { this.setState(s2 => ({ menu: null, deleted: { ...s2.deleted, [c.id]: true } })); this.toast({ msg: 'Comment deleted', kind: 'ok', actions: [{ label: 'Undo', fn: () => this.setState(s3 => ({ deleted: { ...s3.deleted, [c.id]: false } })) }] }); } };
+      });
+    }
+    const myR = st.myReact[ekey];
+    const ep = { code: ecode, showTitle: ec.title, bg: ec.bg, fg: ec.fg, onShow: () => this.openShow(ei), watched: ewatched, canMark: erel !== 'future' && !ewatched, unknownRel: erel === 'unknown',
+      canThrough: !isSpecial && erel === 'yes' && !ethru && !onlySelf && missing.length > 0, onThrough: () => this.setState({ dialog: { type: 'through', id: ei, s: es, e: ee } }),
+      badge: ewatched ? '✓ Watched' : erel === 'future' ? 'Not released' : erel === 'unknown' ? '? Date unknown' : 'Not watched', badgeBg: ewatched ? INK : P2, badgeFg: ewatched ? BG : INK,
+      detailsVisible, detailsHidden: !detailsVisible, detailsRevealedOnly: !!st.revealD[ekey] && !ewatched, canRevealDetails: true,
+      onRevealDetails: () => this.setState({ dialog: { type: 'revealD', id: ei, s: es, e: ee } }), onHideDetails: () => this.setState(s2 => ({ revealD: { ...s2.revealD, [ekey]: false } })),
+      title: this.epTitle(ei, es, ee), summary: isSpecial ? 'A standalone special episode.' : this.epSum(ei, es, ee), airText,
+      onMark: () => this.markOne(ei, es, ee), onUnmark: () => this.unmarkOne(ei, es, ee),
+      discLocked: !discOpen, discOpen, discRevealedOnly: !!st.revealC[ekey] && !discAuto, lockText,
+      showLockPrimary: !isSpecial && erel === 'yes', lockPrimaryLabel: onlySelf ? `Mark ${ecode} watched` : `Mark watched through ${ecode}…`,
+      onLockPrimary: () => onlySelf ? this.markOne(ei, es, ee) : this.setState({ dialog: { type: 'through', id: ei, s: es, e: ee } }),
+      canRevealDisc: erel !== 'future', onRevealDisc: () => this.setState({ dialog: { type: 'revealC', id: ei, s: es, e: ee, special: isSpecial } }), onHideDisc: () => this.setState(s2 => ({ revealC: { ...s2.revealC, [ekey]: false } })),
+      reactions: this.REACTS.map((r, i) => { const a = myR === r; const base = (ei.length * 3 + es * 5 + ee * 7 + i * 11) % 9; return { label: r, count: base + (a ? 1 : 0), active: a, bg: a ? INK : 'transparent', fg: a ? BG : INK, border: a ? INK : 'oklch(0.75 0.012 75)', onClick: () => this.setState(s2 => ({ myReact: { ...s2.myReact, [ekey]: a ? null : r } })) }; }),
+      threads: threads.map(t => { const a = selT && t.id === selT.id; const n = t.comments.concat(st.myComments[t.id] || []).filter(c => !st.blocked[c.who] && !st.hidden[c.id] && !st.deleted[c.id]).length; return { label: `${hostName(t.host)} · ${n}`, active: !!a, bg: a ? INK : P2, fg: a ? BG : INK, onClick: () => this.setState(s2 => ({ thread: { ...s2.thread, [ekey]: t.id } })) }; }),
+      canStart: !st.myThreads[ekey], onStart: () => { this.setState(s2 => ({ myThreads: { ...s2.myThreads, [ekey]: true }, thread: { ...s2.thread, [ekey]: 'mine-' + ekey } })); this.toast({ msg: 'Discussion started. People you follow mutually can join.', kind: 'ok', actions: [] }); },
+      noThreads: threads.length === 0, hasThread: !!selT, threadLabel: selT ? (selT.host === 'me' ? 'Your discussion. Open to people you follow mutually.' : `Hosted by ${this.PEOPLE[selT.host].name}. Open to people they follow mutually.`) : '',
+      comments, threadEmpty: !!selT && comments.length === 0, hasHidden: blockedCount > 0, hiddenNote: `${blockedCount} comment${blockedCount > 1 ? 's' : ''} hidden because you blocked the author.`,
+      draft: st.draft, onDraft: e => this.setState({ draft: e.target.value }), cantPost: !st.draft.trim(), postOpacity: st.draft.trim() ? 1 : 0.4,
+      onPost: () => { const t = st.draft.trim(); if (!t || !selT) return; this.setState(s2 => ({ draft: '', myComments: { ...s2.myComments, [selT.id]: [...(s2.myComments[selT.id] || []), { id: 'm' + Date.now(), who: 'me', text: t, time: 'Just now' }] } })); this.toast({ msg: 'Comment posted', kind: 'ok', actions: [] }); } };
+
+    // Library
+    const counts = {}; savedIds.forEach(id => { counts[lib[id].status] = (counts[lib[id].status] || 0) + 1; });
+    const lq = st.lq.trim().toLowerCase();
+    const libItems = savedIds.filter(id => (st.lfilter === 'All' || lib[id].status === st.lfilter) && (!lq || this.CAT[id].title.toLowerCase().includes(lq))).map(id => { const i = this.info(id);
+      const progressText = i.state === 'notyet' ? `Not yet available · ${i.note}` : i.state === 'up' ? (i.watched === 0 ? `Not started · ${i.total} episodes` : `${i.watched} of ${i.total} · Next ${this.code(i.next.s, i.next.e)}`) : `${this.stateBadge(i)} · ${i.note}`;
+      return { ...card(id), status: lib[id].status, progressText, pct: i.pct, onOpen: () => this.openShow(id) }; });
+    const libVM = { empty: savedIds.length === 0, hasAny: savedIds.length > 0, countText: savedIds.length ? `${savedIds.length} SHOW${savedIds.length === 1 ? '' : 'S'}` : '', q: st.lq, onQ: e => this.setState({ lq: e.target.value }), noMatch: savedIds.length > 0 && libItems.length === 0, items: libItems,
+      chips: ['All', ...this.STATUSES].map(c => { const a = st.lfilter === c; return { label: c, count: c === 'All' ? savedIds.length : (counts[c] || 0), active: a, bg: a ? INK : P2, fg: a ? BG : INK, onClick: () => this.setState({ lfilter: c }) }; }) };
+
+    // Friends (beta)
+    const fq = st.fq.trim().toLowerCase().replace(/^@/, '');
+    const pv = w => { const p = this.PEOPLE[w], b = this.personBtn(w);
+      const shared = p.shows.filter(id => this.saved(id)).length, followsYou = st.followers[w] === 'approved', canSee = p.pub || follows(w);
+      const detail = [p.pub ? 'Public account' : 'Private account', b.stateLabel, followsYou ? 'Follows you' : null, this.mutual(w) ? 'Mutual · can share discussions' : null, p.shows.length === 0 ? null : canSee ? `${shared} show${shared === 1 ? '' : 's'} in common` : null].filter(Boolean).join(' · ');
+      return { ...p, detail, btnLabel: b.btnLabel, onBtn: b.onBtn, btnBg: b.solid ? INK : 'transparent', btnFg: b.solid ? BG : INK }; };
+    const people = Object.keys(this.PEOPLE).filter(w => !fq || (this.PEOPLE[w].name + this.PEOPLE[w].handle).toLowerCase().includes(fq)).map(pv);
+    const requests = Object.keys(st.followers).filter(w => st.followers[w] === 'pending' && !st.blocked[w]).map(w => ({ ...this.PEOPLE[w],
+      onApprove: () => { this.setState(s2 => ({ followers: { ...s2.followers, [w]: 'approved' } })); this.toast({ msg: `${this.PEOPLE[w].name} can now see your library, progress and activity. You don’t follow them back automatically.`, kind: 'ok', actions: [] }); },
+      onDecline: () => { this.setState(s2 => { const f = { ...s2.followers }; delete f[w]; return { followers: f }; }); this.toast({ msg: 'Request declined. They aren’t notified.', kind: 'ok', actions: [] }); } }));
+    const fr = { q: st.fq, onQ: e => this.setState({ fq: e.target.value }), people, requests, hasRequests: requests.length > 0 };
+
+    // Toast
+    const t = st.toast;
+    const toast = { has: !!t, msg: t ? t.msg : '', role: t && t.kind === 'err' ? 'alert' : 'status', bg: t && t.kind === 'err' ? 'oklch(0.42 0.15 27)' : INK, fg: BG,
+      actions: t ? t.actions.map(a => ({ label: a.label, bg: BG, fg: t.kind === 'err' ? 'oklch(0.42 0.15 27)' : INK, fn: () => { this.setState({ toast: null }); a.fn(); } })) : [] };
+
+    // Sheet
+    const sh = st.sheet; let sheet = { open: false };
+    if (sh) {
+      const id = sh.id, c = this.CAT[id], w = this.W(id);
+      const seasonEps = this.regs(id).filter(x => x.s === sh.s && x.rel === 'yes');
+      const cu = sh.none || sh.e == null ? null : this.catchUp(id, sh.s, sh.e);
+      const n = cu ? cu.change.length : 0;
+      const summary = sh.none ? 'Saved as Plan to watch. No episodes are marked.' : !cu ? 'Pick the last episode you’ve watched.' : n === 0 ? `Everything released through ${this.code(sh.s, sh.e)} is already marked.` : `Marks ${n} episode${n > 1 ? 's' : ''} watched: ${this.rangeText(cu.change)}.`;
+      const disabled = !sh.none && sh.e == null;
+      sheet = { open: true, heading: sh.mode === 'add' ? `Where are you in ${c.title}?` : `Catch up on ${c.title}`, kicker: st.onboarding ? (beta ? 'STEP 2 OF 3 · SET PROGRESS' : 'STEP 2 OF 2 · SET PROGRESS') : sh.mode === 'add' ? 'ADD TO LIBRARY' : 'MARK WATCHED THROUGH AN EPISODE', showNone: sh.mode === 'add',
+        pickLabel: 'Last episode you’ve watched', noneActive: sh.none, noneBg: sh.none ? INK : 'transparent', noneFg: sh.none ? BG : INK, noneBorder: sh.none ? INK : 'oklch(0.75 0.012 75)', onNone: () => this.setState({ sheet: { ...sh, none: true, e: null, error: false } }),
+        seasons: c.seasons.map(se => ({ label: `Season ${se.n}`, active: se.n === sh.s, bg: se.n === sh.s ? INK : P2, fg: se.n === sh.s ? BG : INK, onClick: () => this.setState({ sheet: { ...sh, s: se.n, e: null, error: false } }) })),
+        eps: seasonEps.map(x => { const a = !sh.none && sh.e === x.e; const done = w[x.k]; return { label: `E${x.e}`, aria: `${this.code(x.s, x.e)}${done ? ', already watched' : ''}`, active: a, bg: a ? INK : done ? P2 : 'transparent', fg: a ? BG : INK, border: a ? INK : 'oklch(0.8 0.012 75)', onClick: () => this.setState({ sheet: { ...sh, e: x.e, none: false, error: false } }) }; }),
+        summary, excl: cu ? this.exclText(cu) : 'Only released regular episodes can be caught up. Specials and episodes without a release date are never included.', hasError: sh.error, disabled: disabled || sh.saving, opacity: disabled ? 0.4 : sh.saving ? 0.7 : 1,
+        saveLabel: sh.saving ? 'Saving…' : sh.error ? 'Retry' : sh.mode === 'add' ? 'Add to library' : n ? `Mark ${n} watched` : 'Save',
+        onSave: () => this.saveSheet(), onCancel: () => this.setState({ sheet: null }) };
+    }
+
+    // Dialog
+    const d = st.dialog; let dialog = { open: false };
+    if (d) {
+      const close = () => this.setState({ dialog: null });
+      if (d.type === 'through') { const cu = this.catchUp(d.id, d.s, d.e), n = cu.change.length, c = this.code(d.s, d.e);
+        dialog = { title: `Mark watched through ${c}?`, body: n ? `This marks ${n} episode${n > 1 ? 's' : ''} of ${this.CAT[d.id].title} watched: ${this.rangeText(cu.change)}.` : `Everything released through ${c} is already watched.`, extra: this.exclText(cu), confirmLabel: n ? `Mark ${n} watched` : 'OK', confirmBg: INK, onConfirm: () => { close(); if (n) this.markThrough(d.id, d.s, d.e); } }; }
+      if (d.type === 'revealD') { const c = this.code(d.s, d.e);
+        dialog = { title: `Reveal details for ${c}?`, body: `You’ll see the title, summary and still for ${c} of ${this.CAT[d.id].title}.`, extra: 'Lasts until you close SceneCask. Nothing is marked watched, later episodes stay hidden, and discussions stay locked.', confirmLabel: 'Reveal details', confirmBg: INK, onConfirm: () => this.setState(s2 => ({ dialog: null, revealD: { ...s2.revealD, [d.id + '-' + d.s + '-' + d.e]: true } })) }; }
+      if (d.type === 'revealC') { const c = this.code(d.s, d.e);
+        dialog = { title: `Reveal discussions for ${c}?`, body: d.special ? 'Specials can include spoilers for any part of the series, including episodes you haven’t watched.' : `Comments can discuss ${c} and every earlier episode, including ones you haven’t watched.`, extra: 'Lasts until you close SceneCask. Nothing is marked watched, and you’ll only see discussions you already have access to.', confirmLabel: 'Reveal discussions', confirmBg: INK, onConfirm: () => this.setState(s2 => ({ dialog: null, revealC: { ...s2.revealC, [d.id + '-' + d.s + '-' + d.e]: true } })) }; }
+      if (d.type === 'erase') { const n = Object.keys(this.W(d.id)).length;
+        dialog = { title: `Erase watch history for ${this.CAT[d.id].title}?`, body: `This unmarks ${n} watched episode${n === 1 ? '' : 's'}, including specials. Removing a show from your library doesn’t do this; erasing is separate.`, extra: 'You can undo right after. Your library status isn’t changed.', confirmLabel: 'Erase history', confirmBg: this.RED, onConfirm: () => { close(); this.eraseHistory(d.id); } }; }
+      if (d.type === 'block') { const p = this.PEOPLE[d.who];
+        dialog = { title: `Block ${p.handle}?`, body: `You won’t see each other’s profiles, libraries, activity or comments, including in shared discussions. Follows and requests between you are removed in both directions.`, extra: 'They aren’t notified, and they can’t follow you again.', confirmLabel: 'Block', confirmBg: this.RED,
+          onConfirm: () => { const prev = { follow: st.follow, followers: st.followers, blocked: st.blocked }; this.setState(s2 => { const f = { ...s2.followers }; delete f[d.who]; return { dialog: null, blocked: { ...s2.blocked, [d.who]: true }, follow: { ...s2.follow, [d.who]: 'none' }, followers: f }; }); this.toast({ msg: `Blocked ${p.handle}`, kind: 'ok', actions: [{ label: 'Undo', fn: () => this.setState(prev) }] }); } }; }
+      if (d.type === 'report') { const reasons = ['Mentions a later episode', 'Harassment or hate', 'Spam', 'Something else'];
+        dialog = { title: 'Report comment', body: 'What’s wrong with it? We’ll hide it for you right away, and our team reviews every report.', isReport: true, confirmLabel: 'Send report', confirmBg: INK, disabled: !st.reportReason, opacity: st.reportReason ? 1 : 0.4,
+          reasons: reasons.map(r => { const a = st.reportReason === r; return { label: r, active: a, bg: a ? INK : 'transparent', fg: a ? BG : INK, border: a ? INK : 'oklch(0.8 0.012 75)', onClick: () => this.setState({ reportReason: r }) }; }),
+          onConfirm: () => { if (!st.reportReason) return; this.setState(s2 => ({ dialog: null, hidden: { ...s2.hidden, [d.cid]: true } })); this.toast({ msg: 'Report sent. That comment is hidden for you.', kind: 'ok', actions: [] }); } }; }
+      dialog = { open: true, isReport: false, disabled: false, opacity: 1, reasons: [], extra: '', onCancel: close, ...dialog };
+      dialog.hasExtra = !!dialog.extra;
+    }
+
+    // Auth
+    const am = st.authMode, ae = st.authErr;
+    const auth = { isForm: ['create', 'signin', 'reset'].includes(am), isSignin: am === 'signin', isVerify: am === 'verify', isResetSent: am === 'resetSent', needsPw: am !== 'reset',
+      title: am === 'create' ? 'Create your account' : am === 'signin' ? 'Sign in' : 'Reset your password',
+      sub: am === 'create' ? 'Your library and progress are saved to your account, so they’re there on any device.' : am === 'signin' ? 'Welcome back. Your progress is saved to your account.' : 'Enter the email you signed up with and we’ll send a reset link.',
+      email: st.authEmail, pw: st.authPw, onEmail: e => this.setState({ authEmail: e.target.value, authErr: { ...st.authErr, email: null, form: null } }), onPw: e => this.setState({ authPw: e.target.value, authErr: { ...st.authErr, pw: null, form: null } }),
+      emailErr: ae.email || '', emailInvalid: !!ae.email, emailBorder: ae.email ? this.RED : 'oklch(0.75 0.012 75)',
+      pwInvalid: !!ae.pw, pwBorder: ae.pw ? this.RED : 'oklch(0.75 0.012 75)', pwHint: ae.pw || (am === 'create' ? 'At least 8 characters' : ''), pwHintColor: ae.pw ? 'oklch(0.42 0.15 27)' : this.MUTED, pwHintWeight: ae.pw ? 600 : 400, pwAuto: am === 'create' ? 'new-password' : 'current-password',
+      hasFormErr: !!ae.form, formErr: ae.form || '', busy: st.authBusy, busyOpacity: st.authBusy ? 0.7 : 1,
+      submitLabel: st.authBusy ? (am === 'signin' ? 'Signing in…' : am === 'reset' ? 'Sending…' : 'Creating account…') : am === 'create' ? 'Create account' : am === 'signin' ? 'Sign in' : 'Send reset link',
+      onSubmit: () => this.submitAuth(), onForgot: () => this.setState({ authMode: 'reset', authErr: {} }),
+      switchText: am === 'create' ? 'Already have an account?' : am === 'signin' ? 'New to SceneCask?' : 'Remembered it?', switchLabel: am === 'create' ? 'Sign in' : am === 'signin' ? 'Create account' : 'Back to sign in',
+      onSwitch: () => this.setState({ authMode: am === 'create' ? 'signin' : am === 'signin' ? 'create' : 'signin', authErr: {} }),
+      onVerified: () => { this.setState({ account: { signedIn: true, email: st.authEmail, verified: true }, screen: 'discover', hist: [], onboarding: true }); this.toast({ msg: 'Email verified', kind: 'ok', actions: [] }); },
+      onResend: () => this.toast({ msg: `Sent another link to ${st.authEmail}`, kind: 'ok', actions: [] }) };
+
+    const preset = k => () => { this.timers.forEach(clearTimeout); clearTimeout(this.tt); const p = this.preset(k); p.width = st.width; p.beta = st.beta; this.setState({ ...p }); try { window.scrollTo(0, 0); } catch (e) {} };
+    const onbFind = st.onboarding && st.screen === 'discover', onbShow = st.onboarding && st.screen === 'show', total = beta ? 3 : 2;
+    const onbPeople = ['maya', 'theo', 'jonas'].map(pv);
+    const relBtn = (label, on) => ({ label, active: beta === on, bg: beta === on ? INK : 'oklch(0.99 0.004 85)', fg: beta === on ? BG : INK, border: beta === on ? INK : 'oklch(0.8 0.012 75)', fn: () => this.setState({ beta: on, screen: !on && st.screen === 'friends' ? 'home' : st.screen }) });
+    return {
+      rootRef: this.rootRef, wide, beta, headerGap: (typeof window !== 'undefined' && window.innerWidth < 1100) ? '20px' : '40px', showHeaderTag: typeof window === 'undefined' || window.innerWidth >= 1040, releaseTag: beta ? 'BETA PREVIEW' : 'ALPHA', wideNav: showNav && wide, narrowNav: showNav && !wide, navCols: NAV.length, pad: wide ? '48px' : '20px', padBottom: showNav && !wide ? '120px' : '80px',
+      h1Size: wide ? '64px' : '40px', bandPad: wide ? '28px' : '18px', featPoster: wide ? '150px' : '96px', featTitle: wide ? '44px' : '24px', showPoster: wide ? '240px' : '132px', epCodeSize: wide ? '40px' : '30px',
+      disMax: st.onboarding ? '640px' : '1240px', disH1Pad: st.onboarding ? '0' : '24px 0 0',
+      toastBottom: showNav && !wide ? '88px' : '28px', acctTop: wide ? '76px' : '64px', overlayAlign: wide ? 'center' : 'flex-end', sheetRadius: wide ? '20px' : '20px 20px 0 0',
+      nav, goHome: () => st.account.signedIn ? this.tab('home') : this.setState({ screen: 'welcome' }), goSearch: () => { this.tab('discover'); this.later(() => { const el = document.getElementById('sc-search'); el && el.focus(); }, 50); }, goDiscover: () => this.tab('discover'), goFriends: () => this.tab('friends'),
+      goCreate: () => this.setState({ screen: 'auth', authMode: 'create', authErr: {}, onboarding: true }), goSignin: () => this.setState({ screen: 'auth', authMode: 'signin', authErr: {}, onboarding: true }), goWelcome: () => this.setState({ screen: 'welcome', authErr: {} }),
+      welcomeSteps: [{ n: '01', label: 'Create an account so your progress is saved' }, { n: '02', label: 'Add a show you’re watching' }, { n: '03', label: 'Set where you are' }],
+      onboarding: st.onboarding, isWelcome: st.screen === 'welcome', isAuth: st.screen === 'auth', isOnbFriends: st.screen === 'onb' && st.onbStep === 'friends',
+      onbLabel: st.screen === 'welcome' ? 'WELCOME' : st.screen === 'auth' ? 'ACCOUNT' : st.screen === 'onb' ? 'STEP 3 OF 3 · FRIENDS · OPTIONAL' : onbShow ? `STEP 2 OF ${total} · ADD IT AND SET PROGRESS` : onbFind ? `STEP 1 OF ${total} · FIND A SHOW` : '',
+      canSkipOnb: onbFind || onbShow || st.screen === 'onb',
+      skipOnb: () => { if (st.screen === 'onb' || !beta) this.tab('home'); else this.setState({ screen: 'onb', onbStep: 'friends', hist: [], sheet: null }); },
+      onbDone: () => this.tab('home'), onbPeople,
+      isHome: st.screen === 'home', isDiscover: st.screen === 'discover', isLibrary: st.screen === 'library', isFriends: st.screen === 'friends' && beta, isShow: st.screen === 'show', isEpisode: st.screen === 'episode',
+      hasBack: st.hist.length > 0, back: () => this.back(),
+      home, dis, show, ep, lib: libVM, fr, toast, sheet, dialog, auth, q: st.q, onQ: e => this.setQ(e.target.value),
+      acct: { open: st.acct, email: st.account.email || 'ana@example.com', items: ['Profile', 'Settings & privacy'],
+        signOut: () => { this.setState({ account: { ...st.account, signedIn: false }, screen: 'welcome', onboarding: true, acct: false, hist: [] }); this.toast({ msg: 'Signed out. Your progress is saved to your account.', kind: 'ok', actions: [] }); },
+        releases: [relBtn('Alpha · tracking', false), relBtn('Beta · social', true)],
+        presets: [{ label: 'Restart as a new user', fn: () => { try { localStorage.removeItem(this.KEY); } catch (e) {} preset('new')(); } }, { label: 'Load Ana (returning user)', fn: preset('returning') }, { label: 'Load a caught-up user', fn: preset('caught') }, { label: 'Load an empty library', fn: preset('empty') }] },
+      toggleAccount: () => this.setState(s2 => ({ acct: !s2.acct })), failNext: st.failNext, failLabel: st.failNext ? '✓ Next save will fail' : 'Make the next save fail', failBorder: st.failNext ? this.RED : 'transparent',
+      toggleFail: () => this.setState(s2 => ({ failNext: !s2.failNext })),
+      metaOn: !!st.meta.nm12, metaLabel: st.meta.nm12 ? '✓ Night Shift S4 E12 released (metadata update)' : 'Simulate metadata update: release Night Shift S4 E12', metaBorder: st.meta.nm12 ? INK : 'transparent',
+      toggleMeta: () => { this.setState(s2 => ({ meta: { ...s2.meta, nm12: !s2.meta.nm12 } })); this.toast({ msg: st.meta.nm12 ? 'S4 E12 is unreleased again' : 'New episode: Night Shift at Meridian S4 E12. It’s moved out of Caught up.', kind: 'ok', actions: [] }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

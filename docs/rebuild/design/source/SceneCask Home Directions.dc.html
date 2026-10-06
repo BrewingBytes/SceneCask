@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:oklch(0.9 0.006 80);font-family:Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}a:hover{opacity:.85}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid oklch(0.8 0.12 72);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<section data-screen-label="Turn 1 · Home directions" style="padding:64px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:8px;max-width:900px">
+<div style="font-family:'Geist Mono',monospace;font-size:13px;color:oklch(0.4 0.01 60);letter-spacing:.06em">TURN 1 · HOME · 390 + 1440</div>
+<h1 style="margin:0;font-family:'Instrument Serif',serif;font-weight:400;font-size:56px;line-height:1;color:oklch(0.2 0.01 60)">SceneCask: two Home directions</h1>
+<p style="margin:0;font-size:17px;line-height:1.5;color:oklch(0.35 0.01 60);text-wrap:pretty">Same data in both. “Mark watched” works in every frame, with undo. Marking Hollow Orchard S2 E7 unlocks Maya’s discussion in the friends list.</p>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:72px">
+
+<div id="1a" style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;max-width:1900px">
+<span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:500;background:oklch(0.2 0.01 60);color:oklch(0.94 0.014 80);padding:4px 10px;border-radius:6px">1a</span>
+<span style="font-family:'Instrument Serif',serif;font-size:34px;color:oklch(0.2 0.01 60)">Warm screening room</span>
+<span style="font-size:15px;color:oklch(0.38 0.01 60);max-width:820px;line-height:1.45">Posters glow against dark ink, which suits evening use. Amber is saved for the next action. Tradeoff: the screens feel alike from show to show, and long reading in discussions is harder on dark.</span>
+</div>
+<div style="display:flex;gap:40px;align-items:flex-start">
+
+<div data-screen-label="1a Mobile" style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:24px;background:oklch(0.165 0.008 60);color:oklch(0.94 0.014 80);box-shadow:0 30px 60px -30px rgba(0,0,0,.5);flex:none">
+<div style="position:absolute;inset:0 0 76px 0;overflow-y:auto;padding:0 20px 32px">
+<div style="display:flex;align-items:center;justify-content:space-between;height:64px">
+<div style="font-family:'Instrument Serif',serif;font-size:28px;letter-spacing:-.01em">Scene<span style="color:oklch(0.8 0.12 72)">Cask</span></div>
+<button aria-label="Account menu" style="width:40px;height:40px;border-radius:50%;border:1px solid oklch(0.32 0.012 60);background:oklch(0.24 0.012 60);color:oklch(0.94 0.014 80);font-size:13px;font-weight:600">AR</button>
+</div>
+<div style="font-size:14px;color:oklch(0.74 0.018 75);margin-top:8px">Monday evening, Ana</div>
+<h2 style="margin:2px 0 16px;font-family:'Instrument Serif',serif;font-weight:400;font-size:36px;line-height:1.05">Up next</h2>
+<sc-if value="{{ am.hasUp }}" hint-placeholder-val="{{ true }}">
+<div style="background:oklch(0.205 0.01 60);border:1px solid oklch(0.29 0.012 60);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;gap:16px">
+<div style="width:104px;aspect-ratio:2/3;flex:none;border-radius:8px;position:relative;overflow:hidden;background:{{ am.first.bg }};color:{{ am.first.fg }};display:flex;align-items:flex-end;padding:10px;box-sizing:border-box">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)"></div>
+<div style="position:relative;font-family:'Instrument Serif',serif;font-size:19px;line-height:1">{{ am.first.title }}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1">
+<div style="font-family:'Instrument Serif',serif;font-size:24px;line-height:1.1">{{ am.first.title }}</div>
+<div style="font-size:14px;color:oklch(0.74 0.018 75)">{{ am.first.year }} · Season {{ am.first.season }}</div>
+<div style="margin-top:auto;font-size:14px">{{ am.first.progress }}</div>
+<div style="height:4px;border-radius:2px;background:oklch(0.32 0.01 60)"><div style="height:4px;border-radius:2px;background:oklch(0.8 0.12 72);width:{{ am.first.pct }};transition:width .3s"></div></div>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 0 0;border-top:1px solid oklch(0.29 0.012 60)">
+<span style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:500;color:oklch(0.8 0.12 72)">{{ am.first.code }}</span>
+<span style="font-size:13px;color:oklch(0.74 0.018 75)">Title hidden until you watch</span>
+</div>
+<button onClick="{{ am.first.onMark }}" style="height:48px;border:0;border-radius:10px;background:oklch(0.8 0.12 72);color:oklch(0.2 0.03 60);font-size:16px;font-weight:600">{{ am.first.markLabel }}</button>
+<div style="display:flex;justify-content:space-between;font-size:14px">
+<a href="#" style="color:oklch(0.94 0.014 80);text-decoration:underline;text-underline-offset:3px;padding:6px 0">View episode</a>
+<a href="#" style="color:oklch(0.74 0.018 75);padding:6px 0;text-decoration:none">Catch up to an episode…</a>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ am.allCaught }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid oklch(0.29 0.012 60);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px">
+<div style="font-family:'Instrument Serif',serif;font-size:24px">You’re caught up</div>
+<div style="font-size:15px;color:oklch(0.74 0.018 75);line-height:1.45">Nothing new to watch on your shows yet. Release dates are below.</div>
+<button style="height:44px;border-radius:10px;border:1px solid oklch(0.8 0.12 72);background:transparent;color:oklch(0.8 0.12 72);font-weight:600;font-size:15px">Find something new</button>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;margin-top:8px">
+<sc-for list="{{ am.rest }}" as="s" hint-placeholder-count="2">
+<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid oklch(0.29 0.012 60);align-items:center">
+<div style="width:56px;aspect-ratio:2/3;flex:none;border-radius:5px;position:relative;overflow:hidden;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:flex-end;padding:5px;box-sizing:border-box"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 7px)"></div><div style="position:relative;font-family:'Instrument Serif',serif;font-size:11px;line-height:1">{{ s.title }}</div></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:16px;font-weight:500">{{ s.title }}</div>
+<div style="font-size:13px;color:oklch(0.74 0.018 75)"><span style="font-family:'Geist Mono',monospace;color:oklch(0.94 0.014 80)">{{ s.code }}</span> next · {{ s.progress }}</div>
+<div style="height:3px;border-radius:2px;background:oklch(0.32 0.01 60);margin-top:4px"><div style="height:3px;border-radius:2px;background:oklch(0.8 0.12 72);width:{{ s.pct }}"></div></div>
+</div>
+<button onClick="{{ s.onMark }}" aria-label="{{ s.markLabel }}" style="height:44px;padding:0 14px;border-radius:10px;border:1px solid oklch(0.4 0.02 70);background:transparent;color:oklch(0.94 0.014 80);font-size:14px;font-weight:500;flex:none">Mark watched</button>
+</div>
+</sc-for>
+</div>
+<h3 style="margin:28px 0 4px;font-family:'Instrument Serif',serif;font-weight:400;font-size:26px">Caught up</h3>
+<sc-for list="{{ am.caught }}" as="c" hint-placeholder-count="2">
+<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid oklch(0.29 0.012 60);align-items:center">
+<div style="width:36px;aspect-ratio:2/3;flex:none;border-radius:4px;background:{{ c.bg }}"></div>
+<div style="flex:1;min-width:0">
+<div style="font-size:15px;font-weight:500">{{ c.title }}</div>
+<div style="font-size:13px;color:oklch(0.74 0.018 75)">{{ c.note }}</div>
+</div>
+<span style="font-size:12px;border:1px solid oklch(0.4 0.02 70);border-radius:999px;padding:3px 9px;color:oklch(0.94 0.014 80)">✓ {{ c.label }}</span>
+</div>
+</sc-for>
+<h3 style="margin:28px 0 4px;font-family:'Instrument Serif',serif;font-weight:400;font-size:26px">From friends</h3>
+<sc-for list="{{ am.friends }}" as="f" hint-placeholder-count="4">
+<div style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid oklch(0.29 0.012 60)">
+<div style="width:36px;height:36px;border-radius:50%;flex:none;background:{{ f.av }};color:oklch(0.2 0.02 60);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ f.ini }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+<div style="font-size:15px;line-height:1.4"><span style="font-weight:600">{{ f.name }}</span> <span style="color:oklch(0.74 0.018 75)">{{ f.action }}</span> {{ f.show }} <span style="font-family:'Geist Mono',monospace">{{ f.code }}</span></div>
+<div style="font-size:13px;color:oklch(0.74 0.018 75)">{{ f.time }}</div>
+<sc-if value="{{ f.isLocked }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:oklch(0.74 0.018 75);border:1px dashed oklch(0.36 0.012 60);border-radius:8px;padding:8px 10px">Locked · {{ f.lockNote }}</div></sc-if>
+<sc-if value="{{ f.isOpen }}" hint-placeholder-val="{{ false }}"><a href="#" style="font-size:14px;color:oklch(0.8 0.12 72);text-decoration:none;font-weight:500">Open discussion · {{ f.openNote }}</a></sc-if>
+<sc-if value="{{ f.isAdd }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.onAdd }}" aria-pressed="{{ f.added }}" style="align-self:flex-start;height:40px;padding:0 14px;border-radius:10px;border:1px solid oklch(0.4 0.02 70);background:transparent;color:oklch(0.94 0.014 80);font-size:14px">{{ f.addLabel }}</button></sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{ am.hasToast }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="position:absolute;left:16px;right:16px;bottom:88px;background:oklch(0.94 0.014 80);color:oklch(0.18 0.01 60);border-radius:12px;padding:6px 6px 6px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 10px 30px rgba(0,0,0,.4)">
+<span style="font-size:14px">{{ am.toastMsg }}</span>
+<button onClick="{{ am.undo }}" style="height:40px;padding:0 14px;border:0;border-radius:8px;background:oklch(0.2 0.03 60);color:oklch(0.8 0.12 72);font-weight:600;font-size:14px">Undo</button>
+</div>
+</sc-if>
+<nav aria-label="Main" style="position:absolute;left:0;right:0;bottom:0;height:76px;background:oklch(0.185 0.009 60);border-top:1px solid oklch(0.29 0.012 60);display:grid;grid-template-columns:repeat(4,1fr)">
+<a href="#" aria-current="page" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.8 0.12 72);font-size:12px;font-weight:600;border-top:2px solid oklch(0.8 0.12 72);margin-top:-1px"><span style="width:16px;height:16px;border-radius:4px;background:oklch(0.8 0.12 72)"></span>Home</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.74 0.018 75);font-size:12px"><span style="width:14px;height:14px;border-radius:50%;border:2px solid currentColor"></span>Discover</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.74 0.018 75);font-size:12px"><span style="width:12px;height:16px;border-radius:2px;border:2px solid currentColor;box-sizing:border-box"></span>Library</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.74 0.018 75);font-size:12px"><span style="display:flex"><span style="width:12px;height:12px;border-radius:50%;border:2px solid currentColor"></span><span style="width:12px;height:12px;border-radius:50%;border:2px solid currentColor;margin-left:-5px"></span></span>Friends</a>
+</nav>
+</div>
+
+<div data-screen-label="1a Desktop" style="width:1440px;min-height:960px;position:relative;border-radius:14px;overflow:hidden;background:oklch(0.165 0.008 60);color:oklch(0.94 0.014 80);box-shadow:0 30px 60px -30px rgba(0,0,0,.5);flex:none">
+<header style="border-bottom:1px solid oklch(0.29 0.012 60)">
+<div style="max-width:1280px;margin:0 auto;padding:0 40px;height:68px;display:flex;align-items:center;gap:44px">
+<div style="font-family:'Instrument Serif',serif;font-size:28px">Scene<span style="color:oklch(0.8 0.12 72)">Cask</span></div>
+<nav aria-label="Main" style="display:flex;gap:28px;font-size:15px;height:100%">
+<a href="#" aria-current="page" style="display:flex;align-items:center;text-decoration:none;color:oklch(0.94 0.014 80);font-weight:500;border-bottom:2px solid oklch(0.8 0.12 72)">Home</a>
+<a href="#" style="display:flex;align-items:center;text-decoration:none;color:oklch(0.74 0.018 75)">Discover</a>
+<a href="#" style="display:flex;align-items:center;text-decoration:none;color:oklch(0.74 0.018 75)">Library</a>
+<a href="#" style="display:flex;align-items:center;text-decoration:none;color:oklch(0.74 0.018 75)">Friends</a>
+</nav>
+<button style="margin-left:auto;width:300px;height:40px;border-radius:10px;border:1px solid oklch(0.32 0.012 60);background:oklch(0.2 0.01 60);color:oklch(0.74 0.018 75);text-align:left;padding:0 14px;font-size:14px;display:flex;justify-content:space-between;align-items:center">Search shows<span style="font-family:'Geist Mono',monospace;font-size:12px;border:1px solid oklch(0.36 0.012 60);border-radius:4px;padding:1px 6px">/</span></button>
+<button aria-label="Account menu" style="width:40px;height:40px;border-radius:50%;border:1px solid oklch(0.32 0.012 60);background:oklch(0.24 0.012 60);color:oklch(0.94 0.014 80);font-size:13px;font-weight:600">AR</button>
+</div>
+</header>
+<main style="max-width:1280px;margin:0 auto;padding:40px 40px 64px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:56px">
+<div>
+<div style="font-size:15px;color:oklch(0.74 0.018 75)">Monday evening, Ana</div>
+<h2 style="margin:4px 0 24px;font-family:'Instrument Serif',serif;font-weight:400;font-size:48px;line-height:1">Up next</h2>
+<sc-if value="{{ ad.hasUp }}" hint-placeholder-val="{{ true }}">
+<div style="background:oklch(0.205 0.01 60);border:1px solid oklch(0.29 0.012 60);border-radius:18px;padding:24px;display:flex;gap:32px">
+<div style="width:176px;aspect-ratio:2/3;flex:none;border-radius:10px;position:relative;overflow:hidden;background:{{ ad.first.bg }};color:{{ ad.first.fg }};display:flex;align-items:flex-end;padding:14px;box-sizing:border-box">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 10px)"></div>
+<div style="position:relative;font-family:'Instrument Serif',serif;font-size:30px;line-height:1">{{ ad.first.title }}</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0">
+<div style="font-family:'Instrument Serif',serif;font-size:38px;line-height:1.05">{{ ad.first.title }}</div>
+<div style="font-size:15px;color:oklch(0.74 0.018 75)">{{ ad.first.year }} · Season {{ ad.first.season }}</div>
+<div style="display:flex;align-items:center;gap:14px;margin-top:6px"><div style="width:280px;height:4px;border-radius:2px;background:oklch(0.32 0.01 60)"><div style="height:4px;border-radius:2px;background:oklch(0.8 0.12 72);width:{{ ad.first.pct }};transition:width .3s"></div></div><span style="font-size:14px">{{ ad.first.progress }}</span></div>
+<div style="margin-top:auto;display:flex;align-items:baseline;gap:14px;padding-top:16px;border-top:1px solid oklch(0.29 0.012 60)">
+<span style="font-size:13px;color:oklch(0.74 0.018 75)">Next</span>
+<span style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:500;color:oklch(0.8 0.12 72)">{{ ad.first.code }}</span>
+<span style="font-size:14px;color:oklch(0.74 0.018 75)">Title hidden until you watch · {{ ad.first.avail }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+<button onClick="{{ ad.first.onMark }}" style="height:48px;padding:0 22px;border:0;border-radius:10px;background:oklch(0.8 0.12 72);color:oklch(0.2 0.03 60);font-size:16px;font-weight:600">{{ ad.first.markLabel }}</button>
+<button style="height:48px;padding:0 18px;border-radius:10px;border:1px solid oklch(0.4 0.02 70);background:transparent;color:oklch(0.94 0.014 80);font-size:15px">View episode</button>
+<a href="#" style="margin-left:auto;font-size:14px;color:oklch(0.74 0.018 75);text-decoration:none">Catch up to an episode…</a>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ ad.allCaught }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid oklch(0.29 0.012 60);border-radius:18px;padding:28px;display:flex;align-items:center;gap:24px">
+<div style="flex:1"><div style="font-family:'Instrument Serif',serif;font-size:30px">You’re caught up</div><div style="font-size:15px;color:oklch(0.74 0.018 75);margin-top:4px">Nothing new to watch on your shows yet. Release dates are below.</div></div>
+<button style="height:44px;padding:0 18px;border-radius:10px;border:1px solid oklch(0.8 0.12 72);background:transparent;color:oklch(0.8 0.12 72);font-weight:600;font-size:15px">Find something new</button>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;margin-top:12px">
+<sc-for list="{{ ad.rest }}" as="s" hint-placeholder-count="2">
+<div style="display:flex;gap:16px;padding:18px 0;border-bottom:1px solid oklch(0.29 0.012 60);align-items:center">
+<div style="width:64px;aspect-ratio:2/3;flex:none;border-radius:6px;position:relative;overflow:hidden;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:flex-end;padding:6px;box-sizing:border-box"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 7px)"></div><div style="position:relative;font-family:'Instrument Serif',serif;font-size:12px;line-height:1">{{ s.title }}</div></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:17px;font-weight:500">{{ s.title }}</div>
+<div style="font-size:14px;color:oklch(0.74 0.018 75)"><span style="font-family:'Geist Mono',monospace;color:oklch(0.94 0.014 80)">{{ s.code }}</span> next · {{ s.progress }}</div>
+<div style="height:3px;border-radius:2px;background:oklch(0.32 0.01 60);margin-top:4px"><div style="height:3px;border-radius:2px;background:oklch(0.8 0.12 72);width:{{ s.pct }}"></div></div>
+</div>
+<button onClick="{{ s.onMark }}" aria-label="{{ s.markLabel }}" style="height:44px;padding:0 14px;border-radius:10px;border:1px solid oklch(0.4 0.02 70);background:transparent;color:oklch(0.94 0.014 80);font-size:14px;font-weight:500;flex:none">Mark watched</button>
+</div>
+</sc-for>
+</div>
+<h3 style="margin:40px 0 8px;font-family:'Instrument Serif',serif;font-weight:400;font-size:30px">Caught up</h3>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px">
+<sc-for list="{{ ad.caught }}" as="c" hint-placeholder-count="2">
+<div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid oklch(0.29 0.012 60);align-items:center">
+<div style="width:40px;aspect-ratio:2/3;flex:none;border-radius:4px;background:{{ c.bg }}"></div>
+<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:500">{{ c.title }}</div><div style="font-size:14px;color:oklch(0.74 0.018 75)">{{ c.note }}</div></div>
+<span style="font-size:12px;border:1px solid oklch(0.4 0.02 70);border-radius:999px;padding:3px 9px">✓ {{ c.label }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<aside aria-label="Friends activity" style="padding-top:36px">
+<h3 style="margin:0 0 8px;font-family:'Instrument Serif',serif;font-weight:400;font-size:30px">From friends</h3>
+<sc-for list="{{ ad.friends }}" as="f" hint-placeholder-count="4">
+<div style="display:flex;gap:12px;padding:16px 0;border-bottom:1px solid oklch(0.29 0.012 60)">
+<div style="width:36px;height:36px;border-radius:50%;flex:none;background:{{ f.av }};color:oklch(0.2 0.02 60);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ f.ini }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+<div style="font-size:15px;line-height:1.4"><span style="font-weight:600">{{ f.name }}</span> <span style="color:oklch(0.74 0.018 75)">{{ f.action }}</span> {{ f.show }} <span style="font-family:'Geist Mono',monospace">{{ f.code }}</span></div>
+<div style="font-size:13px;color:oklch(0.74 0.018 75)">{{ f.time }}</div>
+<sc-if value="{{ f.isLocked }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:oklch(0.74 0.018 75);border:1px dashed oklch(0.36 0.012 60);border-radius:8px;padding:8px 10px">Locked · {{ f.lockNote }}</div></sc-if>
+<sc-if value="{{ f.isOpen }}" hint-placeholder-val="{{ false }}"><a href="#" style="font-size:14px;color:oklch(0.8 0.12 72);text-decoration:none;font-weight:500">Open discussion · {{ f.openNote }}</a></sc-if>
+<sc-if value="{{ f.isAdd }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.onAdd }}" aria-pressed="{{ f.added }}" style="align-self:flex-start;height:40px;padding:0 14px;border-radius:10px;border:1px solid oklch(0.4 0.02 70);background:transparent;color:oklch(0.94 0.014 80);font-size:14px">{{ f.addLabel }}</button></sc-if>
+</div>
+</div>
+</sc-for>
+</aside>
+</main>
+<sc-if value="{{ ad.hasToast }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="position:absolute;left:50%;transform:translateX(-50%);bottom:28px;background:oklch(0.94 0.014 80);color:oklch(0.18 0.01 60);border-radius:12px;padding:6px 6px 6px 18px;display:flex;align-items:center;gap:20px;box-shadow:0 10px 30px rgba(0,0,0,.4)">
+<span style="font-size:15px">{{ ad.toastMsg }}</span>
+<button onClick="{{ ad.undo }}" style="height:40px;padding:0 16px;border:0;border-radius:8px;background:oklch(0.2 0.03 60);color:oklch(0.8 0.12 72);font-weight:600;font-size:14px">Undo</button>
+</div>
+</sc-if>
+</div>
+
+</div>
+</div>
+
+<div id="1b" style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;max-width:1900px">
+<span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:500;background:oklch(0.2 0.01 60);color:oklch(0.94 0.014 80);padding:4px 10px;border-radius:6px">1b</span>
+<span style="font-family:'Schibsted Grotesk',sans-serif;font-weight:800;font-size:30px;letter-spacing:-.02em;color:oklch(0.2 0.01 60)">Bright editorial</span>
+<span style="font-size:15px;color:oklch(0.38 0.01 60);max-width:820px;line-height:1.45">Each show’s poster sets the color of its block, so every screen looks different. Comments read well on light paper. Tradeoff: it’s bright at night, and some poster colors will need contrast checks before text goes on them.</span>
+</div>
+<div style="display:flex;gap:40px;align-items:flex-start">
+
+<div data-screen-label="1b Mobile" style="width:390px;height:844px;position:relative;overflow:hidden;border-radius:24px;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);box-shadow:0 30px 60px -30px rgba(0,0,0,.35);flex:none;font-family:'Schibsted Grotesk',sans-serif">
+<div style="position:absolute;inset:0 0 76px 0;overflow-y:auto;padding:0 20px 32px">
+<div style="display:flex;align-items:center;justify-content:space-between;height:64px">
+<div style="font-weight:800;font-size:22px;letter-spacing:-.035em">SceneCask</div>
+<button aria-label="Account menu" style="width:40px;height:40px;border-radius:50%;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:13px;font-weight:700">AR</button>
+</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:oklch(0.46 0.02 55);margin-top:12px">MON 5 OCT · ANA’S SHOWS</div>
+<h2 style="margin:4px 0 18px;font-weight:800;font-size:42px;letter-spacing:-.04em;line-height:1">Up next</h2>
+<sc-if value="{{ bm.hasUp }}" hint-placeholder-val="{{ true }}">
+<div style="background:{{ bm.first.bg }};color:{{ bm.first.fg }};border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;gap:16px">
+<div style="width:100px;aspect-ratio:2/3;flex:none;border-radius:8px;position:relative;overflow:hidden;background:{{ bm.first.bg }};box-shadow:0 0 0 1px rgba(255,255,255,.25),0 10px 24px -10px rgba(0,0,0,.5);display:flex;align-items:flex-end;padding:9px;box-sizing:border-box">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 9px)"></div>
+<div style="position:relative;font-weight:800;font-size:15px;letter-spacing:-.02em;line-height:1">{{ bm.first.title }}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+<div style="font-weight:800;font-size:24px;letter-spacing:-.03em;line-height:1.05">{{ bm.first.title }}</div>
+<div style="font-size:14px">{{ bm.first.year }} · Season {{ bm.first.season }}</div>
+<div style="margin-top:auto;font-size:14px;font-weight:600">{{ bm.first.progress }}</div>
+<div style="height:5px;border-radius:3px;background:rgba(255,255,255,.22);width:150px"><div style="height:5px;border-radius:3px;background:{{ bm.first.fg }};width:{{ bm.first.pct }};transition:width .3s"></div></div>
+</div>
+</div>
+<div style="display:flex;align-items:baseline;gap:10px">
+<span style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500">{{ bm.first.code }}</span>
+<span style="font-size:13px">Title hidden until you watch</span>
+</div>
+<button onClick="{{ bm.first.onMark }}" style="height:50px;border:0;border-radius:999px;background:{{ bm.first.fg }};color:{{ bm.first.bg }};font-size:16px;font-weight:700">{{ bm.first.markLabel }}</button>
+<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:500">
+<a href="#" style="text-decoration:underline;text-underline-offset:3px;padding:4px 0">View episode</a>
+<a href="#" style="text-decoration:none;padding:4px 0">Catch up to an episode…</a>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ bm.allCaught }}" hint-placeholder-val="{{ false }}">
+<div style="border-top:3px solid oklch(0.21 0.015 50);padding:18px 0;display:flex;flex-direction:column;gap:10px">
+<div style="font-weight:800;font-size:26px;letter-spacing:-.03em">You’re caught up</div>
+<div style="font-family:Newsreader,serif;font-size:17px;line-height:1.45;color:oklch(0.4 0.02 55)">Nothing new to watch on your shows yet. Release dates are below.</div>
+<button style="align-self:flex-start;height:46px;padding:0 20px;border-radius:999px;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-weight:700;font-size:15px">Find something new</button>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;margin-top:10px">
+<sc-for list="{{ bm.rest }}" as="s" hint-placeholder-count="2">
+<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<div style="width:56px;aspect-ratio:2/3;flex:none;border-radius:5px;position:relative;overflow:hidden;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:flex-end;padding:5px;box-sizing:border-box"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px)"></div><div style="position:relative;font-weight:800;font-size:9px;line-height:1">{{ s.title }}</div></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:17px;font-weight:700;letter-spacing:-.015em">{{ s.title }}</div>
+<div style="font-size:13px;color:oklch(0.46 0.02 55)"><span style="font-family:'IBM Plex Mono',monospace;color:oklch(0.21 0.015 50)">{{ s.code }}</span> next · {{ s.progress }}</div>
+<div style="height:4px;border-radius:2px;background:oklch(0.9 0.012 75);margin-top:4px"><div style="height:4px;border-radius:2px;background:{{ s.bg }};width:{{ s.pct }}"></div></div>
+</div>
+<button onClick="{{ s.onMark }}" aria-label="{{ s.markLabel }}" style="height:44px;padding:0 14px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;color:oklch(0.21 0.015 50);font-size:14px;font-weight:600;flex:none">Mark watched</button>
+</div>
+</sc-for>
+</div>
+<h3 style="margin:32px 0 2px;font-weight:800;font-size:22px;letter-spacing:-.03em">Caught up</h3>
+<sc-for list="{{ bm.caught }}" as="c" hint-placeholder-count="2">
+<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<div style="width:36px;aspect-ratio:2/3;flex:none;border-radius:4px;background:{{ c.bg }}"></div>
+<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700">{{ c.title }}</div><div style="font-size:13px;color:oklch(0.46 0.02 55)">{{ c.note }}</div></div>
+<span style="font-size:12px;font-weight:600;background:oklch(0.93 0.014 80);border-radius:999px;padding:4px 10px">✓ {{ c.label }}</span>
+</div>
+</sc-for>
+<h3 style="margin:32px 0 2px;font-weight:800;font-size:22px;letter-spacing:-.03em">From friends</h3>
+<sc-for list="{{ bm.friends }}" as="f" hint-placeholder-count="4">
+<div style="display:flex;gap:12px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="width:36px;height:36px;border-radius:50%;flex:none;background:{{ f.av }};color:oklch(0.2 0.02 60);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ f.ini }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+<div style="font-family:Newsreader,serif;font-size:17px;line-height:1.35"><span style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:15px">{{ f.name }}</span> {{ f.action }} <em>{{ f.show }}</em> <span style="font-family:'IBM Plex Mono',monospace;font-size:14px">{{ f.code }}</span></div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:oklch(0.46 0.02 55)">{{ f.time }}</div>
+<sc-if value="{{ f.isLocked }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:oklch(0.4 0.02 55);background:oklch(0.945 0.012 80);border-radius:8px;padding:8px 10px">Locked · {{ f.lockNote }}</div></sc-if>
+<sc-if value="{{ f.isOpen }}" hint-placeholder-val="{{ false }}"><a href="#" style="font-size:14px;font-weight:600;color:oklch(0.5 0.13 38);text-decoration:none">Open discussion · {{ f.openNote }}</a></sc-if>
+<sc-if value="{{ f.isAdd }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.onAdd }}" aria-pressed="{{ f.added }}" style="align-self:flex-start;height:40px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;color:oklch(0.21 0.015 50);font-size:14px;font-weight:600">{{ f.addLabel }}</button></sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{ bm.hasToast }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="position:absolute;left:16px;right:16px;bottom:88px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);border-radius:999px;padding:6px 6px 6px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 10px 30px rgba(0,0,0,.25)">
+<span style="font-size:14px">{{ bm.toastMsg }}</span>
+<button onClick="{{ bm.undo }}" style="height:40px;padding:0 16px;border:0;border-radius:999px;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);font-weight:700;font-size:14px">Undo</button>
+</div>
+</sc-if>
+<nav aria-label="Main" style="position:absolute;left:0;right:0;bottom:0;height:76px;background:oklch(0.975 0.008 85);border-top:1px solid oklch(0.86 0.012 75);display:grid;grid-template-columns:repeat(4,1fr)">
+<a href="#" aria-current="page" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.21 0.015 50);font-size:12px;font-weight:700;border-top:3px solid oklch(0.21 0.015 50);margin-top:-1px"><span style="width:16px;height:16px;border-radius:4px;background:currentColor"></span>Home</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.46 0.02 55);font-size:12px;font-weight:500"><span style="width:14px;height:14px;border-radius:50%;border:2px solid currentColor"></span>Discover</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.46 0.02 55);font-size:12px;font-weight:500"><span style="width:12px;height:16px;border-radius:2px;border:2px solid currentColor;box-sizing:border-box"></span>Library</a>
+<a href="#" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:oklch(0.46 0.02 55);font-size:12px;font-weight:500"><span style="display:flex"><span style="width:12px;height:12px;border-radius:50%;border:2px solid currentColor"></span><span style="width:12px;height:12px;border-radius:50%;border:2px solid currentColor;margin-left:-5px"></span></span>Friends</a>
+</nav>
+</div>
+
+<div data-screen-label="1b Desktop" style="width:1440px;min-height:960px;position:relative;border-radius:14px;overflow:hidden;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);box-shadow:0 30px 60px -30px rgba(0,0,0,.35);flex:none;font-family:'Schibsted Grotesk',sans-serif">
+<header style="max-width:1240px;margin:0 auto;padding:0 48px;height:76px;display:flex;align-items:center;gap:48px">
+<div style="font-weight:800;font-size:24px;letter-spacing:-.035em">SceneCask</div>
+<nav aria-label="Main" style="display:flex;gap:6px;font-size:15px">
+<a href="#" aria-current="page" style="text-decoration:none;padding:8px 14px;border-radius:999px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-weight:600">Home</a>
+<a href="#" style="text-decoration:none;padding:8px 14px;border-radius:999px;color:oklch(0.35 0.02 55);font-weight:500">Discover</a>
+<a href="#" style="text-decoration:none;padding:8px 14px;border-radius:999px;color:oklch(0.35 0.02 55);font-weight:500">Library</a>
+<a href="#" style="text-decoration:none;padding:8px 14px;border-radius:999px;color:oklch(0.35 0.02 55);font-weight:500">Friends</a>
+</nav>
+<button style="margin-left:auto;width:300px;height:42px;border-radius:999px;border:1px solid oklch(0.86 0.012 75);background:oklch(0.99 0.004 85);color:oklch(0.46 0.02 55);text-align:left;padding:0 18px;font-size:14px">Search shows</button>
+<button aria-label="Account menu" style="width:42px;height:42px;border-radius:50%;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-size:13px;font-weight:700">AR</button>
+</header>
+<main style="max-width:1240px;margin:0 auto;padding:28px 48px 72px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:3px solid oklch(0.21 0.015 50);padding-bottom:14px;margin-bottom:28px">
+<h2 style="margin:0;font-weight:800;font-size:72px;letter-spacing:-.05em;line-height:.95">Up next</h2>
+<span style="font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.06em;color:oklch(0.46 0.02 55)">MON 5 OCT · ANA’S SHOWS</span>
+</div>
+<sc-if value="{{ bd.hasUp }}" hint-placeholder-val="{{ true }}">
+<div style="background:{{ bd.first.bg }};color:{{ bd.first.fg }};border-radius:22px;padding:28px;display:grid;grid-template-columns:168px minmax(0,1fr) 340px;gap:36px;align-items:stretch">
+<div style="aspect-ratio:2/3;border-radius:10px;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.25),0 16px 30px -12px rgba(0,0,0,.5);display:flex;align-items:flex-end;padding:14px;box-sizing:border-box">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 10px)"></div>
+<div style="position:relative;font-weight:800;font-size:24px;letter-spacing:-.03em;line-height:1">{{ bd.first.title }}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-weight:800;font-size:52px;letter-spacing:-.045em;line-height:1">{{ bd.first.title }}</div>
+<div style="font-size:16px">{{ bd.first.year }} · Season {{ bd.first.season }}</div>
+<div style="margin-top:auto;font-size:15px;font-weight:600">{{ bd.first.progress }}</div>
+<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.22);max-width:360px"><div style="height:6px;border-radius:3px;background:{{ bd.first.fg }};width:{{ bd.first.pct }};transition:width .3s"></div></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;justify-content:flex-end;border-left:1px solid rgba(255,255,255,.25);padding-left:32px">
+<div style="font-size:13px;font-weight:600;letter-spacing:.04em">NEXT EPISODE</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:40px;font-weight:500;line-height:1">{{ bd.first.code }}</div>
+<div style="font-size:14px">Title hidden until you watch · {{ bd.first.avail }}</div>
+<button onClick="{{ bd.first.onMark }}" style="margin-top:8px;height:52px;border:0;border-radius:999px;background:{{ bd.first.fg }};color:{{ bd.first.bg }};font-size:16px;font-weight:700">{{ bd.first.markLabel }}</button>
+<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:500"><a href="#" style="text-decoration:underline;text-underline-offset:3px">View episode</a><a href="#" style="text-decoration:none">Catch up to an episode…</a></div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ bd.allCaught }}" hint-placeholder-val="{{ false }}">
+<div style="padding:8px 0 24px;display:flex;align-items:center;gap:24px;border-bottom:1px solid oklch(0.86 0.012 75)">
+<div style="flex:1"><div style="font-weight:800;font-size:36px;letter-spacing:-.04em">You’re caught up</div><div style="font-family:Newsreader,serif;font-size:19px;color:oklch(0.4 0.02 55);margin-top:4px">Nothing new to watch on your shows yet. Release dates are below.</div></div>
+<button style="height:48px;padding:0 22px;border-radius:999px;border:0;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);font-weight:700;font-size:15px">Find something new</button>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px;margin-top:16px">
+<sc-for list="{{ bd.rest }}" as="s" hint-placeholder-count="2">
+<div style="display:flex;gap:18px;padding:20px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<div style="width:68px;aspect-ratio:2/3;flex:none;border-radius:6px;position:relative;overflow:hidden;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:flex-end;padding:6px;box-sizing:border-box"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px)"></div><div style="position:relative;font-weight:800;font-size:10px;line-height:1">{{ s.title }}</div></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:20px;font-weight:700;letter-spacing:-.02em">{{ s.title }}</div>
+<div style="font-size:14px;color:oklch(0.46 0.02 55)"><span style="font-family:'IBM Plex Mono',monospace;color:oklch(0.21 0.015 50)">{{ s.code }}</span> next · {{ s.progress }}</div>
+<div style="height:4px;border-radius:2px;background:oklch(0.9 0.012 75);margin-top:4px;max-width:260px"><div style="height:4px;border-radius:2px;background:{{ s.bg }};width:{{ s.pct }}"></div></div>
+</div>
+<button onClick="{{ s.onMark }}" aria-label="{{ s.markLabel }}" style="height:44px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;color:oklch(0.21 0.015 50);font-size:14px;font-weight:600;flex:none">Mark watched</button>
+</div>
+</sc-for>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:64px;margin-top:56px">
+<div>
+<h3 style="margin:0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:26px;letter-spacing:-.03em">Caught up</h3>
+<sc-for list="{{ bd.caught }}" as="c" hint-placeholder-count="2">
+<div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:center">
+<div style="width:40px;aspect-ratio:2/3;flex:none;border-radius:4px;background:{{ c.bg }}"></div>
+<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:700">{{ c.title }}</div><div style="font-size:14px;color:oklch(0.46 0.02 55)">{{ c.note }}</div></div>
+<span style="font-size:12px;font-weight:600;background:oklch(0.93 0.014 80);border-radius:999px;padding:4px 10px">✓ {{ c.label }}</span>
+</div>
+</sc-for>
+</div>
+<div>
+<h3 style="margin:0;padding-bottom:10px;border-bottom:3px solid oklch(0.21 0.015 50);font-weight:800;font-size:26px;letter-spacing:-.03em">From friends</h3>
+<sc-for list="{{ bd.friends }}" as="f" hint-placeholder-count="4">
+<div style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid oklch(0.86 0.012 75);align-items:flex-start">
+<div style="width:40px;height:40px;border-radius:50%;flex:none;background:{{ f.av }};color:oklch(0.2 0.02 60);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ f.ini }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<div style="font-family:Newsreader,serif;font-size:19px;line-height:1.35"><span style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:16px">{{ f.name }}</span> {{ f.action }} <em>{{ f.show }}</em> <span style="font-family:'IBM Plex Mono',monospace;font-size:15px">{{ f.code }}</span></div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:oklch(0.46 0.02 55)">{{ f.time }}</div>
+</div>
+<div style="flex:none;width:250px;display:flex;justify-content:flex-end">
+<sc-if value="{{ f.isLocked }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:oklch(0.4 0.02 55);background:oklch(0.945 0.012 80);border-radius:8px;padding:8px 10px">Locked · {{ f.lockNote }}</div></sc-if>
+<sc-if value="{{ f.isOpen }}" hint-placeholder-val="{{ false }}"><a href="#" style="font-size:14px;font-weight:600;color:oklch(0.5 0.13 38);text-decoration:none;padding:8px 0">Open discussion · {{ f.openNote }}</a></sc-if>
+<sc-if value="{{ f.isAdd }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.onAdd }}" aria-pressed="{{ f.added }}" style="height:40px;padding:0 16px;border-radius:999px;border:1.5px solid oklch(0.21 0.015 50);background:transparent;color:oklch(0.21 0.015 50);font-size:14px;font-weight:600">{{ f.addLabel }}</button></sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</main>
+<sc-if value="{{ bd.hasToast }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="position:absolute;left:50%;transform:translateX(-50%);bottom:28px;background:oklch(0.21 0.015 50);color:oklch(0.975 0.008 85);border-radius:999px;padding:6px 6px 6px 22px;display:flex;align-items:center;gap:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)">
+<span style="font-size:15px">{{ bd.toastMsg }}</span>
+<button onClick="{{ bd.undo }}" style="height:40px;padding:0 18px;border:0;border-radius:999px;background:oklch(0.975 0.008 85);color:oklch(0.21 0.015 50);font-weight:700;font-size:14px">Undo</button>
+</div>
+</sc-if>
+</div>
+
+</div>
+</div>
+
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { prog: {}, toast: {}, added: {} };
+  timers = {};
+  S = {
+    ho: { title: 'Hollow Orchard', year: 2024, season: 2, total: 10, released: 10, watched: 6, bg: 'oklch(0.42 0.09 150)', fg: 'oklch(0.95 0.03 90)', after: 'Season 3 · date not announced' },
+    lc: { title: 'The Lantern Coast', year: 2025, season: 1, total: 8, released: 8, watched: 3, bg: 'oklch(0.36 0.08 245)', fg: 'oklch(0.93 0.06 85)', after: 'Season 2 · expected 2027' },
+    pm: { title: 'Paper Moons', year: 2026, season: 1, total: 6, released: 4, watched: 2, bg: 'oklch(0.47 0.12 35)', fg: 'oklch(0.96 0.025 80)', air: { 5: 'Tue, Oct 6', 6: 'Tue, Oct 13' } },
+    nm: { title: 'Night Shift at Meridian', year: 2019, season: 4, total: 12, released: 11, watched: 11, bg: 'oklch(0.32 0.07 295)', fg: 'oklch(0.93 0.04 30)', air: { 12: 'Fri, Oct 9' } },
+    sk: { title: 'Saltwater Kings', year: 2021, season: 3, total: 8, released: 8, watched: 8, bg: 'oklch(0.4 0.06 200)', fg: 'oklch(0.95 0.02 90)', after: 'Season 4 · date not announced' }
+  };
+  order = ['ho', 'lc', 'pm', 'nm', 'sk'];
+  w(b, id) { const p = this.state.prog[b]; return p && p[id] != null ? p[id] : this.S[id].watched; }
+  setW(b, id, v) { this.setState(st => ({ prog: { ...st.prog, [b]: { ...(st.prog[b] || {}), [id]: v } } })); }
+  mark(b, id) {
+    const s = this.S[id], w = this.w(b, id);
+    if (w >= s.released) return;
+    this.setW(b, id, w + 1);
+    this.setState(st => ({ toast: { ...st.toast, [b]: { id, prev: w, msg: `Marked S${s.season} E${w + 1} of ${s.title} watched` } } }));
+    clearTimeout(this.timers[b]);
+    this.timers[b] = setTimeout(() => this.setState(st => ({ toast: { ...st.toast, [b]: null } })), 6000);
+  }
+  undo(b) {
+    const t = this.state.toast[b]; if (!t) return;
+    clearTimeout(this.timers[b]);
+    this.setW(b, t.id, t.prev);
+    this.setState(st => ({ toast: { ...st.toast, [b]: null } }));
+  }
+  componentWillUnmount() { Object.values(this.timers).forEach(clearTimeout); }
+  board(b) {
+    const up = [], caught = [];
+    this.order.forEach(id => {
+      const s = this.S[id], w = this.w(b, id);
+      const base = { id, title: s.title, year: s.year, season: s.season, bg: s.bg, fg: s.fg };
+      if (w < s.released) {
+        const code = `S${s.season} E${w + 1}`;
+        up.push({ ...base, code, progress: `${w} of ${s.total} watched`, pct: Math.round(w / s.total * 100) + '%',
+          avail: s.released - w > 1 ? `${s.released - w} episodes available` : 'Available now',
+          markLabel: `Mark ${code} watched`, onMark: () => this.mark(b, id) });
+      } else {
+        const more = w < s.total;
+        caught.push({ ...base, label: 'Caught up', note: more ? `S${s.season} E${w + 1} airs ${s.air[w + 1]}` : `Season ${s.season} finished · ${s.after}` });
+      }
+    });
+    const added = !!this.state.added[b];
+    const W = id => this.w(b, id);
+    const friends = [
+      { name: 'Maya Okafor', ini: 'MO', av: 'oklch(0.8 0.08 40)', action: 'watched', show: 'Hollow Orchard', code: 'S2 E7', time: '2 hours ago', locked: W('ho') < 7, lockNote: 'opens after you watch S2 E7', openNote: '6 comments' },
+      { name: 'Theo Lind', ini: 'TL', av: 'oklch(0.8 0.07 230)', action: 'reacted to', show: 'The Lantern Coast', code: 'S1 E2', time: '5 hours ago', locked: W('lc') < 2, lockNote: 'opens after you watch S1 E2', openNote: '4 comments' },
+      { name: 'Priya Shah', ini: 'PS', av: 'oklch(0.8 0.08 150)', action: 'added to their library:', show: 'The Quiet Year (2025)', code: '', time: 'Yesterday', isAdd: true },
+      { name: 'Jonas Weber', ini: 'JW', av: 'oklch(0.8 0.07 300)', action: 'watched', show: 'Night Shift at Meridian', code: 'S4 E11', time: 'Yesterday', locked: W('nm') < 11, lockNote: 'opens after you watch S4 E11', openNote: '12 comments' }
+    ].map(f => ({ ...f, isAdd: !!f.isAdd, isLocked: !f.isAdd && f.locked, isOpen: !f.isAdd && !f.locked,
+      added, addLabel: added ? '✓ In your library' : 'Add to library',
+      onAdd: () => this.setState(st => ({ added: { ...st.added, [b]: !st.added[b] } })) }));
+    const t = this.state.toast[b];
+    return { first: up[0] || {}, rest: up.slice(1), hasUp: up.length > 0, allCaught: up.length === 0, caught, friends,
+      hasToast: !!t, toastMsg: t ? t.msg : '', undo: () => this.undo(b) };
+  }
+  renderVals() {
+    return { am: this.board('am'), ad: this.board('ad'), bm: this.board('bm'), bd: this.board('bd') };
+  }
+}
+</script>
+</body>
+</html>

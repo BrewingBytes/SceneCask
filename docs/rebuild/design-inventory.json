@@ -1,0 +1,124 @@
+[
+  {
+    "file": "SceneCask States Gallery.dc.html",
+    "screens": [
+      "Overview",
+      "Mobile 390",
+      "Desktop 1440",
+      "Components & tokens"
+    ],
+    "actions": []
+  },
+  {
+    "file": "SceneCask Prototype.dc.html",
+    "screens": [
+      "Onboarding \u00b7 Welcome",
+      "Onboarding \u00b7 Friends",
+      "Home",
+      "Discover / Search",
+      "Show detail",
+      "Episode & discussion",
+      "Library",
+      "Friends"
+    ],
+    "actions": [
+      "onAdd",
+      "onApprove",
+      "onBlock",
+      "onBtn",
+      "onCancel",
+      "onCatchUp",
+      "onClick",
+      "onConfirm",
+      "onDecline",
+      "onDraft",
+      "onHide",
+      "onLockPrimary",
+      "onMark",
+      "onMenu",
+      "onNext",
+      "onNone",
+      "onOpen",
+      "onPost",
+      "onReport",
+      "onReveal",
+      "onSave",
+      "onSetProgress",
+      "onShow",
+      "onThrough",
+      "onToggle",
+      "onUnmark",
+      "onView"
+    ]
+  },
+  {
+    "file": "SceneCask Home Directions.dc.html",
+    "screens": [
+      "Turn 1 \u00b7 Home directions",
+      "1a Mobile",
+      "1a Desktop",
+      "1b Mobile",
+      "1b Desktop"
+    ],
+    "actions": [
+      "onAdd",
+      "onMark"
+    ]
+  },
+  {
+    "file": "SceneCask Prototype v2.dc.html",
+    "screens": [
+      "Welcome",
+      "Account access",
+      "Onboarding \u00b7 Friends (beta)",
+      "Home",
+      "Discover / Search",
+      "Show detail",
+      "Episode",
+      "Library",
+      "Friends (beta)"
+    ],
+    "actions": [
+      "onAdd",
+      "onApprove",
+      "onBlock",
+      "onBtn",
+      "onCancel",
+      "onCatchUp",
+      "onClick",
+      "onConfirm",
+      "onDecline",
+      "onDelete",
+      "onDraft",
+      "onEmail",
+      "onErase",
+      "onForgot",
+      "onHideDetails",
+      "onHideDisc",
+      "onLockPrimary",
+      "onMark",
+      "onMenu",
+      "onNext",
+      "onNone",
+      "onOpen",
+      "onPost",
+      "onPw",
+      "onRemove",
+      "onReport",
+      "onResend",
+      "onRevealDetails",
+      "onRevealDisc",
+      "onSave",
+      "onSetProgress",
+      "onShow",
+      "onStart",
+      "onSubmit",
+      "onSwitch",
+      "onThrough",
+      "onToggle",
+      "onUnmark",
+      "onVerified",
+      "onView"
+    ]
+  }
+]

@@ -1,0 +1,836 @@
+[
+  {
+    "key": "R01",
+    "title": "Bootstrap the web/API workspace and repeatable CI",
+    "deps": [],
+    "owner": "Root manifests/lockfiles, apps/web scaffold, services/api scaffold, .github/workflows, dev compose and root scripts",
+    "contract": "C01",
+    "design": "D01",
+    "implementation": "Create pnpm Next.js/TypeScript and Rust Axum workspaces, pin stable toolchains, PostgreSQL and local SMTP capture in development. Establish documented lint/typecheck/test/generation/e2e commands, environment examples without secrets, /health/live and /health/ready (readiness checks DB), and clean-clone CI. Add repository AGENTS.md explaining ownership and verification. No domain routes.",
+    "acceptance": [
+      "Given a clean clone and documented prerequisites, when setup runs, then web/API/DB/mail capture start and health checks work.",
+      "Given missing required configuration or unavailable DB, readiness fails clearly without leaking secrets; lint/build/tests run in CI."
+    ],
+    "verify": "Build both applications; run formatting/lint/typecheck and a health smoke check against real PostgreSQL. Record setup commands from clean checkout.",
+    "nonGoals": "Domain functionality, finished design, production deployment.",
+    "milestone": "Foundation",
+    "wave": 1
+  },
+  {
+    "key": "R02",
+    "title": "Create the canonical PostgreSQL schema and migration registry",
+    "deps": [
+      "R01"
+    ],
+    "owner": "services/api/migrations/0001\u20130007, services/api/tests/schema*, docs/rebuild/migration-registry.md",
+    "contract": "C02",
+    "design": "D01 (no user UI)",
+    "implementation": "Implement C02 entities, FKs, unique constraints, revision types, indexes for listed cursor/filter paths, job leases and cascade/tombstone boundaries. This issue is the sole initial migration owner. Record allocation and forward-only production policy. Provide test DB factory and fixtures as explicit development/test data only; never seed Ana into real accounts.",
+    "acceptance": [
+      "Given empty PostgreSQL, all ordered migrations apply and schema matches C02.",
+      "Given duplicate provider identity, duplicate follow pair, self-follow or invalid status, DB constraints reject it.",
+      "Given user deletion, private state can be erased without unintentionally cascading another user\u2019s comments/history."
+    ],
+    "verify": "Run migrations against fresh PostgreSQL; constraint and lifecycle tests; document schema coverage table.",
+    "nonGoals": "HTTP handlers and business workflows; later migration changes need coordinated allocation.",
+    "milestone": "Foundation",
+    "wave": 2
+  },
+  {
+    "key": "R03",
+    "title": "Encode and validate the canonical OpenAPI and generated client",
+    "deps": [
+      "R01"
+    ],
+    "owner": "contracts/openapi.yaml, packages/api-client/**, generator config and contract CI only",
+    "contract": "C03\u2013C08",
+    "design": "D02\u2013D08",
+    "implementation": "Transcribe every C03\u2013C08 endpoint into OpenAPI including DTOs, required/omitted spoiler fields, request/response/error examples, status codes, cookies/CSRF, pagination and idempotency headers. Generate typed TypeScript client using a pinned generator. Add lint and regenerate/diff check. Export operation-to-issue mapping; no endpoint placeholders or permissive any schemas.",
+    "acceptance": [
+      "Given the contract, generation produces a type-safe client covering every endpoint.",
+      "Given locked Episode DTO, validation rejects protected details and accepts the exact redacted example.",
+      "Given a changed schema without regenerated client, CI fails."
+    ],
+    "verify": "Validate OpenAPI, compile generated client, run schema example tests for success/redacted/errors and generation drift.",
+    "nonGoals": "Rust implementations and frontend feature integration.",
+    "milestone": "Foundation",
+    "wave": 2
+  },
+  {
+    "key": "R04",
+    "title": "Build design tokens, navigation shell and basic primitives",
+    "deps": [
+      "R01"
+    ],
+    "owner": "apps/web/src/styles/**, apps/web/src/components/ui/basic/**, apps/web/src/components/shell/**",
+    "contract": "C01",
+    "design": "D01; source/handoff/tokens.json",
+    "implementation": "Implement token imports, bundled typography, responsive header/nav, Buttons/Fields/Badges/Tabs/Progress/Poster/Avatar/Skeleton/Empty/Error primitives. Three alpha tabs, beta Friends and notification access. Keep API data out of primitives; no prototype controls. Export stable component props and component gallery.",
+    "acceptance": [
+      "Given 320/390/860/1440 viewport, navigation switches at860 without overflow and all targets>=44px.",
+      "Given missing art, fallback preserves2:3 or16:9 without layout shift; reduced motion and keyboard focus work."
+    ],
+    "verify": "Component tests for keyboard/disabled labels; axe gallery; browser screenshots and contrast check.",
+    "nonGoals": "Overlays, feature routes and authenticated data.",
+    "milestone": "Foundation",
+    "wave": 2
+  },
+  {
+    "key": "R05",
+    "title": "Implement accessible sheets, dialogs, menus and feedback",
+    "deps": [
+      "R04"
+    ],
+    "owner": "apps/web/src/components/ui/overlays/**",
+    "contract": "C01,C05",
+    "design": "D01; prototype catch-up dialog and add sheet",
+    "implementation": "Implement controlled Dialog/Sheet/Menu/Toast primitives with focus trap/restore, Escape/cancel, live-region messages, mobile bottom/desktop centered layout. Success6s, errors persist, optional Undo/Retry/Dismiss callbacks. Busy controls prevent duplicate action. Do not place API calls or progress algorithms in primitives.",
+    "acceptance": [
+      "Given keyboard-only opening, focus stays in modal and returns to trigger on cancel.",
+      "Given failed operation, error persists with Retry/Dismiss; success expires after6s; reduced motion disables transitions."
+    ],
+    "verify": "Focus/keyboard/timeout component tests and axe; browser320/390/1440 overlay screenshots.",
+    "nonGoals": "Feature dialogs, backend mutation semantics.",
+    "milestone": "Foundation",
+    "wave": 3
+  },
+  {
+    "key": "R06",
+    "title": "Implement cookie sessions, CSRF and API error middleware",
+    "deps": [
+      "R02",
+      "R03"
+    ],
+    "owner": "services/api/src/modules/auth/session*, services/api/src/middleware/**, services/api/src/error.rs; session tests",
+    "contract": "C03,C04",
+    "design": "D03 (session expiration)",
+    "implementation": "Implement session hashing/store/expiry/rotation, anonymous CSRF bootstrap, GET/session, logout, identity extraction, verified-user/operator guards, same-origin/CSRF checks, no-store, safe request IDs, body/rate limits. Export router/middleware builders for integration; do not edit shared main router yet. Logout removes grants.",
+    "acceptance": [
+      "Given expired/revoked session, protected call returns401 without user data.",
+      "Given missing/wrong CSRF or off-origin mutation, return403 and no write.",
+      "Given logout, old session and reveal grants cannot be reused."
+    ],
+    "verify": "PostgreSQL/API tests for cookies, expiry clock, CSRF, rate-limit429, no-store and logout revocation.",
+    "nonGoals": "Password/Google flows and final shared router assembly.",
+    "milestone": "Accounts",
+    "wave": 3
+  },
+  {
+    "key": "R07",
+    "title": "Implement registration, verification and SMTP outbox delivery",
+    "deps": [
+      "R06"
+    ],
+    "owner": "services/api/src/modules/auth/registration*, services/api/src/modules/mail/**, services/api/tests/registration*",
+    "contract": "C02,C04",
+    "design": "D03; auth=create/verify",
+    "implementation": "Implement register/verify/resend, Argon2id hashing off executor, generic responses, single-use hashed tokens,24h expiry,60s cooldown. SMTP delivery through durable outbox with retry/lease/dedupe; HTML and plain text messages contain correct configured origin links. Verification rotates session; no library access before verification.",
+    "acceptance": [
+      "Given new email, registration queues one usable verification link and stores no plaintext password/token.",
+      "Given used/expired token, verification fails410 with recovery; resend invalidates old token.",
+      "Given existing account or SMTP outage, responses remain enumeration-safe and outbox retry does not create duplicate accounts."
+    ],
+    "verify": "Real DB and local SMTP integration; token replay/expiry, duplicate signup, retry tests.",
+    "nonGoals": "Password reset, Google and UI.",
+    "milestone": "Accounts",
+    "wave": 4
+  },
+  {
+    "key": "R08",
+    "title": "Implement password login, recovery and fresh reauthentication",
+    "deps": [
+      "R07"
+    ],
+    "owner": "services/api/src/modules/auth/password*, services/api/tests/password*",
+    "contract": "C04",
+    "design": "D03",
+    "implementation": "Implement login, password-reset-request/reset and reauth; generic invalid credentials; correct unverified login routes to verification without application access. Reset30m single-use, revokes all sessions/grants; allow verified mailbox owner to establish password for SSO account. Fresh reauth window5m. Reuse mail/session services.",
+    "acceptance": [
+      "Given correct verified credentials, login returns rotated session.",
+      "Given reset completes, prior sessions and token replay fail and new password works.",
+      "Given reset for unknown email, response does not disclose existence."
+    ],
+    "verify": "DB/API tests including reset race, expiry, password boundaries, rate limits and last reset invalidation.",
+    "nonGoals": "Google, account deletion and frontend forms.",
+    "milestone": "Accounts",
+    "wave": 5
+  },
+  {
+    "key": "R09",
+    "title": "Implement Google sign-in and explicit identity linking",
+    "deps": [
+      "R08"
+    ],
+    "owner": "services/api/src/modules/auth/google*, services/api/src/modules/auth/identities*, Google protocol fixtures/tests",
+    "contract": "C04",
+    "design": "D03,D04",
+    "implementation": "Implement OIDC authorization-code flow with PKCE/state/nonce validation using maintained library, fixed Google discovery, verified email, safe callback/returnTo,10m flow expiry and single use. Use issuer+subject identity. Support signin/link/reauth intents, identity listing/unlink. Same email never auto-links. No long-lived Google tokens; prevent unlinking last method.",
+    "acceptance": [
+      "Given valid new Google identity, create one private account/session; repeated subject signs into same account.",
+      "Given matching email with unknown subject, require explicit authenticated linking.",
+      "Given replay/wrong nonce/audience/state or last-method unlink, fail without account mutation."
+    ],
+    "verify": "Mock OIDC/JWKS protocol tests for valid, canceled, expired, wrong claims, linking races; manual real Google smoke deferred to release with credentials.",
+    "nonGoals": "Other SSO providers, Google data access, deployment credentials provisioning.",
+    "milestone": "Accounts",
+    "wave": 6
+  },
+  {
+    "key": "R10",
+    "title": "Build account, recovery and Google sign-in screens",
+    "deps": [
+      "R05",
+      "R09",
+      "R15"
+    ],
+    "owner": "apps/web/src/features/auth/**, apps/web/src/app/auth/**, apps/web/src/app/onboarding/profile/**",
+    "contract": "C04",
+    "design": "D02,D03",
+    "implementation": "Use generated client for email/password/verify/resend/reset/session/Google redirect and linkage/reauth UI. Add profile name/handle onboarding, busy/field/form errors, expiry recovery and accessible Google button. Never simulate verification or inject sample library on login. Store no credentials/session token in localStorage. Router wiring is verified at R24.",
+    "acceptance": [
+      "Given new email user, screens lead through real verification to discover.",
+      "Given canceled Google flow or expired reset, user gets recoverable error and alternate method.",
+      "Given401 during private navigation, return to signin without retaining another user\u2019s cached data."
+    ],
+    "verify": "Component tests for all auth states with typed fixtures; browser keyboard/mobile/desktop checks; R24 must replace any fixture harness with live API.",
+    "nonGoals": "Provider implementation, settings privacy and full application router wiring.",
+    "milestone": "Accounts",
+    "wave": 7
+  },
+  {
+    "key": "R11",
+    "title": "Implement TMDB TV search and atomic catalog import",
+    "deps": [
+      "R02",
+      "R03"
+    ],
+    "owner": "services/api/src/modules/catalog/provider*, services/api/src/modules/catalog/import*, catalog search/import tests",
+    "contract": "C05",
+    "design": "D02 search/disambiguation; D04 attribution",
+    "implementation": "Search TV only with q/page validation and bounded timeout/cache. Import selected show and seasons/episodes atomically, unique stable provider IDs, map nulls/status/date-only safely. Failed partial import never usable. Duplicate imports converge. Configure image URLs and provider attribution data, no browser credentials. Use reusable provider trait and recorded test fixtures.",
+    "acceptance": [
+      "Given same-title results, API includes year/genre/poster metadata to distinguish.",
+      "Given concurrent import of same TMDB show, return same app ID without duplicates.",
+      "Given429/timeout/null date/missing poster, return defined failure or safe null without losing stored progress."
+    ],
+    "verify": "Provider fixture contract tests, DB import rollback/uniqueness tests; verify no raw payload/secret in response.",
+    "nonGoals": "Scheduled refresh, progress logic and catalog viewer DTOs.",
+    "milestone": "Tracking",
+    "wave": 3
+  },
+  {
+    "key": "R12",
+    "title": "Refresh metadata without losing watch history",
+    "deps": [
+      "R11"
+    ],
+    "owner": "services/api/src/modules/catalog/refresh*, metadata worker tests",
+    "contract": "C02,C05",
+    "design": "D02 show undated/not available",
+    "implementation": "Implement24h refresh worker with DB job lease,429 Retry-After/backoff,48h stale flag, last-good retention. Match episodes by TMDB identity through renumbering; atomic collision handling and catalog revision increment; archive removed episodes without deleting progress. Make clock injectable. Update discovered episodes and completion inputs.",
+    "acceptance": [
+      "Given provider outage, saved metadata/history remain usable and stale is disclosed.",
+      "Given new released episode, next read moves caught-up show to in-progress.",
+      "Given episode renumbering/removal, history retains identity and preview revision becomes stale."
+    ],
+    "verify": "DB/clock tests for refresh lease recovery,429,collision,renumber/archive,stale and incomplete catalog.",
+    "nonGoals": "UI, provider licensing procurement and release clock algorithm.",
+    "milestone": "Tracking",
+    "wave": 4
+  },
+  {
+    "key": "R13",
+    "title": "Implement pure per-episode progress and release rules",
+    "deps": [
+      "R02"
+    ],
+    "owner": "services/api/src/domain/progress.rs, services/api/src/domain/release.rs, domain tests",
+    "contract": "C05,C09 cases1\u20136",
+    "design": "D02 Home/show/progress states",
+    "implementation": "Implement season/episode ordered regular progress, next released unwatched, out-of-order, count/percent, caught-up/completed/not-yet/release-unknown. Specials excluded from aggregates. Future/undated individual marks count but do not change release status. UTC-midnight fallback, incomplete catalog blocks Completed, ended known all-marked takes priority. No I/O.",
+    "acceptance": [
+      "Given E1/E3 marked, E2 is next and outOfOrder=true.",
+      "Given undated episode, it cannot become next and blocks Completed even when marked.",
+      "Given empty/future-only/ongoing/ended catalog, derived states follow C05 exactly."
+    ],
+    "verify": "Table/property tests with fixed clock, timezone boundaries, empty totals, specials and future marked cases.",
+    "nonGoals": "Persistence, API handlers and UI.",
+    "milestone": "Tracking",
+    "wave": 3
+  },
+  {
+    "key": "R14",
+    "title": "Implement reusable privacy and spoiler projection policies",
+    "deps": [
+      "R02",
+      "R13"
+    ],
+    "owner": "services/api/src/domain/access.rs, services/api/src/domain/spoilers.rs, policy tests",
+    "contract": "C06,C07,C09",
+    "design": "D02 episode locked/gap/special; D08",
+    "implementation": "Implement pure access decisions with separate privacy gate and spoiler gate. Details use individual watched; discussion uses all regular through target or scoped grant; special discussion explicit grant only. Define redacted DTO constructors that cannot accidentally serialize details. Mutual host policy and bilateral block filtering; public library requires signed-in viewer.",
+    "acceptance": [
+      "Given E3 watched/E2 gap, detail allowed and discussion locked.",
+      "Given discussion grant for A, B at same episode remains locked.",
+      "Given privacy revocation, grant cannot authorize access; protected projection omits keys entirely."
+    ],
+    "verify": "Exhaustive truth table tests for role/follow/block/progress/grant/session/special combinations and JSON key absence.",
+    "nonGoals": "HTTP grant persistence, following workflows and comments.",
+    "milestone": "Tracking",
+    "wave": 4
+  },
+  {
+    "key": "R15",
+    "title": "Implement personal library and profile persistence APIs",
+    "deps": [
+      "R06",
+      "R13"
+    ],
+    "owner": "services/api/src/modules/library/**, services/api/src/modules/account/profile*, library/profile tests",
+    "contract": "C04 PATCH/me; C05 library",
+    "design": "D02 library; D03 profile",
+    "implementation": "Implement library listing/filter counts/search and save/remove/status writes with expected revision/idempotency and action recording. Removal retains history; manual Completed rejected. Profile display-name/initial handle validation and uniqueness, no role changes. Home uses saved watching only, but libraryEmpty reflects all saved. Export module routers.",
+    "acceptance": [
+      "Given removed then readded show, progress/manual status restored.",
+      "Given invalid manual Completed or stale revision, no mutation.",
+      "Given handle collision or attempted role change, reject safely; private default remains."
+    ],
+    "verify": "DB/API tests for owner isolation,revision/idempotency,filter counts,history retention and profile uniqueness.",
+    "nonGoals": "Per-episode writes, undo endpoint implementation, frontend and shared router assembly.",
+    "milestone": "Tracking",
+    "wave": 4
+  },
+  {
+    "key": "R16",
+    "title": "Persist individual watched changes and conflict-safe Undo",
+    "deps": [
+      "R15"
+    ],
+    "owner": "services/api/src/modules/tracking/mutations*, services/api/src/modules/tracking/undo*, tracking API tests",
+    "contract": "C05,C09 cases1,2,5",
+    "design": "D02 watched actions/toasts",
+    "implementation": "Implement individual true/false marks for released/future/undated/special episodes, auto-save/status upgrade rules, revision/idempotency, mutation actions and per-field provenance. Implement10m action Undo with skipped conflicts and repeat outcome. Use same action bookkeeping interface as library writes; false rows retain revisions. History erase uses aggregate revision, explicit API and same Undo engine.",
+    "acceptance": [
+      "Given future episode, mark persists and metadata stays future.",
+      "Given A:true B:false C:true, Undo A skips C despite matching value.",
+      "Given repeated request key or Undo, no duplicate action/event; other user cannot undo."
+    ],
+    "verify": "PostgreSQL transaction/concurrency tests, lost-response idempotency, selective rollback,history erase and owner isolation.",
+    "nonGoals": "Bulk catch-up previews, social event projection and UI.",
+    "milestone": "Tracking",
+    "wave": 5
+  },
+  {
+    "key": "R17",
+    "title": "Implement explicit catch-up preview and atomic commit",
+    "deps": [
+      "R16",
+      "R12"
+    ],
+    "owner": "services/api/src/modules/tracking/catchup*, catch-up API tests",
+    "contract": "C05 catch-up; C09 case4",
+    "design": "D02 catch-up dialog/add sheet",
+    "implementation": "Preview exact eligible regular released unmarked IDs through chosen endpoint and list all exclusions. Persist5m preview bound to user/catalog/progress/library revisions. Commit exact set transactionally with idempotency, auto-save/status rules and Undo provenance. No special endpoint and no silent expansion on metadata changes. Zero count returns no-op.",
+    "acceptance": [
+      "Given released/marked/future/undated/special mix, preview count/list match contract and excludes future even if endpoint future.",
+      "Given a progress or metadata change before confirm,409 and zero writes.",
+      "Given valid commit then Undo, previously marked episodes remain watched."
+    ],
+    "verify": "DB tests for stale/expired/cross-user preview,transaction race,no-op,idempotency and undo.",
+    "nonGoals": "Implicit catch-up, UI and alternate episode orders.",
+    "milestone": "Tracking",
+    "wave": 6
+  },
+  {
+    "key": "R18",
+    "title": "Serve viewer-filtered show, episode, Home and reveal APIs",
+    "deps": [
+      "R11",
+      "R14",
+      "R16"
+    ],
+    "owner": "services/api/src/modules/catalog/views*, services/api/src/modules/tracking/home*, services/api/src/modules/policy/**, projection API tests",
+    "contract": "C05,C07 reveals",
+    "design": "D02 episode/Home/show",
+    "implementation": "Build Show/Episode/LibraryItem projections with policy service; GET shows/episodes/home and session-scoped reveal create/delete. Episode lists ordered/paginated with specials explicit. Protected keys omitted, cache private/no-store. Discussion reveals validate privacy via policy and DB relationships even before beta routes assembled. Logout/expiry revokes grants.",
+    "acceptance": [
+      "Given unwatched episode, JSON contains no title/overview/stillUrl.",
+      "Given individual mark/reveal, authorized detail fetch returns details, Hide again returns redacted DTO.",
+      "Given all shows on-hold, Home shows choose-a-show state rather than false empty-library message."
+    ],
+    "verify": "API serialization/network tests,session/cross-user cache checks,grant lifecycle,Home state fixtures.",
+    "nonGoals": "Client UI, social route assembly and TMDB refresh implementation.",
+    "milestone": "Tracking",
+    "wave": 6
+  },
+  {
+    "key": "R19",
+    "title": "Build TV search, disambiguation and add-to-library flow",
+    "deps": [
+      "R05",
+      "R11",
+      "R15",
+      "R16"
+    ],
+    "owner": "apps/web/src/features/catalog/search/**, apps/web/src/app/discover/**",
+    "contract": "C05 search/import/library",
+    "design": "D02 Discover; gallery mobile04,20",
+    "implementation": "Debounce query, cancel stale requests, render skeleton/results/no-results/failure, title/year/genre/poster disambiguation, pagination. Select imports show then navigates by app ID. Add as plan-to-watch uses generated client and Undo-ready mutation response. Empty solo discover offers search; social slot remains separate until R28.",
+    "acceptance": [
+      "Given slow earlier query, its response never overwrites later query.",
+      "Given ambiguous title, user selects correct year and saves correct provider result.",
+      "Given import/search/save failure, retain query and offer retry without duplicate library entry."
+    ],
+    "verify": "Component race/failure tests; browser390/1440 screenshots; fixture harness allowed only until R24 live integration.",
+    "nonGoals": "Recommendations and show-detail implementation.",
+    "milestone": "Tracking",
+    "wave": 6
+  },
+  {
+    "key": "R20",
+    "title": "Build searchable library with derived progress states",
+    "deps": [
+      "R05",
+      "R15",
+      "R18"
+    ],
+    "owner": "apps/web/src/features/library/**, apps/web/src/app/library/**",
+    "contract": "C05 library",
+    "design": "D02 Library; gallery18",
+    "implementation": "Render four manual status filters/counts, search, saved show rows, computed completion/caught-up, empty/no-match/loading/error. No manual Completed option. Support navigation and status/removal generated-client mutations, optimistic rollback without whole-cache snapshots.",
+    "acceptance": [
+      "Given no saved shows, empty CTA opens Discover; no matches retains filters with clear action.",
+      "Given canceled incomplete show, display caught-up not completed.",
+      "Given failed status/remove, current server state can be recovered without overwriting later edits."
+    ],
+    "verify": "Component tests state/filter/error; browser320/390/1440 + axe; live network checks at R24.",
+    "nonGoals": "Show-detail grid and bulk progress UI.",
+    "milestone": "Tracking",
+    "wave": 7
+  },
+  {
+    "key": "R21",
+    "title": "Build show detail, episode rows and explicit catch-up sheet",
+    "deps": [
+      "R05",
+      "R17",
+      "R18"
+    ],
+    "owner": "apps/web/src/features/catalog/show/**, apps/web/src/features/tracking/**, apps/web/src/app/shows/**",
+    "contract": "C05",
+    "design": "D02 Show/Add/Catch-up; gallery05,09\u201312",
+    "implementation": "Render poster/info/seasons/specials, protected episode rows, single watched/unwatched including future/undated, manual statuses, add/remove/history confirmation. Shared tracking client handles idempotency and action-specific optimistic patches. Add/set-progress sheet offers none or explicit preview; counts/ranges/exclusions then commit. Stale preview requires refresh and reconfirm.",
+    "acceptance": [
+      "Given one episode click, no earlier episode changes.",
+      "Given future episode, mark enabled but future label remains.",
+      "Given stale catch-up, no silent submit; new scope shown for confirmation.",
+      "Given erase history, separate destructive confirmation precedes request and successful Undo is offered."
+    ],
+    "verify": "Component tests for previews and optimistic races; browser keyboard/sheet320/390/1440; network isolation checked R24.",
+    "nonGoals": "Discussion UI and automatic season completion actions.",
+    "milestone": "Tracking",
+    "wave": 7
+  },
+  {
+    "key": "R22",
+    "title": "Build spoiler-safe episode detail and scoped reveal UI",
+    "deps": [
+      "R21"
+    ],
+    "owner": "apps/web/src/features/catalog/episode/**, apps/web/src/app/episodes/**",
+    "contract": "C05,C07 details/reveals",
+    "design": "D02 Episode; gallery13,14",
+    "implementation": "Render code/show header with hidden details absent until API permits, reveal/hide confirmation and session expiry copy, watched actions using shared tracking adapter, future/undated notices and bulk link. Browser title/metadata/prefetch use code not protected title. Reserve discussion slot hidden in alpha.",
+    "acceptance": [
+      "Given locked DTO, no protected title/image request/alt text in DOM or prefetched payload.",
+      "Given reveal then Hide again or logout, protected cache removed and screen redacted.",
+      "Given future individual mark, success fetch unlocks details without altering release label."
+    ],
+    "verify": "DOM/network tests,SSR payload check,keyboard/reveal screenshots; no CSS blur as access control.",
+    "nonGoals": "Discussions and social permissions UI.",
+    "milestone": "Tracking",
+    "wave": 8
+  },
+  {
+    "key": "R23",
+    "title": "Build personal Home with next episode and caught-up sections",
+    "deps": [
+      "R21"
+    ],
+    "owner": "apps/web/src/features/home/**, apps/web/src/app/home/**, apps/web/src/app/page.tsx",
+    "contract": "C05 home",
+    "design": "D02 Home; gallery06\u201308 and desktopD1",
+    "implementation": "Render featured/rest from authoritative Home response, safe codes, progress, shared mark/Undo controls, caught-up dates/uncertainty, empty library and no-watching states. Welcome route uses export design. No fixed fixture dates/sample users. Social area is a beta extension point, not prerequisite for usable Home.",
+    "acceptance": [
+      "Given E1/E3 marked, featured next points to E2.",
+      "Given new release after caught-up, refetch shows next unwatched.",
+      "Given no friends or library, primary solo search/save journey remains visible."
+    ],
+    "verify": "Component state tests; browser390/1440 visual comparison and320 overflow; live end-to-end R24.",
+    "nonGoals": "Social activity feed and recommendations.",
+    "milestone": "Tracking",
+    "wave": 8
+  },
+  {
+    "key": "R24",
+    "title": "Integrate and verify the complete personal-tracking alpha",
+    "deps": [
+      "R10",
+      "R12",
+      "R17",
+      "R18",
+      "R19",
+      "R20",
+      "R21",
+      "R22",
+      "R23"
+    ],
+    "owner": "services/api/src/main.rs and shared router wiring, apps/web/src/app/layout.tsx and providers, tests/e2e/alpha*, integration glue only",
+    "contract": "C01\u2013C05,C07 details,C09",
+    "design": "D01\u2013D04 alpha portions,D09",
+    "implementation": "Compose module routers/middleware and generated-client providers. Replace fixture-only feature wiring with real API calls; no prototype storage controls. Wire profile API/auth guards/CSRF/cache resets and About TMDB attribution. Add documented alpha server flag default beta off. Test real Next+Axum+Postgres+mail stack, fixture TMDB/OIDC servers at provider boundary only.",
+    "acceptance": [
+      "Given fresh account/no friends, signup\u2192verify\u2192search\u2192save\u2192mark E3\u2192next E2\u2192catch-up\u2192Undo\u2192reload\u2192logout/login preserves correct state.",
+      "Given provider failure and concurrent edit, history survives and Undo keeps newer changes.",
+      "Given unverified/other session, private/protected payloads are absent across API,SSR,prefetch."
+    ],
+    "verify": "Run full alpha browser journeys,API integration tests,axe/keyboards/screenshots at390/1440 and320/860 checks; record actual commands and network assertions.",
+    "nonGoals": "New social features or unrelated refactors; feature bugs fixed within coordinated owner paths.",
+    "milestone": "Alpha gate",
+    "wave": 9
+  },
+  {
+    "key": "R25",
+    "title": "Implement follows, requests and visible people/library APIs",
+    "deps": [
+      "R24"
+    ],
+    "owner": "services/api/src/modules/social/follows*, services/api/src/modules/social/people*, social relationship tests",
+    "contract": "C06",
+    "design": "D08; Friends beta",
+    "implementation": "Implement people search/profile/library projection and private request/public immediate follow, cancel/unfollow, request approval/decline, follower list/removal. Reuse privacy policy on every read/write. Account handle required for social writes. Emit deduplicated follow-request outbox item. All module routes beta-gated; no main router edits.",
+    "acceptance": [
+      "Given private target, pending follow cannot read library until approved.",
+      "Given public target, follow approves immediately; anonymous access still denied.",
+      "Given decline/remove/unfollow, access changes immediately and no unwanted notification sent."
+    ],
+    "verify": "DB/API tests for relationship matrix,races,idempotent follow,private search leakage,cursors and blocked lookups.",
+    "nonGoals": "Privacy switch/block mutations,notification worker and client.",
+    "milestone": "Social",
+    "wave": 10
+  },
+  {
+    "key": "R26",
+    "title": "Implement privacy changes and bilateral blocking",
+    "deps": [
+      "R25"
+    ],
+    "owner": "services/api/src/modules/social/privacy*, services/api/src/modules/social/blocks*, revocation tests",
+    "contract": "C06,C07",
+    "design": "D04,D08",
+    "implementation": "Implement privacy switch, blocks listing/add/remove. Block atomically removes edges both ways, pending notifications and affected grants. Public\u2192private immediately hides library/activity from nonfollowers; public switch does not auto-approve pending requests. Unblock restores no relationships. Reuse policy gate in viewer projections.",
+    "acceptance": [
+      "Given revealed discussion then host block, subsequent read404.",
+      "Given public\u2192private, unapproved viewer loses library visibility immediately.",
+      "Given unblock, both follow directions stay absent."
+    ],
+    "verify": "Transaction/permission tests including block race,reverse block,pending notifications and reveal revocation.",
+    "nonGoals": "UI and automatic account blocking via moderation.",
+    "milestone": "Social",
+    "wave": 11
+  },
+  {
+    "key": "R27",
+    "title": "Generate spoiler-safe activity and friend recommendations",
+    "deps": [
+      "R26"
+    ],
+    "owner": "services/api/src/modules/social/activity*, services/api/src/modules/social/recommendations*, services/api/src/modules/tracking/events*, social discovery tests",
+    "contract": "C06",
+    "design": "D02 Home From friends/Discover",
+    "implementation": "Project completed library/mark actions into deduplicated activity; no-op/replay duplicates absent, Undo removes corresponding events, bulk catch-up at most endpoint event if changed. Filter current follows/privacy/blocks at read. Recommend visible unsaved shows by followed-person count with deterministic ordering; empty no-friends result. Never store/return episode text in activity.",
+    "acceptance": [
+      "Given no follows, recommendations/activity empty and personal APIs unchanged.",
+      "Given later block/privacy revocation, old event no longer visible.",
+      "Given mark retry/Undo, no duplicates and reversed event removed; only episode code exposed."
+    ],
+    "verify": "DB/API tests for aggregation,tie/cursor,revocation,Undo and response redaction.",
+    "nonGoals": "AI/trending recommendations and UI.",
+    "milestone": "Social",
+    "wave": 12
+  },
+  {
+    "key": "R28",
+    "title": "Build Friends, profiles and social discovery surfaces",
+    "deps": [
+      "R27"
+    ],
+    "owner": "apps/web/src/features/social/**, apps/web/src/app/friends/**, apps/web/src/app/people/**",
+    "contract": "C06",
+    "design": "D08,D02 social slots",
+    "implementation": "Implement people search,profile/private lock,follow/request/cancel/unfollow,approve/decline,followers list/remove and block confirmation with generated client. Export feed/recommendation components for Home/Discover integration in R38. Include empty/error/loading/pending and participants visibility copy. Never simulate approval timer.",
+    "acceptance": [
+      "Given private request, Requested persists until actual server approval.",
+      "Given blocked/private viewer, no hidden library counts or activity render.",
+      "Given empty friends, search available and personal Home remains useful."
+    ],
+    "verify": "Typed fixture component tests + browser keyboard390/1440; live relationship matrix scheduled R38.",
+    "nonGoals": "Privacy settings page and final Home route wiring.",
+    "milestone": "Social",
+    "wave": 13
+  },
+  {
+    "key": "R29",
+    "title": "Build settings, privacy and sign-in method management",
+    "deps": [
+      "R10",
+      "R26"
+    ],
+    "owner": "apps/web/src/features/settings/account/**, apps/web/src/app/settings/page.tsx",
+    "contract": "C04,C06",
+    "design": "D04",
+    "implementation": "Render profile edit,immutable chosen handle,Google link/unlink/password establishment/reauth,private-public confirmation,followers/remove and blocks/unblock lists. About TMDB attribution. Use API responses not local-only toggles; pending/errors accessible. Data controls linked only when beta enabled.",
+    "acceptance": [
+      "Given last signin method, unlink blocked with explanation.",
+      "Given public switch, warning precedes write; failed save retains authoritative visibility.",
+      "Given unblock, copy makes clear follows not restored."
+    ],
+    "verify": "Component/accessibility tests and browser390/1440 states; linking/live privacy checked R38.",
+    "nonGoals": "Account erasure/export and identity backend.",
+    "milestone": "Social",
+    "wave": 12
+  },
+  {
+    "key": "R30",
+    "title": "Implement hosted discussions and gated comment reads",
+    "deps": [
+      "R26",
+      "R18"
+    ],
+    "owner": "services/api/src/modules/discussions/threads*, services/api/src/modules/discussions/reads*, discussion API tests",
+    "contract": "C07",
+    "design": "D02 beta episode; D08",
+    "implementation": "List/create one host thread per episode, current mutual-follow privacy, spoiler metadata, paginated comments read. No protected content/participant counts in locked result. Special explicit reveal, undated gap locking, per-thread grants, participant block filtering, tombstones. Integrate existing reveal service permission decisions, no main router edits.",
+    "acceptance": [
+      "Given one-way host follow, thread absent; mutual still subject to watched-through.",
+      "Given same-episode threads A/B, grant A does not reveal B.",
+      "Given unrelated participant blocked, comments/identity/count contribution absent but host access preserved."
+    ],
+    "verify": "API matrix and serialization tests,create race,pagination,revoked grants,special/gap cases.",
+    "nonGoals": "Comment writes/report moderation and UI.",
+    "milestone": "Discussions",
+    "wave": 12
+  },
+  {
+    "key": "R31",
+    "title": "Implement comment posting, removal and reporting",
+    "deps": [
+      "R30"
+    ],
+    "owner": "services/api/src/modules/discussions/comments*, services/api/src/modules/moderation/reporting*, comment/report tests",
+    "contract": "C07",
+    "design": "D08",
+    "implementation": "Plain-text1\u20135000 comments with permission/spoiler recheck and10/minute limit. Author delete/host remove tombstones; prevent arbitrary-ID deletes. Report approved reasons, one active report per viewer/comment, hide for reporter immediately. Escape rendered text via DTO/client; no edits/attachments/link previews.",
+    "acceptance": [
+      "Given locked or revoked thread, posting fails without write.",
+      "Given host removes another comment, body gone for all while tombstone persists.",
+      "Given report, reporter no longer receives body; unrelated readers still see until moderation."
+    ],
+    "verify": "DB/API tests for author/host/stranger,rate limit,report duplicate,block filtering and XSS plain-text payload.",
+    "nonGoals": "Operator resolution and reactions.",
+    "milestone": "Discussions",
+    "wave": 13
+  },
+  {
+    "key": "R32",
+    "title": "Build hosted discussion selection, reveal and comments UI",
+    "deps": [
+      "R22",
+      "R31"
+    ],
+    "owner": "apps/web/src/features/discussions/**",
+    "contract": "C07",
+    "design": "D02 beta episode gallery15\u201317; D08",
+    "implementation": "Component slot lists eligible host threads,create-own,locked gap/special notices,per-discussion reveal/hide,participant relation labels,plain-text composer,menu author/host/report/block actions. Preserve draft on network failure, clear on success. Unauthorized/expired reveal redacts cache. No reactions.",
+    "acceptance": [
+      "Given watched E3/gap E2, detail remains visible but discussion lock explains missing code.",
+      "Given switching from revealed A to B, B stays locked.",
+      "Given post failure, draft remains; retry cannot silently post into different selected thread."
+    ],
+    "verify": "Component state/race tests,browser keyboard/mobile/desktop and absent protected DOM assertions; R38 live integration.",
+    "nonGoals": "Backend and episode route slot wiring until R38.",
+    "milestone": "Discussions",
+    "wave": 14
+  },
+  {
+    "key": "R33",
+    "title": "Implement operator report review and audit UI",
+    "deps": [
+      "R31",
+      "R29"
+    ],
+    "owner": "services/api/src/modules/moderation/operator*, apps/web/src/features/moderation/**, apps/web/src/app/operator/**, operator tests",
+    "contract": "C08 moderation",
+    "design": "D07",
+    "implementation": "Implement operator report list/resolve,role check,spoiler-warning detail and Remove/Dismiss workflow with audited access/actions. Only deployment CLI can designate operator; no self-promotion endpoint. Removal tombstones comment/resolves related reports; conflicting resolution409. Provide empty/loading/forbidden/error UI.",
+    "acceptance": [
+      "Given member calls operator endpoint,403 with no report body.",
+      "Given operator removes reported comment, all readers lose body and audit records action.",
+      "Given concurrent resolution, conflicting second decision does not overwrite first."
+    ],
+    "verify": "API role/transaction tests and browser report workflow with test operator; inspect audit and no member leakage.",
+    "nonGoals": "Automatic moderation, bans, user role-management UI.",
+    "milestone": "Discussions",
+    "wave": 14
+  },
+  {
+    "key": "R34",
+    "title": "Implement in-app follow-request notifications",
+    "deps": [
+      "R25",
+      "R28"
+    ],
+    "owner": "services/api/src/modules/notifications/**, apps/web/src/features/notifications/**, apps/web/src/app/notifications/**, notification tests",
+    "contract": "C08 notifications",
+    "design": "D05",
+    "implementation": "Consume deduplicated request outbox,owner list/read APIs and notification page/entry component. Filter canceled/approved/blocked requests at read. Unread count from visible notifications, no protected episode content. Entry routes Friends requests; resolved stale link explains no longer pending.",
+    "acceptance": [
+      "Given repeated follow request delivery, one notification appears.",
+      "Given request withdrawn or blocked, notification body/count no longer exposes actor.",
+      "Given other user notification ID, mark-read404."
+    ],
+    "verify": "Worker/API dedupe and revocation tests; browser loading/empty/read/request resolution flow.",
+    "nonGoals": "Email/push and reply notifications; shared header integration R38.",
+    "milestone": "Social",
+    "wave": 14
+  },
+  {
+    "key": "R35",
+    "title": "Implement private asynchronous JSON data export",
+    "deps": [
+      "R24"
+    ],
+    "owner": "services/api/src/modules/account/export*, export job tests",
+    "contract": "C08 export",
+    "design": "D06",
+    "implementation": "Create one active export job/user,leased worker,owner status/download,private artifact storage with24h expiry/cleanup. Include own profile/library/progress/comments/relationships/notifications only; no tokens,hashes or other private comment bodies. Typed failure/retry and authenticated attachment response.",
+    "acceptance": [
+      "Given other user job ID, status/download404.",
+      "Given ready export, JSON matches own persisted data and omits secrets.",
+      "Given expired artifact or worker crash,410 or recovered job without public file exposure."
+    ],
+    "verify": "DB/worker tests for ownership,content allowlist,lease recovery,expiry/file cleanup.",
+    "nonGoals": "UI,account deletion and CSV formats.",
+    "milestone": "Account lifecycle",
+    "wave": 10
+  },
+  {
+    "key": "R36",
+    "title": "Implement irreversible account deletion and cleanup",
+    "deps": [
+      "R35",
+      "R31",
+      "R34"
+    ],
+    "owner": "services/api/src/modules/account/deletion*, deletion worker/tests",
+    "contract": "C08 deletion",
+    "design": "D06",
+    "implementation": "Require fresh password/Google reauth and DELETE confirmation. Atomically disable/revoke access then durable job removes private data/identities/grants/files within24h,bodyless anonymous shared comment tombstones,hosted discussion access removed and bodies erased. Retry safe with operator alert after exhausted retries. Maintain minimal deletion ledger for backup restore replay without retaining profile content.",
+    "acceptance": [
+      "Given stale reauth or wrong confirmation, no account change.",
+      "Given accepted deletion, all sessions immediately401 and subsequent job removes own exports/progress/identities.",
+      "Given crash mid-job, retry finishes without affecting another account; restore procedure cannot resurrect deleted account."
+    ],
+    "verify": "Integration tests for cascade/tombstone,worker crash,idempotency,cross-user preservation and revocation.",
+    "nonGoals": "UI,actual deletion of real users or backup provisioning.",
+    "milestone": "Account lifecycle",
+    "wave": 15
+  },
+  {
+    "key": "R37",
+    "title": "Build export and account deletion settings flows",
+    "deps": [
+      "R29",
+      "R36"
+    ],
+    "owner": "apps/web/src/features/settings/data/**, apps/web/src/app/settings/data/**",
+    "contract": "C08 account lifecycle",
+    "design": "D06",
+    "implementation": "Export queued/running/ready/download/expired/failed states with bounded polling and authenticated download. Delete confirmation copy,typed DELETE, fresh password/Google reauth,disabled/busy/failure; accepted deletion clears all viewer caches and signs out. Show24h cleanup/30d backup retention accurately.",
+    "acceptance": [
+      "Given ready export, authorized download works; expired offers new request.",
+      "Given deletion cancel or failed reauth, account remains usable.",
+      "Given accepted deletion, no Undo offered and protected client data cleared."
+    ],
+    "verify": "Component tests for polling cleanup/confirmation/reauth; browser390/1440 +axe; live deletion only disposable test account in R38.",
+    "nonGoals": "Backend jobs and real production account deletion.",
+    "milestone": "Account lifecycle",
+    "wave": 16
+  },
+  {
+    "key": "R38",
+    "title": "Integrate social beta and verify privacy/spoiler journeys",
+    "deps": [
+      "R28",
+      "R29",
+      "R32",
+      "R33",
+      "R34",
+      "R37"
+    ],
+    "owner": "services/api shared router wiring, apps/web shell/Home/Discover/episode slot glue, tests/e2e/beta*",
+    "contract": "C06\u2013C09",
+    "design": "D04\u2013D09",
+    "implementation": "Wire beta endpoints/components/feature flag,real API clients and notification header entry. Enforce profile handle before social writes. Test multi-user actual stack,complete follow\u2192discover\u2192save\u2192mutual discussion\u2192report/block/revoke plus account lifecycle. Assert response bodies,SSR,prefetch and cache contents for absence of protected strings. Alpha flag still works.",
+    "acceptance": [
+      "Given two mutual accounts with progress gap, thread exists but stays locked; reveal opens only one thread.",
+      "Given host unfollow/block/private changes, subsequent requests and refreshed UI honor current access.",
+      "Given disposable user export/delete, authorized download then immediate revocation and eventual cleanup succeed."
+    ],
+    "verify": "Full beta E2E + alpha regression,API permission matrix,network redaction,axe/mobile desktop screenshots; record actual results.",
+    "nonGoals": "New product scope or live user data operations.",
+    "milestone": "Beta gate",
+    "wave": 17
+  },
+  {
+    "key": "R39",
+    "title": "Package deployment and document operations/recovery",
+    "deps": [
+      "R24",
+      "R38"
+    ],
+    "owner": "deploy/**, Dockerfiles, docs/operations/**, release CI workflow only",
+    "contract": "C01,C02,C08",
+    "design": "D09 release verification",
+    "implementation": "Build web/API/worker container images,configurable same-origin reverse proxy,TLS/health settings,migration-before-start procedure and least-privilege DB roles. Document Google redirect/TMDB/SMTP credential setup,provider attribution/access checklist,operator designation,backup30d retention/restore with deletion replay,worker alerts and rollback. Never deploy or buy services in this issue.",
+    "acceptance": [
+      "Given documented environment, disposable deployment starts and migrations/readiness succeed.",
+      "Given worker/mail/provider failure, logs/metrics reveal actionable failure without secrets.",
+      "Given backup restore rehearsal, data recovers and deletion ledger reapplied before serving."
+    ],
+    "verify": "Build images and disposable stack smoke,backup/restore rehearsal,migration compatibility and secret-log inspection.",
+    "nonGoals": "Purchasing hosting,provisioning real secrets or production deployment.",
+    "milestone": "Release",
+    "wave": 18
+  },
+  {
+    "key": "R40",
+    "title": "Run release acceptance and publish a go/no-go report",
+    "deps": [
+      "R39"
+    ],
+    "owner": "docs/release/**, tests/e2e/release*; defects returned to feature owners",
+    "contract": "C01\u2013C09",
+    "design": "D01\u2013D09 and full states gallery",
+    "implementation": "Run all complete journeys against release images,alpha/beta flags,320/390/768/860/1024/1440,keyboard/reduced motion/contrast and provider outages. Compare every coverage-map row with evidence. Manual real Google/TMDB/SMTP check only with configured test credentials; if absent report blocked deployment rather than claiming pass. Confirm TMDB attribution/access,backups,moderation operator,deletion/export and no protected payload leakage.",
+    "acceptance": [
+      "Given release candidate, each coverage item has test/manual evidence or explicit blocking defect; no unexplained mock-only integration.",
+      "Given missing deployment credential/access, report names missing input and does not claim production-ready.",
+      "Given critical spoiler/privacy failure, report NO-GO with reproducible steps."
+    ],
+    "verify": "Full CI and image E2E,manual real-provider smoke,accessibility/responsive screenshots,coverage audit and recoverability evidence.",
+    "nonGoals": "Publishing/deploying automatically,expanding scope or ignoring failed gates.",
+    "milestone": "Release",
+    "wave": 19
+  }
+]
