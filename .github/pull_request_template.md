@@ -1,7 +1,7 @@
 <!--
 PR title and commits: <type>(<optional-scope>): <short imperative description>
 Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
-New branch: codex/<type>/<issue-number>-<short-kebab-case-description>
+New branch: <type>/<issue-number>-<short-kebab-case-description>
 Omit the issue number if there is no issue. See README.md for examples.
 -->
 

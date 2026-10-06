@@ -11,13 +11,13 @@ Feature owners work within their modules. Coordinate shared changes with their
 owner; do not revert unrelated work. Do not invent migrations or domain routes.
 Generated client code is never edited manually.
 
-Use pnpm and the pinned Rust toolchain. From a configured checkout run:
-- pnpm lint (web lint, Rust format and clippy)
-- pnpm typecheck
-- pnpm test (requires real PostgreSQL via DATABASE_URL)
-- pnpm build
-- pnpm api:check; pnpm api:generate when changing API contracts
-- pnpm test:e2e (real API/PostgreSQL; browser installed)
+Use Yarn and the pinned Rust toolchain. From a configured checkout run:
+- yarn lint (web lint, Rust format and clippy)
+- yarn typecheck
+- yarn test (requires real PostgreSQL via DATABASE_URL)
+- yarn build
+- yarn api:check; yarn api:generate when changing API contracts
+- yarn test:e2e (real API/PostgreSQL; browser installed)
 
 R01's API generation commands report that R03 is pending until the schema exists.
 Once present, they require R03's packages/api-client api:generate/api:check scripts.
@@ -35,7 +35,7 @@ Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
 Examples: `feat(auth): add email sign-in`, `docs: clarify local setup`.
 Mark breaking changes with `!` and explain them in a `BREAKING CHANGE:` footer.
 
-Name new branches `codex/<type>/<issue-number>-<short-kebab-case-description>`.
+Name new branches `<type>/<issue-number>-<short-kebab-case-description>`.
 Use the same type vocabulary as commits. If no issue exists, omit the issue number.
-Examples: `codex/feat/6-cookie-sessions`, `codex/docs/contribution-guide`.
+Examples: `feat/6-cookie-sessions`, `docs/contribution-guide`.
 Use the PR template, record actual validation, and link the issue with `Closes #N`.

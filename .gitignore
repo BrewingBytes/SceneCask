@@ -7,3 +7,8 @@ target/
 playwright-report/
 test-results/
 *.tsbuildinfo
+next-env.d.ts
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+!.yarn/patches

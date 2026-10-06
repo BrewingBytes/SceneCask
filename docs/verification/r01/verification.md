@@ -7,18 +7,18 @@ scaffold and same-origin proxy, services/api Axum/SQLx health and SMTP transport
 boundary, Compose, root scripts, Playwright foundation tests, CI, README/AGENTS.
 Next.js creates the committed apps/web/AGENTS.md and CLAUDE.md guidance.
 
-## Automated results (local macOS, Node 22.22.0, pnpm 10.18.3, Rust 1.98.0)
+## Automated results (local macOS, Node 26.10.0, Yarn 4.18.1, Rust 1.99.0)
 
-- `pnpm lint`: passed web ESLint, Rust fmt, clippy all targets with warnings denied.
-- `pnpm typecheck`: passed Next route generation and TypeScript.
-- `pnpm test`: passed six Rust tests using PostgreSQL 17.6 and Mailpit 1.27.8.
+- `yarn lint`: passed web ESLint, Rust fmt, clippy all targets with warnings denied.
+- `yarn typecheck`: passed Next route generation and TypeScript.
+- `yarn test`: passed six Rust tests using PostgreSQL 17.6 and Mailpit 1.27.8.
   Includes successful SELECT 1 readiness, closed/unreachable DB 503, liveness
   independent of DB, missing/invalid configuration startup errors without values,
   real SMTP delivery and redacted delivery failure.
-- `pnpm build`: passed Next production build and locked Rust build.
-- `pnpm api:generate` / `pnpm api:check`: executed; explicitly pending R03.
+- `yarn build`: passed Next production build and locked Rust build.
+- `yarn api:generate` / `yarn api:check`: executed; explicitly pending R03.
   There is no canonical schema yet; this is not API generation/drift evidence.
-- `pnpm test:e2e`: six Chromium tests passed against actual web/API/PostgreSQL.
+- `yarn test:e2e`: six Chromium tests passed against actual web/API/PostgreSQL.
   Same-origin health endpoints plus 320/390/859/860/1440 layout checks.
 - `git diff --check`: passed.
 
@@ -28,14 +28,14 @@ Cloned the issue branch to /tmp/scenecask-r01-clean without application artifact
 The documented setup passed using pinned toolchains and existing dependency caches:
 
 ```sh
-pnpm install --frozen-lockfile
-rustup show active-toolchain
+yarn install --immutable
+rustup toolchain install
 cargo build --locked --manifest-path services/api/Cargo.toml
 cp .env.example .env
-pnpm dev:services
-pnpm dev
+yarn dev:services
+yarn dev
 # Separate terminal:
-pnpm health:smoke
+yarn health:smoke
 ```
 
 Both Compose services were healthy. Both applications started. Through web port

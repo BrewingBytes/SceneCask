@@ -12,6 +12,7 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run() -> Result<(), &'static str> {
+    tracing_subscriber::fmt().init();
     let config = Config::from_env()?;
     let pool = database_pool(&config.database_url)?;
     let listener = tokio::net::TcpListener::bind(config.bind_address)

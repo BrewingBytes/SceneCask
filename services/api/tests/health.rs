@@ -4,6 +4,7 @@ use axum::{
 };
 use scenecask_api::{database_pool, router};
 use tower::ServiceExt;
+use tracing_test::traced_test;
 
 #[tokio::test]
 async fn health_checks_real_postgres_and_redacts_failures() {
@@ -53,6 +54,7 @@ async fn health_checks_real_postgres_and_redacts_failures() {
 }
 
 #[tokio::test]
+#[traced_test]
 async fn unreachable_database_does_not_prevent_liveness() {
     let app = router(
         database_pool("postgres://private-user:private-password@127.0.0.1:1/private-db").unwrap(),
@@ -70,6 +72,9 @@ async fn unreachable_database_does_not_prevent_liveness() {
         let bytes = to_bytes(response.into_body(), 1024).await.unwrap();
         assert!(!String::from_utf8_lossy(&bytes).contains("private"));
     }
+    assert!(logs_contain("readiness check failed"));
+    assert!(logs_contain("reason=\"pool_timeout\""));
+    assert!(!logs_contain("private"));
 }
 
 #[test]

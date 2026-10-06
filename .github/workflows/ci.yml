@@ -1,6 +1,7 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -33,21 +34,23 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-          cache: pnpm
+          cache: yarn
       - name: Install pinned Rust toolchain
-        run: rustup show active-toolchain
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm api:check
-      - run: pnpm test
-      - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/api
+      - run: yarn install --immutable
+      - run: yarn lint
+      - run: yarn typecheck
+      - run: yarn api:check
+      - run: yarn test
+      - run: yarn build
+      - run: yarn playwright install --with-deps chromium
+      - run: yarn test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:

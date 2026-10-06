@@ -7,6 +7,6 @@ if (!existsSync("contracts/openapi.yaml")) {
   console.log("R03 pending: no canonical OpenAPI schema; generation/drift check is not yet applicable.");
 } else {
   if (!existsSync("packages/api-client/package.json")) throw new Error("R03 must configure packages/api-client before generation can pass");
-  const result = spawnSync("pnpm", ["--dir", "packages/api-client", "run", `api:${mode}`], { stdio: "inherit" });
+  const result = spawnSync("yarn", ["--cwd", "packages/api-client", "run", `api:${mode}`], { stdio: "inherit" });
   process.exitCode = result.status ?? 1;
 }

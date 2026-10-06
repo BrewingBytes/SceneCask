@@ -6,7 +6,7 @@
     "owner": "Root manifests/lockfiles, apps/web scaffold, services/api scaffold, .github/workflows, dev compose and root scripts",
     "contract": "C01",
     "design": "D01",
-    "implementation": "Create pnpm Next.js/TypeScript and Rust Axum workspaces, pin stable toolchains, PostgreSQL and local SMTP capture in development. Establish documented lint/typecheck/test/generation/e2e commands, environment examples without secrets, /health/live and /health/ready (readiness checks DB), and clean-clone CI. Add repository AGENTS.md explaining ownership and verification. No domain routes.",
+    "implementation": "Create Yarn Next.js/TypeScript and Rust Axum workspaces, pin stable toolchains, PostgreSQL and local SMTP capture in development. Establish documented lint/typecheck/test/generation/e2e commands, environment examples without secrets, /health/live and /health/ready (readiness checks DB), and clean-clone CI. Add repository AGENTS.md explaining ownership and verification. No domain routes.",
     "acceptance": [
       "Given a clean clone and documented prerequisites, when setup runs, then web/API/DB/mail capture start and health checks work.",
       "Given missing required configuration or unavailable DB, readiness fails clearly without leaking secrets; lint/build/tests run in CI."

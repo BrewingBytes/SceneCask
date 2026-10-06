@@ -1,0 +1,33 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "timezone": "Europe/Bucharest",
+  "schedule": ["before 6am on monday"],
+  "lockFileMaintenance": { "enabled": true },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Rust toolchain pinned in rust-toolchain.toml",
+      "managerFilePatterns": ["/^rust-toolchain\\.toml$/"],
+      "matchStrings": ["channel = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "rust",
+      "packageNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-releases"
+    }
+  ],
+  "packageRules": [
+    {
+      "groupName": "next",
+      "matchPackageNames": ["next", "eslint-config-next"]
+    },
+    {
+      "groupName": "react",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"]
+    },
+    {
+      "description": "Keep @types/node on the pinned Node major",
+      "matchPackageNames": ["@types/node"],
+      "allowedVersions": "<27"
+    }
+  ]
+}

@@ -53,6 +53,24 @@ async fn ready(State(pool): State<PgPool>) -> Response {
     .await
     {
         Ok(Ok(_)) => health(StatusCode::OK, "ready"),
-        _ => health(StatusCode::SERVICE_UNAVAILABLE, "database_unavailable"),
+        Ok(Err(error)) => not_ready(failure_kind(&error)),
+        Err(_) => not_ready("timeout"),
+    }
+}
+
+/// Logs only a fixed failure category; error text may contain connection details.
+fn not_ready(reason: &'static str) -> Response {
+    tracing::warn!(reason, "readiness check failed");
+    health(StatusCode::SERVICE_UNAVAILABLE, "database_unavailable")
+}
+
+fn failure_kind(error: &sqlx::Error) -> &'static str {
+    match error {
+        sqlx::Error::PoolTimedOut => "pool_timeout",
+        sqlx::Error::PoolClosed => "pool_closed",
+        sqlx::Error::Io(_) => "io",
+        sqlx::Error::Tls(_) => "tls",
+        sqlx::Error::Database(_) => "database",
+        _ => "other",
     }
 }

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 const children = [
   spawn("cargo", ["run", "--locked", "--manifest-path", "services/api/Cargo.toml"], { stdio: "inherit", env: process.env }),
-  spawn("pnpm", ["--filter", "@scenecask/web", "dev"], { stdio: "inherit", env: process.env }),
+  spawn("yarn", ["workspace", "@scenecask/web", "dev"], { stdio: "inherit", env: process.env }),
 ];
 let stopping = false;
 function stop(code = 0) {

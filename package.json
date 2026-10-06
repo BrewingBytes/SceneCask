@@ -1,17 +1,21 @@
 {
   "name": "scenecask",
   "private": true,
-  "packageManager": "pnpm@10.18.3",
+  "packageManager": "yarn@4.18.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
-    "node": ">=22.22.0 <23"
+    "node": ">=26.10.0 <27"
   },
   "scripts": {
     "dev": "node --env-file=.env scripts/dev.mjs",
     "dev:services": "docker compose up -d --wait",
     "dev:down": "docker compose down",
-    "lint": "pnpm --filter @scenecask/web lint && cargo fmt --manifest-path services/api/Cargo.toml --check && cargo clippy --manifest-path services/api/Cargo.toml --locked --all-targets -- -D warnings",
-    "typecheck": "pnpm --filter @scenecask/web typecheck",
-    "build": "pnpm --filter @scenecask/web build && cargo build --manifest-path services/api/Cargo.toml --locked",
+    "lint": "yarn workspace @scenecask/web lint && cargo fmt --manifest-path services/api/Cargo.toml --check && cargo clippy --manifest-path services/api/Cargo.toml --locked --all-targets -- -D warnings",
+    "typecheck": "yarn workspace @scenecask/web typecheck",
+    "build": "yarn workspace @scenecask/web build && cargo build --manifest-path services/api/Cargo.toml --locked",
     "test": "cargo test --manifest-path services/api/Cargo.toml --locked",
     "api:generate": "node scripts/api-contract.mjs generate",
     "api:check": "node scripts/api-contract.mjs check",
