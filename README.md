@@ -76,6 +76,21 @@ api:generate/api:check explicitly report pending work; they do not validate a
 schema. Once it exists they require packages/api-client's api:generate/api:check
 scripts and propagate failures. R02 owns all migrations.
 
+## Contribution conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for
+commit messages and PR titles: `<type>(<optional-scope>): <description>`.
+Use an imperative description, such as `feat(auth): add email sign-in`.
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`,
+`chore`, `revert`. Use `!` and a `BREAKING CHANGE:` footer for breaking changes.
+
+Name new branches `codex/<type>/<issue-number>-<short-kebab-case-description>`,
+for example `codex/feat/6-cookie-sessions`. Omit the issue number when there is no
+issue, for example `codex/docs/contribution-guide`.
+
+Use the [PR template](.github/pull_request_template.md) to describe implementation,
+actual validation results, and the issue closed on merge.
+
 ## Deployment inputs
 
 Production deployment is outside this issue. Supply a private PostgreSQL connection,

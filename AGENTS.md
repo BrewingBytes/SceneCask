@@ -26,3 +26,16 @@ Do not report this pending step as a validated API schema.
 Never log configuration values, credentials, protected content or provider payloads.
 Errors must omit protected strings and image paths. UI features require D09 browser
 verification. Record actual automated/manual evidence and remaining limitations.
+
+## Git conventions
+
+Use Conventional Commits for commits and PR titles:
+`<type>(<optional-scope>): <short imperative description>`.
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+Examples: `feat(auth): add email sign-in`, `docs: clarify local setup`.
+Mark breaking changes with `!` and explain them in a `BREAKING CHANGE:` footer.
+
+Name new branches `codex/<type>/<issue-number>-<short-kebab-case-description>`.
+Use the same type vocabulary as commits. If no issue exists, omit the issue number.
+Examples: `codex/feat/6-cookie-sessions`, `codex/docs/contribution-guide`.
+Use the PR template, record actual validation, and link the issue with `Closes #N`.
