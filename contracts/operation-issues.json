@@ -1,0 +1,415 @@
+[
+  {
+    "operationId": "blockPerson",
+    "method": "PUT",
+    "path": "/api/v1/me/blocks/{id}",
+    "issue": 27,
+    "rebuildOwner": "R26"
+  },
+  {
+    "operationId": "commitCatchup",
+    "method": "POST",
+    "path": "/api/v1/shows/{id}/catch-up",
+    "issue": 16,
+    "rebuildOwner": "R17"
+  },
+  {
+    "operationId": "completeGoogleAuth",
+    "method": "GET",
+    "path": "/api/v1/auth/google/callback",
+    "issue": 15,
+    "rebuildOwner": "R09"
+  },
+  {
+    "operationId": "createDiscussion",
+    "method": "POST",
+    "path": "/api/v1/episodes/{id}/discussions",
+    "issue": 30,
+    "rebuildOwner": "R30"
+  },
+  {
+    "operationId": "createReveal",
+    "method": "POST",
+    "path": "/api/v1/reveals",
+    "issue": 17,
+    "rebuildOwner": "R18"
+  },
+  {
+    "operationId": "decideFollowRequest",
+    "method": "POST",
+    "path": "/api/v1/me/follow-requests/{requesterId}",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "deleteAccount",
+    "method": "DELETE",
+    "path": "/api/v1/me",
+    "issue": 36,
+    "rebuildOwner": "R36"
+  },
+  {
+    "operationId": "deleteComment",
+    "method": "DELETE",
+    "path": "/api/v1/comments/{id}",
+    "issue": 32,
+    "rebuildOwner": "R31"
+  },
+  {
+    "operationId": "deleteReveal",
+    "method": "DELETE",
+    "path": "/api/v1/reveals/{scope}/{resourceId}",
+    "issue": 17,
+    "rebuildOwner": "R18"
+  },
+  {
+    "operationId": "downloadExport",
+    "method": "GET",
+    "path": "/api/v1/me/export/{jobId}/download",
+    "issue": 26,
+    "rebuildOwner": "R35"
+  },
+  {
+    "operationId": "eraseHistory",
+    "method": "DELETE",
+    "path": "/api/v1/shows/{id}/history",
+    "issue": 14,
+    "rebuildOwner": "R16"
+  },
+  {
+    "operationId": "followPerson",
+    "method": "POST",
+    "path": "/api/v1/people/{id}/follow",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "getEpisode",
+    "method": "GET",
+    "path": "/api/v1/episodes/{id}",
+    "issue": 17,
+    "rebuildOwner": "R18"
+  },
+  {
+    "operationId": "getExportStatus",
+    "method": "GET",
+    "path": "/api/v1/me/export/{jobId}",
+    "issue": 26,
+    "rebuildOwner": "R35"
+  },
+  {
+    "operationId": "getHome",
+    "method": "GET",
+    "path": "/api/v1/home",
+    "issue": 17,
+    "rebuildOwner": "R18"
+  },
+  {
+    "operationId": "getIdentities",
+    "method": "GET",
+    "path": "/api/v1/me/identities",
+    "issue": 15,
+    "rebuildOwner": "R09"
+  },
+  {
+    "operationId": "getPerson",
+    "method": "GET",
+    "path": "/api/v1/people/{id}",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "getSession",
+    "method": "GET",
+    "path": "/api/v1/session",
+    "issue": 6,
+    "rebuildOwner": "R06"
+  },
+  {
+    "operationId": "getShow",
+    "method": "GET",
+    "path": "/api/v1/shows/{id}",
+    "issue": 17,
+    "rebuildOwner": "R18"
+  },
+  {
+    "operationId": "importShow",
+    "method": "POST",
+    "path": "/api/v1/shows/import",
+    "issue": 7,
+    "rebuildOwner": "R11"
+  },
+  {
+    "operationId": "listActivity",
+    "method": "GET",
+    "path": "/api/v1/activity",
+    "issue": 28,
+    "rebuildOwner": "R27"
+  },
+  {
+    "operationId": "listBlocks",
+    "method": "GET",
+    "path": "/api/v1/me/blocks",
+    "issue": 27,
+    "rebuildOwner": "R26"
+  },
+  {
+    "operationId": "listComments",
+    "method": "GET",
+    "path": "/api/v1/discussions/{id}/comments",
+    "issue": 30,
+    "rebuildOwner": "R30"
+  },
+  {
+    "operationId": "listEpisodeDiscussions",
+    "method": "GET",
+    "path": "/api/v1/episodes/{id}/discussions",
+    "issue": 30,
+    "rebuildOwner": "R30"
+  },
+  {
+    "operationId": "listEpisodes",
+    "method": "GET",
+    "path": "/api/v1/shows/{id}/episodes",
+    "issue": 17,
+    "rebuildOwner": "R18"
+  },
+  {
+    "operationId": "listFollowers",
+    "method": "GET",
+    "path": "/api/v1/me/followers",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "listFollowRequests",
+    "method": "GET",
+    "path": "/api/v1/me/follow-requests",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "listLibrary",
+    "method": "GET",
+    "path": "/api/v1/library",
+    "issue": 12,
+    "rebuildOwner": "R15"
+  },
+  {
+    "operationId": "listNotifications",
+    "method": "GET",
+    "path": "/api/v1/notifications",
+    "issue": 35,
+    "rebuildOwner": "R34"
+  },
+  {
+    "operationId": "listOperatorReports",
+    "method": "GET",
+    "path": "/api/v1/operator/reports",
+    "issue": 34,
+    "rebuildOwner": "R33"
+  },
+  {
+    "operationId": "listPersonLibrary",
+    "method": "GET",
+    "path": "/api/v1/people/{id}/library",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "listRecommendations",
+    "method": "GET",
+    "path": "/api/v1/recommendations",
+    "issue": 28,
+    "rebuildOwner": "R27"
+  },
+  {
+    "operationId": "login",
+    "method": "POST",
+    "path": "/api/v1/auth/login",
+    "issue": 13,
+    "rebuildOwner": "R08"
+  },
+  {
+    "operationId": "logout",
+    "method": "POST",
+    "path": "/api/v1/auth/logout",
+    "issue": 6,
+    "rebuildOwner": "R06"
+  },
+  {
+    "operationId": "markNotificationRead",
+    "method": "PATCH",
+    "path": "/api/v1/notifications/{id}",
+    "issue": 35,
+    "rebuildOwner": "R34"
+  },
+  {
+    "operationId": "postComment",
+    "method": "POST",
+    "path": "/api/v1/discussions/{id}/comments",
+    "issue": 32,
+    "rebuildOwner": "R31"
+  },
+  {
+    "operationId": "previewCatchup",
+    "method": "POST",
+    "path": "/api/v1/shows/{id}/catch-up/preview",
+    "issue": 16,
+    "rebuildOwner": "R17"
+  },
+  {
+    "operationId": "reauthenticate",
+    "method": "POST",
+    "path": "/api/v1/auth/reauth",
+    "issue": 13,
+    "rebuildOwner": "R08"
+  },
+  {
+    "operationId": "register",
+    "method": "POST",
+    "path": "/api/v1/auth/register",
+    "issue": 9,
+    "rebuildOwner": "R07"
+  },
+  {
+    "operationId": "removeFollower",
+    "method": "DELETE",
+    "path": "/api/v1/me/followers/{id}",
+    "issue": 27,
+    "rebuildOwner": "R26"
+  },
+  {
+    "operationId": "reportComment",
+    "method": "POST",
+    "path": "/api/v1/comments/{id}/reports",
+    "issue": 32,
+    "rebuildOwner": "R31"
+  },
+  {
+    "operationId": "requestExport",
+    "method": "POST",
+    "path": "/api/v1/me/export",
+    "issue": 26,
+    "rebuildOwner": "R35"
+  },
+  {
+    "operationId": "requestPasswordReset",
+    "method": "POST",
+    "path": "/api/v1/auth/password-reset-request",
+    "issue": 13,
+    "rebuildOwner": "R08"
+  },
+  {
+    "operationId": "resendVerification",
+    "method": "POST",
+    "path": "/api/v1/auth/verification-resend",
+    "issue": 9,
+    "rebuildOwner": "R07"
+  },
+  {
+    "operationId": "resetPassword",
+    "method": "POST",
+    "path": "/api/v1/auth/password-reset",
+    "issue": 13,
+    "rebuildOwner": "R08"
+  },
+  {
+    "operationId": "resolveReport",
+    "method": "POST",
+    "path": "/api/v1/operator/reports/{id}/resolve",
+    "issue": 34,
+    "rebuildOwner": "R33"
+  },
+  {
+    "operationId": "saveLibraryEntry",
+    "method": "PUT",
+    "path": "/api/v1/library/{showId}",
+    "issue": 12,
+    "rebuildOwner": "R15"
+  },
+  {
+    "operationId": "searchPeople",
+    "method": "GET",
+    "path": "/api/v1/people",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "searchShows",
+    "method": "GET",
+    "path": "/api/v1/shows/search",
+    "issue": 7,
+    "rebuildOwner": "R11"
+  },
+  {
+    "operationId": "setEpisodeProgress",
+    "method": "PUT",
+    "path": "/api/v1/progress/episodes/{episodeId}",
+    "issue": 14,
+    "rebuildOwner": "R16"
+  },
+  {
+    "operationId": "startGoogleAuth",
+    "method": "GET",
+    "path": "/api/v1/auth/google/start",
+    "issue": 15,
+    "rebuildOwner": "R09"
+  },
+  {
+    "operationId": "unblockPerson",
+    "method": "DELETE",
+    "path": "/api/v1/me/blocks/{id}",
+    "issue": 27,
+    "rebuildOwner": "R26"
+  },
+  {
+    "operationId": "undoAction",
+    "method": "POST",
+    "path": "/api/v1/actions/{id}/undo",
+    "issue": 14,
+    "rebuildOwner": "R16"
+  },
+  {
+    "operationId": "unfollowPerson",
+    "method": "DELETE",
+    "path": "/api/v1/people/{id}/follow",
+    "issue": 25,
+    "rebuildOwner": "R25"
+  },
+  {
+    "operationId": "unlinkGoogle",
+    "method": "DELETE",
+    "path": "/api/v1/me/identities/google",
+    "issue": 15,
+    "rebuildOwner": "R09"
+  },
+  {
+    "operationId": "updateLibraryStatus",
+    "method": "PATCH",
+    "path": "/api/v1/library/{showId}",
+    "issue": 12,
+    "rebuildOwner": "R15"
+  },
+  {
+    "operationId": "updatePrivacy",
+    "method": "PATCH",
+    "path": "/api/v1/me/privacy",
+    "issue": 27,
+    "rebuildOwner": "R26"
+  },
+  {
+    "operationId": "updateProfile",
+    "method": "PATCH",
+    "path": "/api/v1/me",
+    "issue": 12,
+    "rebuildOwner": "R15"
+  },
+  {
+    "operationId": "verifyEmail",
+    "method": "POST",
+    "path": "/api/v1/auth/verify",
+    "issue": 9,
+    "rebuildOwner": "R07"
+  }
+]

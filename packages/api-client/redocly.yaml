@@ -1,0 +1,13 @@
+extends:
+  - recommended
+rules:
+  no-unused-components: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-4xx-response: error
+  security-defined: error
+  no-invalid-media-type-examples: error
+  # C04 intentionally uses 303-only Google browser redirects.
+  operation-2xx-response: off
+  # No repository license decision is made by the API contract issue.
+  info-license: off
