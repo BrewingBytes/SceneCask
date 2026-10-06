@@ -1,0 +1,56 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: scenecask
+          POSTGRES_PASSWORD: scenecask_ci
+          POSTGRES_DB: scenecask
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U scenecask -d scenecask"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      mail:
+        image: axllent/mailpit:v1.27.8
+        ports: ['1025:1025']
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: '1025'
+      DATABASE_URL: postgres://scenecask:scenecask_ci@127.0.0.1:5432/scenecask
+      API_BIND: 127.0.0.1:8080
+      API_ORIGIN: http://127.0.0.1:8080
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm api:check
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-evidence
+          path: test-results/
+          if-no-files-found: ignore
