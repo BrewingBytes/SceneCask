@@ -8,11 +8,11 @@ Owner: R02. Source of truth for SQLx migration numbers in `services/api/migratio
 |---|---|---|---|
 | 0001 | `0001_auth.{up,down}.sql` | auth | users, password_credentials, external_identities, sessions, auth_tokens, oauth_flows; shared `reject_revision_decrease()` trigger function |
 | 0002 | `0002_catalog.{up,down}.sql` | catalog | shows, seasons, episodes |
-| 0003 | `0003_library_tracking.{up,down}.sql` | library, tracking | library_entries, tracking_show_state, mutation_actions, mutation_changes, episode_progress, idempotency_records, catchup_previews |
-| 0004 | `0004_social.{up,down}.sql` | social | follows, blocks, activity_events |
+| 0003 | `0003_library_tracking.{up,down}.sql` | library, tracking | library_entries, tracking_show_state, mutation_actions, mutation_changes, episode_progress, idempotency_records, catchup_previews; `catchup_previews_episode_in_show()` trigger function |
+| 0004 | `0004_social.{up,down}.sql` | social | follows, blocks, activity_events; `activity_events_episode_in_show()` trigger function |
 | 0005 | `0005_discussions.{up,down}.sql` | discussions, moderation | discussions, comments, reports, hidden_comments |
 | 0006 | `0006_notifications_jobs.{up,down}.sql` | notifications, account, infrastructure | notifications, outbox, jobs |
-| 0007 | `0007_policy.{up,down}.sql` | discussions, moderation | reveal_grants, moderation_audit |
+| 0007 | `0007_policy.{up,down}.sql` | discussions, moderation | reveal_grants, moderation_audit; `reveal_grants_created_not_future()` trigger function |
 | 0008+ | unallocated | — | Request from the migration owner; record here before merging |
 
 ## Policy
@@ -27,7 +27,7 @@ Owner: R02. Source of truth for SQLx migration numbers in `services/api/migratio
 - Application IDs are `uuid` with `gen_random_uuid()` defaults; provider IDs (`tmdb_id`) are unique `bigint` columns, never primary keys.
 - Timestamps are `timestamptz`; release dates are `date`.
 - Enumerations are `text` with `CHECK` constraints so invalid values fail in the database. Caught up and Completed are computed and have no stored status.
-- Revision columns are `bigint`. A trigger rejects any update that lowers `library_entries.revision`, `tracking_show_state.revision`, `episode_progress.revision` or `shows.catalog_revision`.
+- Revision columns are `bigint`. A trigger (`WHEN (NEW.col < OLD.col)`, so the column name is checked at `CREATE TRIGGER`) rejects any update that lowers `library_entries.revision`, `tracking_show_state.revision`, `episode_progress.revision` or `shows.catalog_revision`.
 - Secrets are stored only as hashes (`bytea`) or ciphertext. Never log credential, token, session or OAuth columns.
 
 ## Deletion and cascade boundaries
@@ -37,12 +37,13 @@ Owner: R02. Source of truth for SQLx migration numbers in `services/api/migratio
 | User-private rows (credentials, identities, sessions, tokens, library, progress, actions, idempotency, previews, follows, blocks, activity, hidden comments, notifications, reveal grants) → users | `CASCADE` | Account erasure removes private state |
 | jobs.user_id → users | `SET NULL`, with a `CHECK` that only a claimed `delete` job may lose its user | The deletion job keeps its row to record its outcome; remaining export rows block erasure until their files and rows are deleted |
 | activity_events.action_id, episode_progress.last_action_id → mutation_actions | `SET NULL` | Pruning expired undo actions keeps activity and progress |
+| notifications (`actor_id, user_id`) → follows (`follower_id, followee_id`) | `CASCADE` | Withdrawal, decline, follower removal, unfollow and block delete the request notification with its edge, so a later request can notify again |
 | sessions → reveal_grants (via `session_id, user_id`), oauth_flows | `CASCADE` | Logout, reset and expiry revoke grants and flows; a grant's user always owns its session |
-| discussions.host_id, comments.author_id / removed_by, reports.reporter_id / reviewed_by, notifications.actor_id, moderation_audit.operator_id → users | `SET NULL` | Shared content and moderation history survive as anonymous records |
+| discussions.host_id, comments.author_id / removed_by, reports.reporter_id / reviewed_by, notifications.actor_id, moderation_audit.operator_id → users | `SET NULL`; each column is indexed so erasure does not scan | Shared content and moderation history survive as anonymous records; `comments` rejects a live body without an author |
 | comments → discussions, reports → comments, moderation_audit → reports | `RESTRICT` | Other users' comments and moderation history are never cascaded away |
 | catalog references (seasons, episodes, progress, library, activity, discussions, previews) → shows / episodes | `RESTRICT` | Removed provider episodes are archived (`archived_at`); history is never deleted |
 
-The account deletion job tombstones the user's comments (`body = NULL`, `removed_at = now()`) and deletes the user's export artifact files and their `jobs` rows before deleting the `users` row. The database rejects the `users` delete while export rows remain. A hostless discussion is inaccessible to everyone because access requires the host.
+The account deletion job tombstones the user's comments (`body = NULL`, `removed_at = now()`) and deletes the user's export artifact files and their `jobs` rows before deleting the `users` row. The database rejects the `users` delete while export rows remain or any of the user's comments still has a body. A hostless discussion is inaccessible to everyone because access requires the host.
 
 ## Additions beyond the C02 column list
 
@@ -58,12 +59,14 @@ These columns and constraints are required by C03–C08 behavior and were added 
 | `episodes` active-number uniqueness is a deferrable exclusion constraint over non-archived rows | Numbering corrections can swap numbers in one import; archived episodes keep their number |
 | `jobs` unique active `(user_id, kind)` for export/delete | One active export per user (C08) |
 | `jobs` running state requires `lease_until` | A running job cannot be reclaimed immediately by another worker |
-| `notifications` unique `(user_id, kind, actor_id)` | Follow retries cannot duplicate a notification; block cancels it by pair (C06) |
+| `notifications` unique `(user_id, kind, actor_id)` and foreign key `(actor_id, user_id)` → `follows` | Follow retries cannot duplicate a notification; removing the edge (withdrawal, decline, block) cancels it (C06) |
 | `users.normalized_email` must be lowercase | Case variants cannot create duplicate accounts (C03 casefold) |
 | `oauth_flows.return_to` rejects backslash, whitespace and control characters | Browsers strip tabs/newlines, which could rebuild a `//` open redirect |
 | `sessions` unique `(id_hash, user_id)` | Target for the `reveal_grants` owner foreign key |
 | `activity_events.action_id` nullable | Pruning expired undo actions keeps activity |
-| `reveal_grants` expiry capped at 12 hours | C04 grant lifetime |
+| `reveal_grants` expiry capped at 12 hours; `created_at` cannot be in the future | C04 grant lifetime, counted from insertion |
+| `comments` live body requires an author | Erasure must tombstone shared comments first (C08) |
+| `catchup_previews.endpoint_episode_id` and `activity_events.episode_id` belong to the row's show | Catch-up and activity cannot pair a show with another show's episode |
 
 ## Test database factory and fixtures
 
@@ -90,11 +93,12 @@ Tests live in `services/api/tests/schema.rs`.
 | Invalid visibility, role, handle, email case, follow state, library status (incl. computed states), show status, token purpose, job state/lease, OAuth intent/session/returnTo (incl. tab/newline) | `CHECK` | `constraints_reject_duplicates_self_edges_and_invalid_values` |
 | Unique host+episode discussion; comment body/tombstone rules; report reason; one open report per reporter+comment | Constraints and partial unique index | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
 | One active export per user; running jobs hold a lease | Partial unique index, `CHECK` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
-| One follow-request notification per requester | Partial unique index | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
-| Reveal grants unique per session+scope+resource, owned by the session's user, max 12h, revoked with session | PK, `CHECK`, `CASCADE` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
+| One follow-request notification per requester; it needs and leaves with its follow edge | Partial unique index, foreign key to `follows` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
+| Reveal grants unique per session+scope+resource, owned by the session's user, max 12h from insertion, revoked with session | PK, `CHECK`, trigger, `CASCADE` | `discussion_reports_jobs_and_grants_enforce_lifecycle_rules` |
 | Numbering corrections preserve progress; archived numbers reusable | Deferrable exclusion constraint | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
 | Catalog rows with history cannot be deleted | `RESTRICT` | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
-| Revisions never decrease, including true→false→true; a misconfigured trigger fails loudly | Trigger | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
-| User deletion erases private state without cascading other users' comments/history; exports must go first; the deletion job survives; pruning undo actions keeps activity | Cascade boundaries above | `user_deletion_erases_private_state_without_cascading_shared_content` |
+| Revisions never decrease, including true→false→true; a misspelled trigger column fails at creation | Trigger | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
+| Preview endpoint and activity episode belong to the row's show | Triggers | `catalog_corrections_preserve_progress_and_revisions_only_increase` |
+| User deletion erases private state without cascading other users' comments/history; exports must go first; comments must be tombstoned first; the deletion job survives; pruning undo actions keeps activity | Cascade boundaries above | `user_deletion_erases_private_state_without_cascading_shared_content` |
 
-Cursor and filter indexes: library (`user_id, saved_at, show_id` where saved), episodes (`season_id, number, id`), follows (`followee_id, state, created_at, follower_id`), activity (`actor_id, created_at, id`), discussions (`episode_id, created_at, id`), comments (`discussion_id, created_at, id`), reports (`state, created_at, id`), notifications (`user_id, created_at, id`), plus expiry/claim indexes for sessions, tokens, OAuth flows, idempotency records, previews, outbox and jobs.
+Cursor and filter indexes: library (`user_id, saved_at, show_id` where saved), active episodes (`season_id, number`, the exclusion constraint's index), follows (`followee_id, state, created_at, follower_id` and `follower_id, state, created_at, followee_id`), activity (`actor_id, created_at, id`), discussions (`episode_id, created_at, id`), comments (`discussion_id, created_at, id`), reports (`state, created_at, id`), notifications (`user_id, created_at, id`), plus expiry/claim indexes for sessions, tokens, OAuth flows, idempotency records, previews, outbox and jobs, and indexes on every `SET NULL` user reference for erasure.

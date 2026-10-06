@@ -369,7 +369,7 @@ async fn development_rollback_reverts_every_migration(pool: PgPool) {
     assert_eq!(
         count(
             &pool,
-            "SELECT count(*) FROM pg_proc WHERE proname = 'reject_revision_decrease'"
+            "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace"
         )
         .await,
         0
@@ -538,6 +538,15 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
         VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '13 hours')")).await;
     rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
         VALUES ('\\xaa', '{ANA}', 'everything', '00000000-0000-4000-8000-0000000005e2', now() + interval '1 hour')")).await;
+    // The cap counts from insertion: a future created_at cannot stretch the grant.
+    rejects(&pool, "23514", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, created_at, expires_at)
+        VALUES ('\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', now() + interval '30 days', now() + interval '30 days 12 hours')")).await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE reveal_grants SET created_at = now() + interval '30 days', expires_at = now() + interval '30 days 1 hour'",
+    )
+    .await;
     // A grant must belong to the session's owner.
     rejects(&pool, "23503", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
         VALUES ('\\xaa', '{BEN}', 'discussion', '00000000-0000-4000-8000-0000000000d9', now() + interval '1 hour')")).await;
@@ -545,12 +554,28 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
     assert_eq!(count(&pool, "SELECT count(*) FROM reveal_grants").await, 0);
     assert_eq!(count(&pool, "SELECT count(*) FROM oauth_flows").await, 0);
 
-    // One follow-request notification per requester; retries cannot duplicate it.
+    // A follow-request notification needs its follow edge; retries cannot duplicate it.
     let notification = format!(
         "INSERT INTO notifications (user_id, kind, actor_id) VALUES ('{ANA}', 'follow_request', '{BEN}')"
     );
+    rejects(&pool, "23503", &notification).await;
+    let request = format!(
+        "INSERT INTO follows (follower_id, followee_id, state) VALUES ('{BEN}', '{ANA}', 'pending')"
+    );
+    exec(&pool, &request).await;
     exec(&pool, &notification).await;
     rejects(&pool, "23505", &notification).await;
+    // Approval keeps it; unfollowing removes it, so a later request notifies again.
+    exec(
+        &pool,
+        "UPDATE follows SET state = 'approved'; UPDATE notifications SET read_at = now()",
+    )
+    .await;
+    assert_eq!(count(&pool, "SELECT count(*) FROM notifications").await, 1);
+    exec(&pool, "DELETE FROM follows").await;
+    assert_eq!(count(&pool, "SELECT count(*) FROM notifications").await, 0);
+    exec(&pool, &request).await;
+    exec(&pool, &notification).await;
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -632,18 +657,46 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
     )
     .await;
 
-    // A misspelled revision column fails loudly instead of comparing NULLs.
+    // A misspelled revision column fails when the trigger is created.
+    exec(
+        &pool,
+        "CREATE TABLE misconfigured (revision bigint NOT NULL)",
+    )
+    .await;
+    rejects(
+        &pool,
+        "42703",
+        "CREATE TRIGGER misconfigured_revision_forward BEFORE UPDATE ON misconfigured
+            FOR EACH ROW WHEN (NEW.revison < OLD.revison)
+            EXECUTE FUNCTION reject_revision_decrease('revison')",
+    )
+    .await;
+
+    // Previews and activity cannot pair a show with another show's episode.
     exec(
         &pool,
         "
-        CREATE TABLE misconfigured (revision bigint NOT NULL);
-        CREATE TRIGGER misconfigured_revision_forward BEFORE UPDATE ON misconfigured
-            FOR EACH ROW EXECUTE FUNCTION reject_revision_decrease('revison');
-        INSERT INTO misconfigured VALUES (2);
+        INSERT INTO shows (id, tmdb_id, title, fetched_at)
+        VALUES ('00000000-0000-4000-8000-0000000006a1', 900002, 'Other Show', now());
+        INSERT INTO seasons (id, show_id, number)
+        VALUES ('00000000-0000-4000-8000-0000000006b1', '00000000-0000-4000-8000-0000000006a1', 1);
+        INSERT INTO episodes (id, tmdb_id, season_id, number)
+        VALUES ('00000000-0000-4000-8000-0000000006e1', 920001, '00000000-0000-4000-8000-0000000006b1', 1);
     ",
     )
     .await;
-    rejects(&pool, "42703", "UPDATE misconfigured SET revision = 1").await;
+    rejects(&pool, "23503", &format!("INSERT INTO catchup_previews (user_id, show_id, endpoint_episode_id, episode_ids, revisions, catalog_revision, expires_at)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', '00000000-0000-4000-8000-0000000006e1', '[]', '{{}}', 1, now() + interval '5 minutes')")).await;
+    rejects(&pool, "23503", &format!("INSERT INTO activity_events (actor_id, kind, show_id, episode_id)
+        VALUES ('{ANA}', 'episode_watched', '00000000-0000-4000-8000-0000000005a1', '00000000-0000-4000-8000-0000000006e1')")).await;
+    exec(&pool, &format!("INSERT INTO activity_events (actor_id, kind, show_id, episode_id)
+        VALUES ('{ANA}', 'episode_watched', '00000000-0000-4000-8000-0000000006a1', '00000000-0000-4000-8000-0000000006e1')")).await;
+    rejects(
+        &pool,
+        "23503",
+        "UPDATE activity_events SET show_id = '00000000-0000-4000-8000-0000000005a1'",
+    )
+    .await;
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -703,6 +756,18 @@ async fn user_deletion_erases_private_state_without_cascading_shared_content(poo
         &pool,
         "23514",
         &format!("DELETE FROM users WHERE id = '{ANA}'"),
+    )
+    .await;
+
+    // Live comments must be tombstoned before the author is erased. Both statements run in
+    // one implicit transaction, so the export delete rolls back too.
+    rejects(
+        &pool,
+        "23514",
+        &format!(
+            "DELETE FROM jobs WHERE user_id = '{ANA}' AND kind = 'export';
+             DELETE FROM users WHERE id = '{ANA}'"
+        ),
     )
     .await;
 

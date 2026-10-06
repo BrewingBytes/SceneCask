@@ -1,25 +1,14 @@
 -- R02 0001: accounts, credentials, external identities, sessions and auth flows.
 -- Secrets are stored only as hashes or ciphertext; never log these columns.
 
--- Shared guard: revision counters may only move forward (C02).
+-- Shared guard: revision counters may only move forward (C02). Each trigger compares its own
+-- column in a WHEN clause, so PostgreSQL validates the column name at CREATE TRIGGER and the
+-- function only runs for an actual decrease. The argument names the column in the error.
 CREATE FUNCTION reject_revision_decrease() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE
-    old_revision bigint;
-    new_revision bigint;
 BEGIN
-    -- A missing or misspelled column argument would otherwise compare NULLs and pass silently.
-    IF TG_NARGS <> 1 OR NOT to_jsonb(NEW) ? TG_ARGV[0] THEN
-        RAISE EXCEPTION 'reject_revision_decrease needs an existing revision column argument'
-            USING ERRCODE = 'undefined_column', TABLE = TG_TABLE_NAME;
-    END IF;
-    old_revision := to_jsonb(OLD) ->> TG_ARGV[0];
-    new_revision := to_jsonb(NEW) ->> TG_ARGV[0];
-    IF new_revision < old_revision THEN
-        RAISE EXCEPTION 'revision must not decrease'
-            USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = TG_ARGV[0];
-    END IF;
-    RETURN NEW;
+    RAISE EXCEPTION 'revision must not decrease'
+        USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = TG_ARGV[0];
 END;
 $$;
 
@@ -62,7 +51,9 @@ CREATE TABLE sessions (
     expires_at timestamptz NOT NULL,
     reauthenticated_at timestamptz,
     CHECK (expires_at > created_at),
-    -- Target for session-bound rows that also store the owner (reveal_grants).
+    -- Target for session-bound rows that also store the owner (reveal_grants). A composite
+    -- foreign key needs a unique constraint on exactly these columns, so the primary key
+    -- alone cannot serve it.
     UNIQUE (id_hash, user_id)
 );
 CREATE INDEX sessions_user_idx ON sessions (user_id);

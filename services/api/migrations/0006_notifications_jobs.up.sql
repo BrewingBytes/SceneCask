@@ -7,14 +7,17 @@ CREATE TABLE notifications (
     kind text NOT NULL CHECK (kind IN ('follow_request')),
     actor_id uuid REFERENCES users (id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    read_at timestamptz
+    read_at timestamptz,
+    -- A follow request notification lives as long as its follow edge: withdrawal, decline,
+    -- follower removal, unfollow and block delete the edge and the notification with it, so a
+    -- later request can notify again.
+    FOREIGN KEY (actor_id, user_id) REFERENCES follows (follower_id, followee_id) ON DELETE CASCADE
 );
 CREATE INDEX notifications_user_idx ON notifications (user_id, created_at DESC, id DESC);
--- One notification per recipient, kind and actor: follow retries cannot duplicate, and block
--- or withdrawal cancels it by (user_id, actor_id).
+-- One notification per recipient, kind and actor: follow retries cannot duplicate.
 CREATE UNIQUE INDEX notifications_user_kind_actor_key ON notifications (user_id, kind, actor_id)
     WHERE actor_id IS NOT NULL;
-CREATE INDEX notifications_actor_idx ON notifications (actor_id) WHERE actor_id IS NOT NULL;
+CREATE INDEX notifications_actor_idx ON notifications (actor_id, user_id) WHERE actor_id IS NOT NULL;
 
 CREATE TABLE outbox (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,4 +55,6 @@ CREATE UNIQUE INDEX jobs_active_user_kind_key
     ON jobs (user_id, kind) WHERE kind IN ('export', 'delete') AND state IN ('queued', 'running');
 CREATE INDEX jobs_claim_idx ON jobs (lease_until NULLS FIRST, created_at)
     WHERE state IN ('queued', 'running');
+-- User erasure sets jobs.user_id to NULL; index it so the delete does not scan.
+CREATE INDEX jobs_user_idx ON jobs (user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX jobs_expires_idx ON jobs (expires_at) WHERE expires_at IS NOT NULL;

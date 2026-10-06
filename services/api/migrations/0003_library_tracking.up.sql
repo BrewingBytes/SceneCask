@@ -19,7 +19,8 @@ CREATE INDEX library_entries_saved_idx
     ON library_entries (user_id, saved_at DESC, show_id DESC) WHERE saved;
 CREATE TRIGGER library_entries_revision_forward
     BEFORE UPDATE OF revision ON library_entries
-    FOR EACH ROW EXECUTE FUNCTION reject_revision_decrease('revision');
+    FOR EACH ROW WHEN (NEW.revision < OLD.revision)
+    EXECUTE FUNCTION reject_revision_decrease('revision');
 
 -- Aggregate tracking revision; progress mutations serialize on this row.
 CREATE TABLE tracking_show_state (
@@ -30,7 +31,8 @@ CREATE TABLE tracking_show_state (
 );
 CREATE TRIGGER tracking_show_state_revision_forward
     BEFORE UPDATE OF revision ON tracking_show_state
-    FOR EACH ROW EXECUTE FUNCTION reject_revision_decrease('revision');
+    FOR EACH ROW WHEN (NEW.revision < OLD.revision)
+    EXECUTE FUNCTION reject_revision_decrease('revision');
 
 CREATE TABLE mutation_actions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,7 +73,8 @@ CREATE INDEX episode_progress_action_idx ON episode_progress (last_action_id)
     WHERE last_action_id IS NOT NULL;
 CREATE TRIGGER episode_progress_revision_forward
     BEFORE UPDATE OF revision ON episode_progress
-    FOR EACH ROW EXECUTE FUNCTION reject_revision_decrease('revision');
+    FOR EACH ROW WHEN (NEW.revision < OLD.revision)
+    EXECUTE FUNCTION reject_revision_decrease('revision');
 
 CREATE TABLE idempotency_records (
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -96,5 +99,23 @@ CREATE TABLE catchup_previews (
     expires_at timestamptz NOT NULL,
     CHECK (expires_at > created_at)
 );
+-- A preview's endpoint episode must belong to the previewed show.
+CREATE FUNCTION catchup_previews_episode_in_show() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT FROM episodes e JOIN seasons s ON s.id = e.season_id
+        WHERE e.id = NEW.endpoint_episode_id AND s.show_id = NEW.show_id
+    ) THEN
+        RAISE EXCEPTION 'endpoint episode must belong to the preview show'
+            USING ERRCODE = 'foreign_key_violation', TABLE = TG_TABLE_NAME,
+                  COLUMN = 'endpoint_episode_id';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER catchup_previews_episode_in_show
+    BEFORE INSERT OR UPDATE OF show_id, endpoint_episode_id ON catchup_previews
+    FOR EACH ROW EXECUTE FUNCTION catchup_previews_episode_in_show();
 CREATE INDEX catchup_previews_user_idx ON catchup_previews (user_id, show_id);
 CREATE INDEX catchup_previews_expires_idx ON catchup_previews (expires_at);

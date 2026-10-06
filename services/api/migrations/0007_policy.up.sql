@@ -13,6 +13,20 @@ CREATE TABLE reveal_grants (
     FOREIGN KEY (session_id, user_id) REFERENCES sessions (id_hash, user_id) ON DELETE CASCADE,
     CHECK (expires_at > created_at AND expires_at <= created_at + interval '12 hours')
 );
+-- The 12-hour cap is measured from created_at, so created_at cannot be in the future.
+CREATE FUNCTION reveal_grants_created_not_future() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.created_at > now() THEN
+        RAISE EXCEPTION 'reveal grant created_at must not be in the future'
+            USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = 'created_at';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER reveal_grants_created_not_future
+    BEFORE INSERT OR UPDATE OF created_at ON reveal_grants
+    FOR EACH ROW EXECUTE FUNCTION reveal_grants_created_not_future();
 -- Blocks and unfollows revoke a user's discussion grants.
 CREATE INDEX reveal_grants_user_idx ON reveal_grants (user_id, scope, resource_id);
 
@@ -25,3 +39,6 @@ CREATE TABLE moderation_audit (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX moderation_audit_report_idx ON moderation_audit (report_id, created_at);
+-- Operator erasure sets operator_id to NULL; index it so the delete does not scan.
+CREATE INDEX moderation_audit_operator_idx ON moderation_audit (operator_id)
+    WHERE operator_id IS NOT NULL;

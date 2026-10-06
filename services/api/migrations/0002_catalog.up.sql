@@ -20,7 +20,8 @@ CREATE TABLE shows (
 CREATE INDEX shows_fetched_idx ON shows (fetched_at);
 CREATE TRIGGER shows_catalog_revision_forward
     BEFORE UPDATE OF catalog_revision ON shows
-    FOR EACH ROW EXECUTE FUNCTION reject_revision_decrease('catalog_revision');
+    FOR EACH ROW WHEN (NEW.catalog_revision < OLD.catalog_revision)
+    EXECUTE FUNCTION reject_revision_decrease('catalog_revision');
 
 CREATE TABLE seasons (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -42,9 +43,9 @@ CREATE TABLE episodes (
     release_timezone text CHECK (release_timezone <> ''),
     archived_at timestamptz,
     -- Unique season+number among active episodes. Deferrable so an import can swap
-    -- corrected numbers in one transaction; archived rows keep their old number.
+    -- corrected numbers in one transaction; archived rows keep their old number. Its index
+    -- also serves season/episode ordering of active episodes.
     CONSTRAINT episodes_active_season_number_key
         EXCLUDE USING btree (season_id WITH =, number WITH =) WHERE (archived_at IS NULL)
         DEFERRABLE INITIALLY IMMEDIATE
 );
-CREATE INDEX episodes_season_order_idx ON episodes (season_id, number, id);
