@@ -1,46 +1,50 @@
-# Implementation backlog
+# SceneCask rebuild backlog
 
-40 scoped issues, pending GitHub publication. Product contracts and design references are settled.
+Canonical contract/design snapshot: `e524b2898965cfbbdd4b0aa049c0deb999900459`. Label: `scenecask-rebuild-2026`. Existing issues were not consulted or modified.
 
-| Key | Outcome | Prerequisites | Parallel group |
-|---|---|---|---|
-| R01 | Bootstrap the web/API workspace and repeatable CI | None | G01 |
-| R02 | Create the canonical PostgreSQL schema and migration registry | R01 | G02 |
-| R03 | Encode and validate the canonical OpenAPI and generated client | R01 | G02 |
-| R04 | Build design tokens, navigation shell and basic primitives | R01 | G02 |
-| R05 | Implement accessible sheets, dialogs, menus and feedback | R04 | G03 |
-| R06 | Implement cookie sessions, CSRF and API error middleware | R02, R03 | G03 |
-| R11 | Implement TMDB TV search and atomic catalog import | R02, R03 | G03 |
-| R13 | Implement pure per-episode progress and release rules | R02 | G03 |
-| R07 | Implement registration, verification and SMTP outbox delivery | R06 | G04 |
-| R12 | Refresh metadata without losing watch history | R11 | G04 |
-| R14 | Implement reusable privacy and spoiler projection policies | R02, R13 | G04 |
-| R15 | Implement personal library and profile persistence APIs | R06, R13 | G04 |
-| R08 | Implement password login, recovery and fresh reauthentication | R07 | G05 |
-| R16 | Persist individual watched changes and conflict-safe Undo | R15 | G05 |
-| R09 | Implement Google sign-in and explicit identity linking | R08 | G06 |
-| R17 | Implement explicit catch-up preview and atomic commit | R16, R12 | G06 |
-| R18 | Serve viewer-filtered show, episode, Home and reveal APIs | R11, R14, R16 | G06 |
-| R19 | Build TV search, disambiguation and add-to-library flow | R05, R11, R15, R16 | G06 |
-| R10 | Build account, recovery and Google sign-in screens | R05, R09, R15 | G07 |
-| R20 | Build searchable library with derived progress states | R05, R15, R18 | G07 |
-| R21 | Build show detail, episode rows and explicit catch-up sheet | R05, R17, R18 | G07 |
-| R22 | Build spoiler-safe episode detail and scoped reveal UI | R21 | G08 |
-| R23 | Build personal Home with next episode and caught-up sections | R21 | G08 |
-| R24 | Integrate and verify the complete personal-tracking alpha | R10, R12, R17, R18, R19, R20, R21, R22, R23 | G09 |
-| R25 | Implement follows, requests and visible people/library APIs | R24 | G10 |
-| R35 | Implement private asynchronous JSON data export | R24 | G10 |
-| R26 | Implement privacy changes and bilateral blocking | R25 | G11 |
-| R27 | Generate spoiler-safe activity and friend recommendations | R26 | G12 |
-| R29 | Build settings, privacy and sign-in method management | R10, R26 | G12 |
-| R30 | Implement hosted discussions and gated comment reads | R26, R18 | G12 |
-| R28 | Build Friends, profiles and social discovery surfaces | R27 | G13 |
-| R31 | Implement comment posting, removal and reporting | R30 | G13 |
-| R32 | Build hosted discussion selection, reveal and comments UI | R22, R31 | G14 |
-| R33 | Implement operator report review and audit UI | R31, R29 | G14 |
-| R34 | Implement in-app follow-request notifications | R25, R28 | G14 |
-| R36 | Implement irreversible account deletion and cleanup | R35, R31, R34 | G15 |
-| R37 | Build export and account deletion settings flows | R29, R36 | G16 |
-| R38 | Integrate social beta and verify privacy/spoiler journeys | R28, R29, R32, R33, R34, R37 | G17 |
-| R39 | Package deployment and document operations/recovery | R24, R38 | G18 |
-| R40 | Run release acceptance and publish a go/no-go report | R39 | G19 |
+| Issue | Prerequisites (merge first) | Parallel group |
+|---|---|---|
+| [R01: Bootstrap the web/API workspace and repeatable CI](https://github.com/BrewingBytes/SceneCask/issues/1) | None | G01 |
+| [R02: Create the canonical PostgreSQL schema and migration registry](https://github.com/BrewingBytes/SceneCask/issues/2) | [R01](https://github.com/BrewingBytes/SceneCask/issues/1) | G02 |
+| [R03: Encode and validate the canonical OpenAPI and generated client](https://github.com/BrewingBytes/SceneCask/issues/3) | [R01](https://github.com/BrewingBytes/SceneCask/issues/1) | G02 |
+| [R04: Build design tokens, navigation shell and basic primitives](https://github.com/BrewingBytes/SceneCask/issues/4) | [R01](https://github.com/BrewingBytes/SceneCask/issues/1) | G02 |
+| [R05: Implement accessible sheets, dialogs, menus and feedback](https://github.com/BrewingBytes/SceneCask/issues/5) | [R04](https://github.com/BrewingBytes/SceneCask/issues/4) | G03 |
+| [R06: Implement cookie sessions, CSRF and API error middleware](https://github.com/BrewingBytes/SceneCask/issues/6) | [R02](https://github.com/BrewingBytes/SceneCask/issues/2), [R03](https://github.com/BrewingBytes/SceneCask/issues/3) | G03 |
+| [R11: Implement TMDB TV search and atomic catalog import](https://github.com/BrewingBytes/SceneCask/issues/7) | [R02](https://github.com/BrewingBytes/SceneCask/issues/2), [R03](https://github.com/BrewingBytes/SceneCask/issues/3) | G03 |
+| [R13: Implement pure per-episode progress and release rules](https://github.com/BrewingBytes/SceneCask/issues/8) | [R02](https://github.com/BrewingBytes/SceneCask/issues/2) | G03 |
+| [R07: Implement registration, verification and SMTP outbox delivery](https://github.com/BrewingBytes/SceneCask/issues/9) | [R06](https://github.com/BrewingBytes/SceneCask/issues/6) | G04 |
+| [R12: Refresh metadata without losing watch history](https://github.com/BrewingBytes/SceneCask/issues/10) | [R11](https://github.com/BrewingBytes/SceneCask/issues/7) | G04 |
+| [R14: Implement reusable privacy and spoiler projection policies](https://github.com/BrewingBytes/SceneCask/issues/11) | [R02](https://github.com/BrewingBytes/SceneCask/issues/2), [R13](https://github.com/BrewingBytes/SceneCask/issues/8) | G04 |
+| [R15: Implement personal library and profile persistence APIs](https://github.com/BrewingBytes/SceneCask/issues/12) | [R06](https://github.com/BrewingBytes/SceneCask/issues/6), [R13](https://github.com/BrewingBytes/SceneCask/issues/8) | G04 |
+| [R08: Implement password login, recovery and fresh reauthentication](https://github.com/BrewingBytes/SceneCask/issues/13) | [R07](https://github.com/BrewingBytes/SceneCask/issues/9) | G05 |
+| [R16: Persist individual watched changes and conflict-safe Undo](https://github.com/BrewingBytes/SceneCask/issues/14) | [R15](https://github.com/BrewingBytes/SceneCask/issues/12) | G05 |
+| [R09: Implement Google sign-in and explicit identity linking](https://github.com/BrewingBytes/SceneCask/issues/15) | [R08](https://github.com/BrewingBytes/SceneCask/issues/13) | G06 |
+| [R17: Implement explicit catch-up preview and atomic commit](https://github.com/BrewingBytes/SceneCask/issues/16) | [R16](https://github.com/BrewingBytes/SceneCask/issues/14), [R12](https://github.com/BrewingBytes/SceneCask/issues/10) | G06 |
+| [R18: Serve viewer-filtered show, episode, Home and reveal APIs](https://github.com/BrewingBytes/SceneCask/issues/17) | [R11](https://github.com/BrewingBytes/SceneCask/issues/7), [R14](https://github.com/BrewingBytes/SceneCask/issues/11), [R16](https://github.com/BrewingBytes/SceneCask/issues/14) | G06 |
+| [R19: Build TV search, disambiguation and add-to-library flow](https://github.com/BrewingBytes/SceneCask/issues/18) | [R05](https://github.com/BrewingBytes/SceneCask/issues/5), [R11](https://github.com/BrewingBytes/SceneCask/issues/7), [R15](https://github.com/BrewingBytes/SceneCask/issues/12), [R16](https://github.com/BrewingBytes/SceneCask/issues/14) | G06 |
+| [R10: Build account, recovery and Google sign-in screens](https://github.com/BrewingBytes/SceneCask/issues/19) | [R05](https://github.com/BrewingBytes/SceneCask/issues/5), [R09](https://github.com/BrewingBytes/SceneCask/issues/15), [R15](https://github.com/BrewingBytes/SceneCask/issues/12) | G07 |
+| [R20: Build searchable library with derived progress states](https://github.com/BrewingBytes/SceneCask/issues/20) | [R05](https://github.com/BrewingBytes/SceneCask/issues/5), [R15](https://github.com/BrewingBytes/SceneCask/issues/12), [R18](https://github.com/BrewingBytes/SceneCask/issues/17) | G07 |
+| [R21: Build show detail, episode rows and explicit catch-up sheet](https://github.com/BrewingBytes/SceneCask/issues/21) | [R05](https://github.com/BrewingBytes/SceneCask/issues/5), [R17](https://github.com/BrewingBytes/SceneCask/issues/16), [R18](https://github.com/BrewingBytes/SceneCask/issues/17) | G07 |
+| [R22: Build spoiler-safe episode detail and scoped reveal UI](https://github.com/BrewingBytes/SceneCask/issues/22) | [R21](https://github.com/BrewingBytes/SceneCask/issues/21) | G08 |
+| [R23: Build personal Home with next episode and caught-up sections](https://github.com/BrewingBytes/SceneCask/issues/23) | [R21](https://github.com/BrewingBytes/SceneCask/issues/21) | G08 |
+| [R24: Integrate and verify the complete personal-tracking alpha](https://github.com/BrewingBytes/SceneCask/issues/24) | [R10](https://github.com/BrewingBytes/SceneCask/issues/19), [R12](https://github.com/BrewingBytes/SceneCask/issues/10), [R17](https://github.com/BrewingBytes/SceneCask/issues/16), [R18](https://github.com/BrewingBytes/SceneCask/issues/17), [R19](https://github.com/BrewingBytes/SceneCask/issues/18), [R20](https://github.com/BrewingBytes/SceneCask/issues/20), [R21](https://github.com/BrewingBytes/SceneCask/issues/21), [R22](https://github.com/BrewingBytes/SceneCask/issues/22), [R23](https://github.com/BrewingBytes/SceneCask/issues/23) | G09 |
+| [R25: Implement follows, requests and visible people/library APIs](https://github.com/BrewingBytes/SceneCask/issues/25) | [R24](https://github.com/BrewingBytes/SceneCask/issues/24) | G10 |
+| [R35: Implement private asynchronous JSON data export](https://github.com/BrewingBytes/SceneCask/issues/26) | [R24](https://github.com/BrewingBytes/SceneCask/issues/24) | G10 |
+| [R26: Implement privacy changes and bilateral blocking](https://github.com/BrewingBytes/SceneCask/issues/27) | [R25](https://github.com/BrewingBytes/SceneCask/issues/25) | G11 |
+| [R27: Generate spoiler-safe activity and friend recommendations](https://github.com/BrewingBytes/SceneCask/issues/28) | [R26](https://github.com/BrewingBytes/SceneCask/issues/27) | G12 |
+| [R29: Build settings, privacy and sign-in method management](https://github.com/BrewingBytes/SceneCask/issues/29) | [R10](https://github.com/BrewingBytes/SceneCask/issues/19), [R26](https://github.com/BrewingBytes/SceneCask/issues/27) | G12 |
+| [R30: Implement hosted discussions and gated comment reads](https://github.com/BrewingBytes/SceneCask/issues/30) | [R26](https://github.com/BrewingBytes/SceneCask/issues/27), [R18](https://github.com/BrewingBytes/SceneCask/issues/17) | G12 |
+| [R28: Build Friends, profiles and social discovery surfaces](https://github.com/BrewingBytes/SceneCask/issues/31) | [R27](https://github.com/BrewingBytes/SceneCask/issues/28) | G13 |
+| [R31: Implement comment posting, removal and reporting](https://github.com/BrewingBytes/SceneCask/issues/32) | [R30](https://github.com/BrewingBytes/SceneCask/issues/30) | G13 |
+| [R32: Build hosted discussion selection, reveal and comments UI](https://github.com/BrewingBytes/SceneCask/issues/33) | [R22](https://github.com/BrewingBytes/SceneCask/issues/22), [R31](https://github.com/BrewingBytes/SceneCask/issues/32) | G14 |
+| [R33: Implement operator report review and audit UI](https://github.com/BrewingBytes/SceneCask/issues/34) | [R31](https://github.com/BrewingBytes/SceneCask/issues/32), [R29](https://github.com/BrewingBytes/SceneCask/issues/29) | G14 |
+| [R34: Implement in-app follow-request notifications](https://github.com/BrewingBytes/SceneCask/issues/35) | [R25](https://github.com/BrewingBytes/SceneCask/issues/25), [R28](https://github.com/BrewingBytes/SceneCask/issues/31) | G14 |
+| [R36: Implement irreversible account deletion and cleanup](https://github.com/BrewingBytes/SceneCask/issues/36) | [R35](https://github.com/BrewingBytes/SceneCask/issues/26), [R31](https://github.com/BrewingBytes/SceneCask/issues/32), [R34](https://github.com/BrewingBytes/SceneCask/issues/35) | G15 |
+| [R37: Build export and account deletion settings flows](https://github.com/BrewingBytes/SceneCask/issues/37) | [R29](https://github.com/BrewingBytes/SceneCask/issues/29), [R36](https://github.com/BrewingBytes/SceneCask/issues/36) | G16 |
+| [R38: Integrate social beta and verify privacy/spoiler journeys](https://github.com/BrewingBytes/SceneCask/issues/38) | [R28](https://github.com/BrewingBytes/SceneCask/issues/31), [R29](https://github.com/BrewingBytes/SceneCask/issues/29), [R32](https://github.com/BrewingBytes/SceneCask/issues/33), [R33](https://github.com/BrewingBytes/SceneCask/issues/34), [R34](https://github.com/BrewingBytes/SceneCask/issues/35), [R37](https://github.com/BrewingBytes/SceneCask/issues/37) | G17 |
+| [R39: Package deployment and document operations/recovery](https://github.com/BrewingBytes/SceneCask/issues/39) | [R24](https://github.com/BrewingBytes/SceneCask/issues/24), [R38](https://github.com/BrewingBytes/SceneCask/issues/38) | G18 |
+| [R40: Run release acceptance and publish a go/no-go report](https://github.com/BrewingBytes/SceneCask/issues/40) | [R39](https://github.com/BrewingBytes/SceneCask/issues/39) | G19 |
+
+Start with **[R01](https://github.com/BrewingBytes/SceneCask/issues/1)**. All prerequisites must be merged, not merely closed. Groups indicate nonoverlapping ownership; they do not authorize edits to shared files.
+
+Milestones and complete product-journey mapping: [coverage.md](coverage.md). Reusable assignment prompt: [README.md](README.md).

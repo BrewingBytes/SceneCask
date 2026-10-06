@@ -1,0 +1,16 @@
+{
+  "verifiedIssueCount": 40,
+  "allOpen": true,
+  "allBodiesMatch": true,
+  "allRequiredSectionsPresent": true,
+  "exactDependencyLinksVerified": true,
+  "dependencyWavesValid": true,
+  "label": "scenecask-rebuild-2026",
+  "canonicalSnapshot": "e524b2898965cfbbdd4b0aa049c0deb999900459",
+  "scope": "Only the 40 issue numbers created in this task were read. No older issues were queried.",
+  "limitations": [
+    "No application implementation or application tests executed.",
+    "Prototype visual check covered desktop Home only; full browser acceptance belongs to implementation issues.",
+    "Production credentials/provider access and deployment are not provisioned."
+  ]
+}

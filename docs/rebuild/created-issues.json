@@ -1,0 +1,398 @@
+{
+  "R01": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/1",
+    "number": 1,
+    "title": "Bootstrap the web/API workspace and repeatable CI",
+    "deps": [],
+    "wave": 1
+  },
+  "R02": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/2",
+    "number": 2,
+    "title": "Create the canonical PostgreSQL schema and migration registry",
+    "deps": [
+      "R01"
+    ],
+    "wave": 2
+  },
+  "R03": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/3",
+    "number": 3,
+    "title": "Encode and validate the canonical OpenAPI and generated client",
+    "deps": [
+      "R01"
+    ],
+    "wave": 2
+  },
+  "R04": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/4",
+    "number": 4,
+    "title": "Build design tokens, navigation shell and basic primitives",
+    "deps": [
+      "R01"
+    ],
+    "wave": 2
+  },
+  "R05": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/5",
+    "number": 5,
+    "title": "Implement accessible sheets, dialogs, menus and feedback",
+    "deps": [
+      "R04"
+    ],
+    "wave": 3
+  },
+  "R06": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/6",
+    "number": 6,
+    "title": "Implement cookie sessions, CSRF and API error middleware",
+    "deps": [
+      "R02",
+      "R03"
+    ],
+    "wave": 3
+  },
+  "R11": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/7",
+    "number": 7,
+    "title": "Implement TMDB TV search and atomic catalog import",
+    "deps": [
+      "R02",
+      "R03"
+    ],
+    "wave": 3
+  },
+  "R13": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/8",
+    "number": 8,
+    "title": "Implement pure per-episode progress and release rules",
+    "deps": [
+      "R02"
+    ],
+    "wave": 3
+  },
+  "R07": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/9",
+    "number": 9,
+    "title": "Implement registration, verification and SMTP outbox delivery",
+    "deps": [
+      "R06"
+    ],
+    "wave": 4
+  },
+  "R12": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/10",
+    "number": 10,
+    "title": "Refresh metadata without losing watch history",
+    "deps": [
+      "R11"
+    ],
+    "wave": 4
+  },
+  "R14": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/11",
+    "number": 11,
+    "title": "Implement reusable privacy and spoiler projection policies",
+    "deps": [
+      "R02",
+      "R13"
+    ],
+    "wave": 4
+  },
+  "R15": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/12",
+    "number": 12,
+    "title": "Implement personal library and profile persistence APIs",
+    "deps": [
+      "R06",
+      "R13"
+    ],
+    "wave": 4
+  },
+  "R08": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/13",
+    "number": 13,
+    "title": "Implement password login, recovery and fresh reauthentication",
+    "deps": [
+      "R07"
+    ],
+    "wave": 5
+  },
+  "R16": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/14",
+    "number": 14,
+    "title": "Persist individual watched changes and conflict-safe Undo",
+    "deps": [
+      "R15"
+    ],
+    "wave": 5
+  },
+  "R09": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/15",
+    "number": 15,
+    "title": "Implement Google sign-in and explicit identity linking",
+    "deps": [
+      "R08"
+    ],
+    "wave": 6
+  },
+  "R17": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/16",
+    "number": 16,
+    "title": "Implement explicit catch-up preview and atomic commit",
+    "deps": [
+      "R16",
+      "R12"
+    ],
+    "wave": 6
+  },
+  "R18": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/17",
+    "number": 17,
+    "title": "Serve viewer-filtered show, episode, Home and reveal APIs",
+    "deps": [
+      "R11",
+      "R14",
+      "R16"
+    ],
+    "wave": 6
+  },
+  "R19": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/18",
+    "number": 18,
+    "title": "Build TV search, disambiguation and add-to-library flow",
+    "deps": [
+      "R05",
+      "R11",
+      "R15",
+      "R16"
+    ],
+    "wave": 6
+  },
+  "R10": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/19",
+    "number": 19,
+    "title": "Build account, recovery and Google sign-in screens",
+    "deps": [
+      "R05",
+      "R09",
+      "R15"
+    ],
+    "wave": 7
+  },
+  "R20": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/20",
+    "number": 20,
+    "title": "Build searchable library with derived progress states",
+    "deps": [
+      "R05",
+      "R15",
+      "R18"
+    ],
+    "wave": 7
+  },
+  "R21": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/21",
+    "number": 21,
+    "title": "Build show detail, episode rows and explicit catch-up sheet",
+    "deps": [
+      "R05",
+      "R17",
+      "R18"
+    ],
+    "wave": 7
+  },
+  "R22": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/22",
+    "number": 22,
+    "title": "Build spoiler-safe episode detail and scoped reveal UI",
+    "deps": [
+      "R21"
+    ],
+    "wave": 8
+  },
+  "R23": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/23",
+    "number": 23,
+    "title": "Build personal Home with next episode and caught-up sections",
+    "deps": [
+      "R21"
+    ],
+    "wave": 8
+  },
+  "R24": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/24",
+    "number": 24,
+    "title": "Integrate and verify the complete personal-tracking alpha",
+    "deps": [
+      "R10",
+      "R12",
+      "R17",
+      "R18",
+      "R19",
+      "R20",
+      "R21",
+      "R22",
+      "R23"
+    ],
+    "wave": 9
+  },
+  "R25": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/25",
+    "number": 25,
+    "title": "Implement follows, requests and visible people/library APIs",
+    "deps": [
+      "R24"
+    ],
+    "wave": 10
+  },
+  "R35": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/26",
+    "number": 26,
+    "title": "Implement private asynchronous JSON data export",
+    "deps": [
+      "R24"
+    ],
+    "wave": 10
+  },
+  "R26": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/27",
+    "number": 27,
+    "title": "Implement privacy changes and bilateral blocking",
+    "deps": [
+      "R25"
+    ],
+    "wave": 11
+  },
+  "R27": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/28",
+    "number": 28,
+    "title": "Generate spoiler-safe activity and friend recommendations",
+    "deps": [
+      "R26"
+    ],
+    "wave": 12
+  },
+  "R29": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/29",
+    "number": 29,
+    "title": "Build settings, privacy and sign-in method management",
+    "deps": [
+      "R10",
+      "R26"
+    ],
+    "wave": 12
+  },
+  "R30": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/30",
+    "number": 30,
+    "title": "Implement hosted discussions and gated comment reads",
+    "deps": [
+      "R26",
+      "R18"
+    ],
+    "wave": 12
+  },
+  "R28": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/31",
+    "number": 31,
+    "title": "Build Friends, profiles and social discovery surfaces",
+    "deps": [
+      "R27"
+    ],
+    "wave": 13
+  },
+  "R31": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/32",
+    "number": 32,
+    "title": "Implement comment posting, removal and reporting",
+    "deps": [
+      "R30"
+    ],
+    "wave": 13
+  },
+  "R32": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/33",
+    "number": 33,
+    "title": "Build hosted discussion selection, reveal and comments UI",
+    "deps": [
+      "R22",
+      "R31"
+    ],
+    "wave": 14
+  },
+  "R33": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/34",
+    "number": 34,
+    "title": "Implement operator report review and audit UI",
+    "deps": [
+      "R31",
+      "R29"
+    ],
+    "wave": 14
+  },
+  "R34": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/35",
+    "number": 35,
+    "title": "Implement in-app follow-request notifications",
+    "deps": [
+      "R25",
+      "R28"
+    ],
+    "wave": 14
+  },
+  "R36": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/36",
+    "number": 36,
+    "title": "Implement irreversible account deletion and cleanup",
+    "deps": [
+      "R35",
+      "R31",
+      "R34"
+    ],
+    "wave": 15
+  },
+  "R37": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/37",
+    "number": 37,
+    "title": "Build export and account deletion settings flows",
+    "deps": [
+      "R29",
+      "R36"
+    ],
+    "wave": 16
+  },
+  "R38": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/38",
+    "number": 38,
+    "title": "Integrate social beta and verify privacy/spoiler journeys",
+    "deps": [
+      "R28",
+      "R29",
+      "R32",
+      "R33",
+      "R34",
+      "R37"
+    ],
+    "wave": 17
+  },
+  "R39": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/39",
+    "number": 39,
+    "title": "Package deployment and document operations/recovery",
+    "deps": [
+      "R24",
+      "R38"
+    ],
+    "wave": 18
+  },
+  "R40": {
+    "url": "https://github.com/BrewingBytes/SceneCask/issues/40",
+    "number": 40,
+    "title": "Run release acceptance and publish a go/no-go report",
+    "deps": [
+      "R39"
+    ],
+    "wave": 19
+  }
+}
