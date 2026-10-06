@@ -22,7 +22,10 @@ yarn dev
 Open http://127.0.0.1:3000 and mail capture at http://127.0.0.1:8029.
 PostgreSQL listens on localhost:54329; SMTP capture on localhost:10259.
 Compose binds services only to loopback and retains PostgreSQL in a named volume.
-`yarn dev:down` stops containers without deleting the data. The dev supervisor
+`yarn dev:down` stops containers without deleting the data. PostgreSQL 18 uses the
+`postgres18-data` volume; a leftover `scenecask_postgres-data` volume from earlier
+versions is unused and can be removed with `docker volume rm scenecask_postgres-data`.
+The dev supervisor
 loads .env for both processes and shuts down the other process if either exits.
 Next.js forwards /api/v1/* and /health/* to API_ORIGIN; there are no domain routes.
 
