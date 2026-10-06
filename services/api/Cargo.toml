@@ -20,5 +20,8 @@ tracing-subscriber = "=0.3.23"
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 
 [dev-dependencies]
+# Test-only: #[sqlx::test] and sqlx::migrate!() for the schema tests. Only adds features to the
+# [dependencies] entry, which pins the version; the caret requirement follows that pin.
+sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate"] }
 tower = { version = "=0.5.3", features = ["util"] }
 tracing-test = { version = "=0.2.6", features = ["no-env-filter"] }
