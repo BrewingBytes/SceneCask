@@ -1,6 +1,6 @@
 import createClient, { type ClientOptions } from "openapi-fetch";
 import type { paths } from "./generated/schema.js";
-import { csrfRequiredOperations } from "./generated/security.ts";
+import { csrfRequiredOperations } from "./generated/security.js";
 
 export type { paths, components, operations } from "./generated/schema.js";
 
@@ -36,11 +36,16 @@ export function createSceneCaskClient(options: SceneCaskClientOptions = {}) {
   });
   client.use({ onRequest({ request, schemaPath }) {
     if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
-    if (typeof window === "undefined" && origin) request.headers.set("Origin", origin);
+    if (typeof window === "undefined") {
+      if (!request.headers.has("Origin") && origin) request.headers.set("Origin", origin);
+      if (!request.headers.get("Origin")) throw new Error("A public Origin is required for a server-side mutation.");
+    }
     // Never send a script-set browser Origin; the browser supplies its authoritative value.
     if (typeof window !== "undefined") request.headers.delete("Origin");
-    const csrfToken = getCsrfToken?.();
-    if (csrfToken) request.headers.set("X-CSRF-Token", csrfToken);
+    if (!request.headers.has("X-CSRF-Token")) {
+      const csrfToken = getCsrfToken?.();
+      if (csrfToken) request.headers.set("X-CSRF-Token", csrfToken);
+    }
     if (requiresCsrf.has(`${request.method} ${schemaPath}`) && !request.headers.get("X-CSRF-Token")) {
       throw new Error("A session CSRF token is required for this request.");
     }

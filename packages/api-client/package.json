@@ -11,7 +11,7 @@
     "api:check": "yarn lint && yarn test && yarn typecheck && node scripts/generate.mjs --check",
     "lint": "redocly lint ../../contracts/openapi.yaml --config redocly.yaml",
     "test": "node --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && yarn workspace @scenecask/web exec tsc --project ../../packages/api-client/tsconfig.web-consumer.json"
   },
   "dependencies": {
     "openapi-fetch": "0.17.0"

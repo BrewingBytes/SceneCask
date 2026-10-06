@@ -8,6 +8,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import YAML from "yaml";
 import { buildArtifacts, saveArtifacts } from "../scripts/generate.mjs";
+import { listContractOperations, resolveLocal } from "../scripts/contract-operations.mjs";
 
 const spec = YAML.parse(await readFile(new URL("../../../contracts/openapi.yaml", import.meta.url), "utf8"));
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -22,10 +23,8 @@ const validate = (schema, value) => {
     : ajv.compile({ ...schema, components: spec.components }));
   return validators.get(key)(value);
 };
-const methods = new Set(["get", "post", "put", "patch", "delete"]);
-const resolve = value => value?.$ref ? value.$ref.slice(2).split("/").reduce((node, key) => node[key], spec) : value;
-const operations = Object.entries(spec.paths).flatMap(([route, item]) => Object.entries(item)
-  .filter(([method]) => methods.has(method)).map(([method, operation]) => ({ route, method, operation })));
+const resolve = value => resolveLocal(spec, value);
+const operations = listContractOperations(spec);
 
 test("every C04–C08 endpoint is represented once, with implementation ownership", async () => {
   const source = await readFile(new URL("../../../docs/rebuild/contracts.md", import.meta.url), "utf8");
@@ -96,8 +95,7 @@ test("tombstones, visible libraries and errors cannot acquire protected keys", (
 
 test("session, CSRF, write-only idempotency, JSON bodies and response caching conventions", () => {
   const idempotentWrites = new Set(["saveLibraryEntry", "updateLibraryStatus", "setEpisodeProgress", "commitCatchup", "eraseHistory", "undoAction"]);
-  for (const { route, method, operation } of operations) {
-    const parameters = (operation.parameters ?? []).map(p => p.$ref ? spec.components.parameters[p.$ref.split("/").at(-1)] : p);
+  for (const { route, method, operation, parameters } of operations) {
     if (method !== "get") {
       assert.ok(parameters.some(p => p.name === "Origin" && p.required), operation.operationId);
       if (operation.security.length) assert.ok(parameters.some(p => p.name === "X-CSRF-Token" && p.required), operation.operationId);
@@ -119,8 +117,7 @@ test("session, CSRF, write-only idempotency, JSON bodies and response caching co
 
 test("cursor pages declare valid envelopes and bounded limits, with the episode default", () => {
   const paginated = new Set(["listEpisodes", "listLibrary", "searchPeople", "listPersonLibrary", "listFollowRequests", "listFollowers", "listBlocks", "listActivity", "listRecommendations", "listEpisodeDiscussions", "listComments", "listNotifications", "listOperatorReports"]);
-  for (const { operation } of operations.filter(o => paginated.has(o.operation.operationId))) {
-    const parameters = operation.parameters.map(resolve);
+  for (const { operation, parameters } of operations.filter(o => paginated.has(o.operation.operationId))) {
     const cursor = parameters.find(p => p.name === "cursor");
     const limit = parameters.find(p => p.name === "limit");
     assert.equal(cursor.in, "query");
@@ -192,4 +189,23 @@ test("regeneration is deterministic and changed schemas fail drift check", async
     changed.components.schemas.User.properties.contractDriftSentinel = { type: "boolean" };
     await assert.rejects(saveArtifacts(await buildArtifacts(changed), temp, true), /Generated contract drift/);
   } finally { await rm(temp, { recursive: true, force: true }); }
+});
+
+test("generator includes inherited CSRF, respects operation overrides and ignores non-operations", async () => {
+  const inherited = structuredClone(spec);
+  const item = inherited.paths["/reveals"];
+  item.parameters = [{ $ref: "#/components/parameters/CSRF" }];
+  item.post.parameters = item.post.parameters.filter(p => p.$ref !== "#/components/parameters/CSRF");
+  item.summary = "Shared reveal parameters";
+  const operation = listContractOperations(inherited).find(o => o.operation.operationId === "createReveal");
+  assert.ok(operation.parameters.some(p => p.name === "X-CSRF-Token" && p.required));
+  assert.equal(listContractOperations(inherited).length, operations.length);
+  const artifacts = await buildArtifacts(inherited);
+  assert.ok(artifacts.get("packages/api-client/src/generated/security.ts").includes('"POST /reveals"'));
+  item.post.parameters.push({ name: "X-CSRF-Token", in: "header", required: false, schema: { type: "string" } });
+  const overridden = listContractOperations(inherited).find(o => o.operation.operationId === "createReveal");
+  assert.equal(overridden.parameters.filter(p => p.name === "X-CSRF-Token").length, 1);
+  assert.equal(overridden.parameters.find(p => p.name === "X-CSRF-Token").required, false);
+  const overrideArtifacts = await buildArtifacts(inherited);
+  assert.equal(overrideArtifacts.get("packages/api-client/src/generated/security.ts").includes('"POST /reveals"'), false);
 });

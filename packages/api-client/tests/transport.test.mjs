@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSceneCaskClient } from "../src/index.ts";
+import { loadClient } from "./load-client.mjs";
+
+const { createSceneCaskClient } = await loadClient();
 
 test("typed client sends mutation body/headers and avoids shared viewer caching", async () => {
   let captured;
@@ -65,9 +67,30 @@ test("client resolves rotating CSRF tokens and server Origin once per mutation",
 
 test("authenticated mutations fail before transport when the CSRF token is absent", async () => {
   let called = false;
-  const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", fetch: async () => { called = true; return new Response(); } });
+  const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", origin: "https://example.test", fetch: async () => { called = true; return new Response(); } });
   await assert.rejects(client.POST("/reveals", { body: { scope: "discussion", resourceId: "synthetic" } }), /session CSRF token is required/);
   assert.equal(called, false);
+});
+
+test("server-side mutations reject missing Origin before transport, including public auth", async () => {
+  let called = false;
+  const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", getCsrfToken: () => "synthetic", fetch: async () => { called = true; return new Response(); } });
+  await assert.rejects(client.POST("/reveals", { body: { scope: "discussion", resourceId: "synthetic" } }), /public Origin is required/);
+  await assert.rejects(client.POST("/auth/login", { body: { email: "ana@example.test", password: "synthetic" } }), /public Origin is required/);
+  assert.equal(called, false);
+});
+
+test("explicit request CSRF and Origin take precedence over configured defaults", async () => {
+  let captured;
+  let getterCalls = 0;
+  const client = createSceneCaskClient({ baseUrl: "https://example.test/api/v1", origin: "https://default.test", getCsrfToken: () => { getterCalls++; return "synthetic-stale"; }, fetch: async request => {
+    captured = request;
+    return new Response(null, { status: 204 });
+  } });
+  await client.DELETE("/me/identities/google", { params: { header: { Origin: "https://explicit.test", "X-CSRF-Token": "synthetic-fresh" } }, body: {} });
+  assert.equal(captured.headers.get("X-CSRF-Token"), "synthetic-fresh");
+  assert.equal(captured.headers.get("Origin"), "https://explicit.test");
+  assert.equal(getterCalls, 0);
 });
 
 test("browser mutations leave Origin to the browser even with client defaults", async () => {
