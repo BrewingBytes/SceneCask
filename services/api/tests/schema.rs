@@ -8,6 +8,7 @@ static MIGRATOR: Migrator = sqlx::migrate!();
 
 const ANA: &str = "00000000-0000-4000-8000-00000000a0a1";
 const BEN: &str = "00000000-0000-4000-8000-00000000b0b1";
+const CLEO: &str = "00000000-0000-4000-8000-00000000c0c1";
 
 /// Expected C02 tables and columns, in declaration order.
 const SCHEMA: &[(&str, &[&str])] = &[
@@ -523,6 +524,16 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
     )
     .await;
     exec(&pool, &export).await;
+    // A deletion job is created with its user and cannot drop it while the user exists.
+    rejects(&pool, "23514", "INSERT INTO jobs (kind, state, lease_until) VALUES ('delete', 'running', now() + interval '5 minutes')").await;
+    exec(&pool, &format!("INSERT INTO jobs (user_id, kind, state, lease_until) VALUES ('{ANA}', 'delete', 'running', now() + interval '5 minutes')")).await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE jobs SET user_id = NULL WHERE kind = 'delete'",
+    )
+    .await;
+    exec(&pool, "DELETE FROM jobs WHERE kind = 'delete'").await;
 
     // Reveal grants are bound to a session, capped at 12 hours and revoked with it.
     exec(&pool, &format!("
@@ -547,6 +558,16 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
         "UPDATE reveal_grants SET created_at = now() + interval '30 days', expires_at = now() + interval '30 days 1 hour'",
     )
     .await;
+    // created_at is checked against the wall clock, so a grant written later in a transaction
+    // with expires_at derived from its own created_at is accepted.
+    exec(&pool, &format!("
+        BEGIN;
+        SELECT pg_sleep(0.05);
+        INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, created_at, expires_at)
+        SELECT '\\xaa', '{ANA}', 'episode_details', '00000000-0000-4000-8000-0000000005e2', t, t + interval '12 hours'
+        FROM (SELECT clock_timestamp() AS t) AS clock;
+        COMMIT;
+    ")).await;
     // A grant must belong to the session's owner.
     rejects(&pool, "23503", &format!("INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
         VALUES ('\\xaa', '{BEN}', 'discussion', '00000000-0000-4000-8000-0000000000d9', now() + interval '1 hour')")).await;
@@ -576,6 +597,28 @@ async fn discussion_reports_jobs_and_grants_enforce_lifecycle_rules(pool: PgPool
     assert_eq!(count(&pool, "SELECT count(*) FROM notifications").await, 0);
     exec(&pool, &request).await;
     exec(&pool, &notification).await;
+    // Every notification names its actor, so none can exist without a follow edge.
+    rejects(
+        &pool,
+        "23502",
+        &format!("INSERT INTO notifications (user_id, kind) VALUES ('{ANA}', 'follow_request')"),
+    )
+    .await;
+    // Erasing the requester removes the pending request notification with the edge.
+    exec(&pool, &format!("
+        INSERT INTO follows (follower_id, followee_id, state) VALUES ('{CLEO}', '{ANA}', 'pending');
+        INSERT INTO notifications (user_id, kind, actor_id) VALUES ('{ANA}', 'follow_request', '{CLEO}');
+    ")).await;
+    exec(&pool, &format!("DELETE FROM users WHERE id = '{CLEO}'")).await;
+    assert_eq!(
+        count(
+            &pool,
+            &format!("SELECT count(*) FROM notifications WHERE actor_id = '{CLEO}'")
+        )
+        .await,
+        0
+    );
+    assert_eq!(count(&pool, "SELECT count(*) FROM notifications").await, 1);
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
@@ -608,6 +651,29 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
     ",
     )
     .await;
+    // Season numbers can be swapped the same way, then swapped back in one statement.
+    exec(
+        &pool,
+        &format!(
+            "
+        BEGIN;
+        SET CONSTRAINTS seasons_show_number_key DEFERRED;
+        UPDATE seasons SET number = 0 WHERE id = '{S1}';
+        UPDATE seasons SET number = 1 WHERE id = '00000000-0000-4000-8000-0000000005b0';
+        COMMIT;
+    "
+        ),
+    )
+    .await;
+    assert_eq!(
+        count(
+            &pool,
+            &format!("SELECT number::bigint FROM seasons WHERE id = '{S1}'")
+        )
+        .await,
+        0
+    );
+    exec(&pool, "UPDATE seasons SET number = 1 - number").await;
     // An archived episode keeps its number and history; a new active episode may reuse it.
     exec(
         &pool,
@@ -642,6 +708,31 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         &pool,
         "23514",
         "UPDATE episode_progress SET watched = true, revision = 1",
+    )
+    .await;
+    // A watched change must advance the revision; clearing the action link need not.
+    rejects(&pool, "23514", "UPDATE episode_progress SET watched = true").await;
+    exec(&pool, "UPDATE episode_progress SET last_action_id = NULL").await;
+    exec(
+        &pool,
+        &format!(
+            "
+        INSERT INTO library_entries (user_id, show_id, status, saved_at, revision)
+        VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'watching', now(), 1);
+    "
+        ),
+    )
+    .await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE library_entries SET status = 'on_hold'",
+    )
+    .await;
+    rejects(&pool, "23514", "UPDATE library_entries SET saved = false").await;
+    exec(
+        &pool,
+        "UPDATE library_entries SET status = 'on_hold', revision = 2",
     )
     .await;
     rejects(
@@ -697,11 +788,32 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
         "UPDATE activity_events SET show_id = '00000000-0000-4000-8000-0000000005a1'",
     )
     .await;
+    // Catalog corrections cannot move a season or an episode to another show; an episode may
+    // move between seasons of the same show.
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE seasons SET show_id = '00000000-0000-4000-8000-0000000006a1'
+         WHERE id = '00000000-0000-4000-8000-0000000005b1'",
+    )
+    .await;
+    rejects(
+        &pool,
+        "23514",
+        "UPDATE episodes SET season_id = '00000000-0000-4000-8000-0000000005b1'
+         WHERE id = '00000000-0000-4000-8000-0000000006e1'",
+    )
+    .await;
+    exec(
+        &pool,
+        "UPDATE episodes SET season_id = '00000000-0000-4000-8000-0000000005b1', number = 9
+         WHERE id = '00000000-0000-4000-8000-0000000005e0'",
+    )
+    .await;
 }
 
 #[sqlx::test(fixtures(path = "schema_fixtures", scripts("people", "catalog")))]
 async fn user_deletion_erases_private_state_without_cascading_shared_content(pool: PgPool) {
-    const CLEO: &str = "00000000-0000-4000-8000-00000000c0c1";
     exec(&pool, &format!("
         INSERT INTO library_entries (user_id, show_id, status, saved_at, revision)
         VALUES ('{ANA}', '00000000-0000-4000-8000-0000000005a1', 'watching', now(), 1),

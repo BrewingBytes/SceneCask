@@ -13,11 +13,13 @@ CREATE TABLE reveal_grants (
     FOREIGN KEY (session_id, user_id) REFERENCES sessions (id_hash, user_id) ON DELETE CASCADE,
     CHECK (expires_at > created_at AND expires_at <= created_at + interval '12 hours')
 );
--- The 12-hour cap is measured from created_at, so created_at cannot be in the future.
+-- The 12-hour cap is measured from created_at, so created_at cannot be in the future. Compare
+-- with the wall clock, not transaction start, so a created_at taken later in the transaction is
+-- accepted. Writers derive expires_at from created_at in SQL so the cap check cannot drift.
 CREATE FUNCTION reveal_grants_created_not_future() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.created_at > now() THEN
+    IF NEW.created_at > clock_timestamp() THEN
         RAISE EXCEPTION 'reveal grant created_at must not be in the future'
             USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = 'created_at';
     END IF;

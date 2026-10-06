@@ -1,13 +1,14 @@
 -- R02 0001: accounts, credentials, external identities, sessions and auth flows.
 -- Secrets are stored only as hashes or ciphertext; never log these columns.
 
--- Shared guard: revision counters may only move forward (C02). Each trigger compares its own
--- column in a WHEN clause, so PostgreSQL validates the column name at CREATE TRIGGER and the
--- function only runs for an actual decrease. The argument names the column in the error.
+-- Shared guard: revision counters only move forward (C02). Each trigger compares its own
+-- columns in a WHEN clause, so PostgreSQL validates the column names at CREATE TRIGGER and the
+-- function only runs for a rejected update: a decrease, or a tracked-state change that does not
+-- advance the revision. The argument names the column in the error.
 CREATE FUNCTION reject_revision_decrease() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    RAISE EXCEPTION 'revision must not decrease'
+    RAISE EXCEPTION 'revision must advance with every change and never decrease'
         USING ERRCODE = 'check_violation', TABLE = TG_TABLE_NAME, COLUMN = TG_ARGV[0];
 END;
 $$;

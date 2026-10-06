@@ -17,9 +17,12 @@ CREATE TABLE library_entries (
 -- GET /library keyset: saved_at,id descending over saved entries.
 CREATE INDEX library_entries_saved_idx
     ON library_entries (user_id, saved_at DESC, show_id DESC) WHERE saved;
+-- Any change to the entry's state must advance its revision so expectedRevision checks and undo
+-- see it; a revision may never move back.
 CREATE TRIGGER library_entries_revision_forward
-    BEFORE UPDATE OF revision ON library_entries
-    FOR EACH ROW WHEN (NEW.revision < OLD.revision)
+    BEFORE UPDATE ON library_entries
+    FOR EACH ROW WHEN (NEW.revision < OLD.revision OR (NEW.revision = OLD.revision
+        AND (NEW.saved, NEW.status, NEW.saved_at) IS DISTINCT FROM (OLD.saved, OLD.status, OLD.saved_at)))
     EXECUTE FUNCTION reject_revision_decrease('revision');
 
 -- Aggregate tracking revision; progress mutations serialize on this row.
@@ -71,9 +74,12 @@ CREATE TABLE episode_progress (
 );
 CREATE INDEX episode_progress_action_idx ON episode_progress (last_action_id)
     WHERE last_action_id IS NOT NULL;
+-- Every watched change, including true→false→true, advances the revision. Clearing
+-- last_action_id when undo actions are pruned does not.
 CREATE TRIGGER episode_progress_revision_forward
-    BEFORE UPDATE OF revision ON episode_progress
-    FOR EACH ROW WHEN (NEW.revision < OLD.revision)
+    BEFORE UPDATE ON episode_progress
+    FOR EACH ROW WHEN (NEW.revision < OLD.revision
+        OR (NEW.revision = OLD.revision AND NEW.watched IS DISTINCT FROM OLD.watched))
     EXECUTE FUNCTION reject_revision_decrease('revision');
 
 CREATE TABLE idempotency_records (
