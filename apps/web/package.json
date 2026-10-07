@@ -6,19 +6,23 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test:ui": "playwright test --config src/components/ui/basic/playwright.config.ts"
   },
   "dependencies": {
+    "graphemer": "1.4.0",
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@eslint/compat": "2.1.1",
+    "@playwright/test": "1.63.0",
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@typescript/native": "npm:typescript@7.0.2",
+    "axe-core": "4.10.3",
     "eslint": "10.12.0",
     "eslint-config-next": "16.3.8",
     "typescript": "npm:@typescript/typescript6@6.0.2"
