@@ -148,6 +148,7 @@ function ToastCard({
             variant="secondary"
             className="sc-toast-action"
             busy={toast.busy === "undo"}
+            aria-disabled={(toast.busy && toast.busy !== "undo") || undefined}
             onClick={toast.onUndo}
           >
             Undo
@@ -158,6 +159,7 @@ function ToastCard({
             variant="secondary"
             className="sc-toast-action"
             busy={toast.busy === "action"}
+            aria-disabled={(toast.busy && toast.busy !== "action") || undefined}
             onClick={toast.action.onAction}
           >
             {toast.action.label}
@@ -168,6 +170,7 @@ function ToastCard({
             variant="secondary"
             className="sc-toast-action"
             busy={toast.busy === "retry"}
+            aria-disabled={(toast.busy && toast.busy !== "retry") || undefined}
             onClick={toast.onRetry}
           >
             Retry

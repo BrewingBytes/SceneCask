@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AppShell } from "../../shell";
 import { Avatar, Button, Checkbox, RadioGroup } from "../basic";
 import "../basic/gallery.css";
@@ -31,6 +31,7 @@ export function OverlayGallery() {
   const [failed, setFailed] = useState<Pending>(null);
   const [announcement, setAnnouncement] = useState("");
   const { toasts, show, update, dismiss } = useToastQueue();
+  const overlayHeading = useRef<HTMLHeadingElement>(null);
 
   // Mirrors a feature mutation: one attempt per activation, failure keeps the overlay open.
   async function run(kind: Exclude<Pending, null>, onSuccess: () => void) {
@@ -53,6 +54,10 @@ export function OverlayGallery() {
     const id = show({
       tone: "success",
       message,
+      action: {
+        label: "Discuss",
+        onAction: () => setAnnouncement("Discuss selected."),
+      },
       onUndo: () => {
         update(id, { busy: "undo" });
         settle(false).then(() => {
@@ -150,7 +155,9 @@ export function OverlayGallery() {
         </div>
       </section>
       <section className="sc-gallery-section" aria-labelledby="overlay-heading">
-        <h2 id="overlay-heading">Overlays</h2>
+        <h2 id="overlay-heading" ref={overlayHeading} tabIndex={-1}>
+          Overlays
+        </h2>
         <div className="sc-gallery-grid">
           <div className="sc-gallery-card">
             <h3>Dialogs</h3>
@@ -173,6 +180,17 @@ export function OverlayGallery() {
                 }}
               >
                 Open nested confirmation
+              </Button>
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  // An unrelated page dialog opening above an open nested layer.
+                  setSheet(true);
+                  setRemoveOpen(true);
+                  setTimeout(() => setDialog("erase"), 1000);
+                }}
+              >
+                Nested, then page dialog
               </Button>
             </div>
           </div>
@@ -263,6 +281,7 @@ export function OverlayGallery() {
         description="Every watched episode of Hollow Orchard will be marked unwatched. The show stays in your library."
         confirmLabel={errorFor("erase") ? "Retry" : "Erase history"}
         destructive
+        returnFocusRef={overlayHeading}
         busy={pending === "erase"}
         error={errorFor("erase")}
         onConfirm={() =>

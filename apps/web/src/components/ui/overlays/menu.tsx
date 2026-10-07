@@ -96,6 +96,8 @@ export function Menu({
 
   const openAt = (position: "first" | "last") => {
     entry.current = position;
+    // Forget the entry point if the parent declines or defers opening.
+    setTimeout(() => (entry.current = "first"));
     if (open) focusItem(position === "last" ? -1 : 0);
     else onOpenChange(true);
   };

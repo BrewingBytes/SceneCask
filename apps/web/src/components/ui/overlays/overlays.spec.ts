@@ -423,10 +423,79 @@ test("menu item opens a dialog that returns focus to the menu trigger", async ({
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
-  // Escape inside a menu never closes the enclosing dialog layer.
+});
+
+test("Escape in a menu inside a sheet closes only the menu", async ({ page }) => {
+  await page.goto("/");
   await page.getByRole("button", { name: "Add to library" }).click();
+  await page.getByRole("button", { name: "More library actions" }).click();
+  const menu = page.getByRole("menu", { name: "More library actions" });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Hollow Orchard" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("a page dialog opening above a nested layer goes on top", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/");
+  await page.clock.pauseAt(Date.now() + 1000);
+  await page.getByRole("button", { name: "Nested, then page dialog" }).click();
+  await expect(page.getByRole("alertdialog", { name: "Remove Hollow Orchard?" })).toBeVisible();
+  await page.clock.runFor(1100);
+  const erase = page.getByRole("alertdialog", { name: "Erase watch history?" });
+  await expect(erase.getByRole("button", { name: "Cancel" })).toBeFocused();
+  expect(await erase.evaluate((el) => !!el.closest("[inert]"))).toBe(false);
+  await page.keyboard.press("Escape");
+  await expect(erase).toHaveCount(0);
+  await expect(
+    page.getByRole("alertdialog", { name: "Remove Hollow Orchard?" }),
+  ).toBeVisible();
+});
+
+test("returnFocusRef is used when nothing was focused at open", async ({ page }) => {
+  await page.goto("/");
+  // A programmatic click opens the dialog without focusing its trigger (as Safari does).
+  await page
+    .getByRole("button", { name: "Erase history…" })
+    .evaluate((el) => (el as HTMLElement).click());
+  const dialog = page.getByRole("alertdialog", { name: "Erase watch history?" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Overlays" })).toBeFocused();
+});
+
+test("IME composition Escape and toast Escape leave the modal open", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Show error toast" }).click();
+  await page.getByRole("button", { name: "Add to library" }).click();
+  const sheet = page.getByRole("dialog", { name: "Hollow Orchard" });
+  await page.evaluate(() =>
+    document.activeElement!.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", isComposing: true, bubbles: true }),
+    ),
+  );
+  await expect(sheet).toBeVisible();
+  // Toasts move above a bottom-anchored modal instead of covering it.
+  const toast = (await page.locator(".sc-toast-viewport").boundingBox())!;
+  const panel = (await page.locator(".sc-modal").boundingBox())!;
+  expect(toast.y + toast.height).toBeLessThanOrEqual(panel.y);
+  await page.getByRole("region", { name: "Notifications" }).getByRole("button", { name: "Retry" }).focus();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeVisible();
+});
+
+test("a busy toast action disables its other actions", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Show success toast" }).click();
+  const status = page.getByRole("region", { name: "Notifications" }).getByRole("status");
+  await status.getByRole("button", { name: "Undo" }).click();
+  await expect(status.getByRole("button", { name: "Undo" })).toHaveAttribute("aria-busy", "true");
+  await expect(status.getByRole("button", { name: "Discuss" })).toHaveAttribute("aria-disabled", "true");
+  await expect(status.getByRole("button", { name: "Dismiss" })).toHaveAttribute("aria-disabled", "true");
 });
 
 test("reduced motion disables overlay transitions", async ({ page }) => {

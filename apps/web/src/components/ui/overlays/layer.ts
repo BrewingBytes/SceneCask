@@ -29,7 +29,13 @@ export function tabbableWithin(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
     (element) => {
       if (element.tabIndex < 0 || element.closest("[inert]")) return false;
-      if (!element.getClientRects().length) return false;
+      // :disabled also covers controls inside <fieldset disabled>.
+      if (element.matches(":disabled")) return false;
+      if (
+        !(element.checkVisibility?.({ visibilityProperty: true }) ??
+          element.getClientRects().length > 0)
+      )
+        return false;
       if (!(element instanceof HTMLInputElement) || element.type !== "radio")
         return true;
       if (!element.name) return true;
@@ -72,13 +78,15 @@ export interface Layer {
   /** The dialog panel, focused (or its first tabbable) when nothing better exists. */
   surface: HTMLElement;
   depth: number;
+  /** Container of the enclosing modal in the React tree, if nested. */
+  parent: HTMLElement | null;
   /** Focused before the layer opened, recorded before any nested layer moves focus. */
   previous: HTMLElement | null;
   fallback?: RefObject<HTMLElement | null>;
 }
 
-// Ordered by nesting depth, then opening order, so a parent opened in the same commit
-// as its nested child (child effects run first) still ends up beneath it.
+// Ordered by opening, except that a parent opened in the same commit as its nested
+// child (child effects run first) is placed beneath that child.
 const stack: Layer[] = [];
 const madeInert = new Set<HTMLElement>();
 let bodyStyle: { overflow: string; paddingRight: string } | null = null;
@@ -150,12 +158,18 @@ function restoreFocus() {
 }
 
 /**
- * Register a modal layer at its nesting depth: everything outside the top layer
+ * Register a modal layer on top of the stack: everything outside the top layer
  * becomes inert and the page stops scrolling. Releasing it restores focus to the
  * element focused before it opened, its fallback, or the layer now on top.
  */
 export function pushLayer(layer: Layer) {
-  const index = stack.findIndex((open) => open.depth > layer.depth);
+  const descends = (open: Layer) => {
+    for (let parent = open.parent; parent; )
+      if (parent === layer.container) return true;
+      else parent = stack.find((item) => item.container === parent)?.parent ?? null;
+    return false;
+  };
+  const index = stack.findIndex(descends);
   stack.splice(index < 0 ? stack.length : index, 0, layer);
   sync();
   return () => {

@@ -45,8 +45,11 @@ export interface ModalProps {
   className?: string;
 }
 
-// Nesting depth of the enclosing modal, so nested layers stack above their parents.
-const LayerDepth = createContext(0);
+// The enclosing modal, so nested layers stack above their parents.
+const ParentLayer = createContext<{
+  depth: number;
+  container: RefObject<HTMLDivElement | null> | null;
+}>({ depth: 0, container: null });
 
 interface FrameProps extends ModalProps {
   variant: "dialog" | "sheet";
@@ -77,7 +80,8 @@ function OpenModal({
   header,
 }: FrameProps) {
   const id = useId();
-  const depth = useContext(LayerDepth);
+  const parentLayer = useContext(ParentLayer);
+  const depth = parentLayer.depth;
   const scrim = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const pressStartedOnScrim = useRef(false);
@@ -99,6 +103,7 @@ function OpenModal({
     if (
       !previous.current &&
       active instanceof HTMLElement &&
+      active !== document.body &&
       !scrim.current!.contains(active)
     )
       previous.current = active;
@@ -111,6 +116,7 @@ function OpenModal({
       container,
       surface,
       depth,
+      parent: parentLayer.container?.current ?? null,
       previous: previous.current,
       fallback: returnFocusRef,
     });
@@ -137,6 +143,15 @@ function OpenModal({
     // Inner components (Menu) that handle a key call preventDefault first.
     const keys = (event: KeyboardEvent) => {
       if (!isTopLayer(container) || event.defaultPrevented) return;
+      // Escape during IME composition cancels the composition, not the modal.
+      if (event.isComposing) return;
+      // Keys pressed in the toast viewport belong to the toast, not the modal.
+      if (
+        event.key === "Escape" &&
+        event.target instanceof Element &&
+        event.target.closest(`[${PERSIST_ATTRIBUTE}]`)
+      )
+        return;
       if (event.key === "Escape") {
         event.preventDefault();
         cancel.current();
@@ -182,7 +197,7 @@ function OpenModal({
         className={classes("sc-modal", `sc-modal-${variant}`, className)}
       >
         {/* Header, body and footer all nest: a dialog opened from any of them stacks above. */}
-        <LayerDepth.Provider value={depth + 1}>
+        <ParentLayer.Provider value={{ depth: depth + 1, container: scrim }}>
         <div className="sc-modal-header">
           <div className="sc-modal-heading">
             {kicker && <p className="sc-kicker">{kicker}</p>}
@@ -199,7 +214,7 @@ function OpenModal({
         )}
         {children && <div className="sc-modal-body">{children}</div>}
         {footer && <div className="sc-modal-footer sc-actions">{footer}</div>}
-        </LayerDepth.Provider>
+        </ParentLayer.Provider>
       </div>
     </div>
   );
