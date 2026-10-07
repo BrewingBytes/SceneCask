@@ -8,6 +8,7 @@ export interface SiteHeaderProps extends NavigationProps {
 }
 export function SiteHeader({
   currentPath,
+  homeHref,
   betaEnabled,
   unreadCount,
   accountAction,
@@ -15,8 +16,12 @@ export function SiteHeader({
   return (
     <header className="sc-header">
       <div className="sc-header-inner">
-        <BrandLink />
-        <Navigation currentPath={currentPath} betaEnabled={betaEnabled} />
+        <BrandLink homeHref={homeHref} />
+        <Navigation
+          currentPath={currentPath}
+          homeHref={homeHref}
+          betaEnabled={betaEnabled}
+        />
         <div className="sc-header-actions">
           {betaEnabled && <NotificationLink unreadCount={unreadCount} />}
           {accountAction}

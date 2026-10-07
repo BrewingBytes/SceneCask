@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { SiteHeader, type SiteHeaderProps } from "./site-header";
 import { PageContainer } from "./page-container";
-import "../../styles/foundation.css";
+import "../../styles";
 export * from "./site-header";
 export * from "./navigation";
 export * from "./brand-link";

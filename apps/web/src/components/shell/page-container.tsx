@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import "../../styles/foundation.css";
+import "../../styles";
 export interface PageContainerProps {
   children: ReactNode;
   id?: string;

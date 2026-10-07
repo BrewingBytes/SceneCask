@@ -1,6 +1,5 @@
-"use client";
 import type { ReactNode } from "react";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface EmptyStateProps {
   title: string;

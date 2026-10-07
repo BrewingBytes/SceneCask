@@ -1,7 +1,7 @@
 "use client";
 import type { ButtonHTMLAttributes } from "react";
 import { classes } from "./classes";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "quiet" | "destructive";
@@ -28,7 +28,6 @@ export function Button({
       onClickCapture={(event) => {
         if (
           busy ||
-          disabled ||
           props["aria-disabled"] === true ||
           props["aria-disabled"] === "true"
         ) {

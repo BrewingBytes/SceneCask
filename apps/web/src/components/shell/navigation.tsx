@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { NavIcon, type NavIconName } from "./nav-icon";
-import "../../styles/foundation.css";
+import "../../styles";
 export interface NavigationProps {
   currentPath: string;
   betaEnabled?: boolean;
+  /** Use /home only once the application integration registers that route. */
+  homeHref?: "/" | "/home";
 }
 export function Navigation({
   currentPath,
   betaEnabled = false,
+  homeHref = "/",
 }: NavigationProps) {
   const tabs: readonly { label: NavIconName; href: string }[] = [
-    { label: "Home", href: "/home" },
+    { label: "Home", href: homeHref },
     { label: "Discover", href: "/discover" },
     { label: "Library", href: "/library" },
     ...(betaEnabled ? [{ label: "Friends" as const, href: "/friends" }] : []),

@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 
+import { waitForChildExit } from "./child-exit.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const web = resolve(here, "../../../..");
 // Keep gallery artifacts separate from the production web build directory.
@@ -59,10 +61,7 @@ try {
   const child = spawn(process.execPath, [cli, ...args], { stdio: "inherit" });
   for (const signal of ["SIGINT", "SIGTERM"])
     process.on(signal, () => child.kill(signal));
-  process.exitCode = await new Promise((resolveExit, reject) => {
-    child.once("error", reject);
-    child.once("exit", (code) => resolveExit(code ?? 0));
-  });
+  process.exitCode = await waitForChildExit(child);
 } finally {
   rmSync(temporary, { recursive: true, force: true });
 }

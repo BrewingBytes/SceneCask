@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   generateDesignTokens,
-  generateFoundationStyles,
+  generateResponsiveStyles,
 } from "./generate-tokens.mjs";
 
 test("CSS tokens resolve references and remove annotations/nulls", () => {
@@ -28,14 +28,14 @@ test("CSS tokens resolve references and remove annotations/nulls", () => {
 });
 test("changed breakpoint updates generated media queries; invalid inputs identify the token", () => {
   assert.equal(
-    generateFoundationStyles(
+    generateResponsiveStyles(
       { layout: { "breakpoint-wide": 900 } },
       "@media (min-width: __SC_BREAKPOINT_WIDE__) {}",
     ),
-    "/* Generated from foundation.template.css and approved tokens. Do not edit directly. */\n@media (min-width: 900px) {}",
+    "/* Generated from foundation-responsive.template.css and approved tokens. Do not edit directly. */\n@media (min-width: 900px) {}",
   );
   assert.throws(
-    () => generateFoundationStyles({ layout: { "breakpoint-wide": null } }, ""),
+    () => generateResponsiveStyles({ layout: { "breakpoint-wide": null } }, ""),
     /layout-breakpoint-wide/,
   );
   assert.throws(

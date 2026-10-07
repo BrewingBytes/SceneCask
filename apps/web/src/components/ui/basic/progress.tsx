@@ -1,6 +1,5 @@
-"use client";
 
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface ProgressProps {
   value: number;

@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { Button } from "./button";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface ErrorStateProps {
   title?: string;

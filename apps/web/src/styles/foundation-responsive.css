@@ -1,0 +1,36 @@
+/* Generated from foundation-responsive.template.css and approved tokens. Do not edit directly. */
+@media (min-width: 860px) {
+  .sc-header-inner {
+    padding-inline: var(--sc-layout-gutter-1);
+    flex-wrap: nowrap;
+    gap: var(--sc-space-6);
+  }
+  .sc-nav {
+    position: static;
+    min-height: var(--sc-layout-touch-target-min);
+    padding: 0;
+    border: 0;
+    gap: var(--sc-space-5);
+  }
+  .sc-nav a {
+    flex: initial;
+    flex-direction: row;
+    gap: var(--sc-space-1);
+    font-size: var(--sc-type-label-size);
+  }
+  .sc-main {
+    padding: var(--sc-space-7) var(--sc-layout-gutter-1);
+  }
+  .sc-foundation h1 {
+    font-size: var(--sc-type-display-size-1);
+  }
+  .sc-foundation h2 {
+    font-size: var(--sc-type-title-size-1);
+  }
+  .sc-reading {
+    font-size: var(--sc-type-reading-size-1);
+  }
+  .sc-gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

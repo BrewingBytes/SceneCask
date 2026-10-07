@@ -20,9 +20,12 @@
     "api:generate": "node scripts/api-contract.mjs generate",
     "api:check": "node scripts/api-contract.mjs check",
     "test:e2e": "playwright test",
-    "health:smoke": "node scripts/health-smoke.mjs"
+    "health:smoke": "node scripts/health-smoke.mjs",
+    "test:design": "node apps/web/src/styles/generate-tokens.mjs --check && node --test apps/web/src/styles/generate-tokens.test.mjs apps/web/src/components/ui/basic/child-exit.test.mjs",
+    "test:ui": "playwright test --config apps/web/src/components/ui/basic/playwright.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "axe-core": "4.10.3"
   }
 }

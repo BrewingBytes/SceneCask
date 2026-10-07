@@ -1,3 +1,4 @@
+import axe from "axe-core";
 import { expect, test } from "@playwright/test";
 
 for (const width of [320, 390, 859, 860, 1440]) {
@@ -54,8 +55,14 @@ test("alpha navigation excludes beta access", async ({ page }) => {
     page.getByRole("link", { name: "Notifications, 3 unread" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Library", exact: true }),
+    page.getByRole("link", { name: "Home", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("link", { name: "Home", exact: true }),
+  ).toHaveAttribute("href", "/");
+  await expect(
+    page.getByRole("link", { name: "SceneCask home" }),
+  ).toHaveAttribute("href", "/");
 });
 
 test("keyboard, fields, disabled buttons and persistent errors", async ({
@@ -150,15 +157,10 @@ test("fallback ratios, local fonts and reduced motion", async ({ page }) => {
 
 for (const width of [390, 1440]) {
   test(`axe accessibility and contrast at ${width}`, async ({ page }) => {
-    const script = process.env.SCENECASK_AXE_SCRIPT;
-    if (!script)
-      throw new Error(
-        "Set SCENECASK_AXE_SCRIPT to the pinned axe-core 4.10.3 axe.min.js file; see README.",
-      );
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await page.evaluate(() => document.fonts.ready);
-    await page.addScriptTag({ path: script });
+    await page.addScriptTag({ content: axe.source });
     const violations = await page.evaluate(async () => {
       const axe = (
         window as unknown as {
@@ -293,6 +295,12 @@ test("Unicode initials and shared field descriptions", async ({ page }) => {
   await expect(page.getByRole("img", { name: "Unicode initials" })).toHaveText(
     "AB😀",
   );
+  await expect(page.getByRole("img", { name: "Flag initials" })).toHaveText(
+    "🇷🇴🇺🇸",
+  );
+  await expect(page.getByRole("img", { name: "Family initials" })).toHaveText(
+    "👨‍👩‍👧‍👦AB",
+  );
   await expect(page.getByLabel("Shared input")).toHaveAccessibleDescription(
     "Additional instructions. Input hint. Input error.",
   );
@@ -306,7 +314,7 @@ test("Unicode initials and shared field descriptions", async ({ page }) => {
 });
 
 test("shell navigation uses a client transition", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/regressions");
   await page.evaluate(() => {
     (window as unknown as { navigationMarker: string }).navigationMarker =
       "preserved";
@@ -316,7 +324,7 @@ test("shell navigation uses a client transition", async ({ page }) => {
     .getByRole("link", { name: "Home", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Home navigation fixture" }),
+    page.getByRole("heading", { name: "A place for your TV story." }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -351,4 +359,85 @@ test("rendered dimensions and shape respond to CSS tokens", async ({
       .locator("main")
       .evaluate((el) => getComputedStyle(el).paddingLeft),
   ).toBe("28px");
+});
+
+test("valid zero intrinsic width SVG survives hydration and unrelated renders", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      HTMLImageElement.prototype,
+      "naturalWidth",
+    )!;
+    Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", {
+      get() {
+        return this.src.startsWith("data:image/svg+xml,")
+          ? 0
+          : descriptor.get!.call(this);
+      },
+    });
+    const decode = HTMLImageElement.prototype.decode;
+    HTMLImageElement.prototype.decode = function () {
+      this.dataset.decodeCalls = String(
+        Number(this.dataset.decodeCalls ?? 0) + 1,
+      );
+      return decode.call(this);
+    };
+  });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\.js(?:\?|$)/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto("/svg-hydration", { waitUntil: "commit" });
+    const image = page.getByRole("img", { name: "Valid SVG" });
+    await expect
+      .poll(() => image.evaluate((el) => (el as HTMLImageElement).complete))
+      .toBe(true);
+    release();
+    await expect(image).toHaveAttribute("data-decode-calls", /^[1-9]\d*$/);
+    await page.getByRole("button", { name: "Render 0" }).click();
+    await expect(page.getByRole("button", { name: "Render 1" })).toBeVisible();
+    await expect(image).toBeVisible();
+    // Development StrictMode reattaches refs on mount; compare subsequent renders.
+    const calls = await image.getAttribute("data-decode-calls");
+    await page.getByRole("button", { name: "Render 1" }).click();
+    await expect(page.getByRole("button", { name: "Render 2" })).toBeVisible();
+    await expect(image).toHaveAttribute("data-decode-calls", calls!);
+  } finally {
+    release();
+  }
+});
+
+test("static primitives render and native choices work without JavaScript", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    const response = await page.goto("/server-primitives");
+    expect(response?.status()).toBe(200);
+    await expect(page.getByText("Server badge")).toBeVisible();
+    await expect(page.getByRole("img", { name: "Server avatar" })).toHaveText(
+      "🇷🇴🇺🇸",
+    );
+    await expect(
+      page.getByRole("progressbar", { name: "Server progress" }),
+    ).toHaveAttribute("aria-valuenow", "25");
+    await expect(page.getByRole("status")).toHaveText("Server loading");
+    await expect(
+      page.getByRole("heading", { name: "Server empty" }),
+    ).toBeVisible();
+    await page.getByLabel("Native checkbox").check();
+    await expect(page.getByLabel("Native checkbox")).toBeChecked();
+    await page.getByLabel("Second native choice").check();
+    await expect(page.getByLabel("Second native choice")).toBeChecked();
+    await expect(page.getByLabel("First native choice")).not.toBeChecked();
+  } finally {
+    await context.close();
+  }
 });

@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { classes } from "./classes";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface PosterProps {
   src?: string | null;
@@ -16,6 +16,23 @@ export function Poster({
   className,
 }: PosterProps) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
+  const inspectImage = useCallback(
+    (element: HTMLImageElement | null) => {
+      if (!element) return;
+      let current = true;
+      // Zero intrinsic width alone does not establish failure (e.g. SVG artwork).
+      // Decoding distinguishes a completed failure that happened before hydration.
+      if (element.complete && element.naturalWidth === 0) {
+        void element.decode().catch(() => {
+          if (current) setFailedSource(src ?? null);
+        });
+      }
+      return () => {
+        current = false;
+      };
+    },
+    [src],
+  );
   const hasImage = !!src && failedSource !== src;
   return (
     <div className={classes("sc-art", `sc-art-${aspect}`, className)}>
@@ -23,11 +40,7 @@ export function Poster({
         // Native image keeps failure handling and reserved dimensions together; callers supply authorized artwork only.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          ref={(element) => {
-            // The browser may have completed a failed SSR image before hydration attached onError.
-            if (element?.complete && element.naturalWidth === 0)
-              setFailedSource(src);
-          }}
+          ref={inspectImage}
           src={src}
           alt={alt}
           width={aspect === "poster" ? 200 : 320}

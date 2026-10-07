@@ -1,6 +1,5 @@
-"use client";
 import type { CSSProperties } from "react";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface SkeletonProps {
   label?: string;

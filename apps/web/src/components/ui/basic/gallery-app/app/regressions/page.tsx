@@ -1,4 +1,5 @@
 "use client";
+import { Navigation } from "../../../../../shell/navigation";
 import { useState } from "react";
 import { Avatar, Button, Tabs, TextArea, TextField } from "../../../index";
 export default function RegressionFixture() {
@@ -9,6 +10,7 @@ export default function RegressionFixture() {
   const [submits, setSubmits] = useState(0);
   return (
     <main className="sc-foundation" style={{ padding: 24 }}>
+      <Navigation currentPath="/regressions" />
       <Button onClick={() => setValue("stale")}>Use stale tab</Button>
       <Button
         onClick={() => {
@@ -52,6 +54,8 @@ export default function RegressionFixture() {
         <output aria-label="Submit count">{submits}</output>
       </form>
       <Avatar initials="AB😀Z" label="Unicode initials" />
+      <Avatar initials="🇷🇴🇺🇸" label="Flag initials" />
+      <Avatar initials="👨‍👩‍👧‍👦ABC" label="Family initials" />
       <p id="extra-description">Additional instructions.</p>
       <TextField
         label="Shared input"

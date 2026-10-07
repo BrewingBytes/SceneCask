@@ -1,7 +1,7 @@
 "use client";
-import { useId, type ReactNode } from "react";
+import { useId, type AriaAttributes, type ReactNode } from "react";
 import { classes } from "./classes";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface FieldInfo {
   label: string;
@@ -11,11 +11,12 @@ export interface FieldInfo {
 export interface FieldControlProps {
   id: string;
   "aria-describedby"?: string;
-  "aria-invalid"?: true;
+  "aria-invalid"?: AriaAttributes["aria-invalid"];
 }
 export interface FieldProps extends FieldInfo {
   id?: string;
   describedBy?: string;
+  invalid?: AriaAttributes["aria-invalid"];
   children: (props: FieldControlProps) => ReactNode;
 }
 /** One source for labels, generated IDs, hints, errors and accessible descriptions. */
@@ -25,6 +26,7 @@ export function Field({
   error,
   id,
   describedBy,
+  invalid,
   children,
 }: FieldProps) {
   const generated = useId();
@@ -41,7 +43,7 @@ export function Field({
       {children({
         id: fieldId,
         "aria-describedby": description,
-        "aria-invalid": error ? true : undefined,
+        "aria-invalid": error ? true : invalid,
       })}
       {hint && (
         <p id={`${fieldId}-hint`} className="sc-hint">

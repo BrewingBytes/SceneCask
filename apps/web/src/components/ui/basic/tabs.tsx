@@ -1,6 +1,6 @@
 "use client";
 import { useId, useRef, type ReactNode } from "react";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export interface TabsProps {
   label: string;

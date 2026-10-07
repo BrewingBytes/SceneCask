@@ -54,7 +54,7 @@ export function generateDesignTokens(tokens) {
   return `/* Generated from approved handoff tokens. Run node apps/web/src/styles/generate-tokens.mjs. */\n:root {\n${declarations.join("\n")}\n}\n`;
 }
 
-export function generateFoundationStyles(tokens, template) {
+export function generateResponsiveStyles(tokens, template) {
   const breakpoint = tokens.layout?.["breakpoint-wide"];
   if (
     typeof breakpoint !== "number" ||
@@ -63,7 +63,7 @@ export function generateFoundationStyles(tokens, template) {
   )
     throw new Error("Invalid design token: layout-breakpoint-wide");
   // CSS custom properties cannot be substituted inside media query conditions.
-  return `/* Generated from foundation.template.css and approved tokens. Do not edit directly. */\n${template.replaceAll("__SC_BREAKPOINT_WIDE__", `${breakpoint}px`)}`;
+  return `/* Generated from foundation-responsive.template.css and approved tokens. Do not edit directly. */\n${template.replaceAll("__SC_BREAKPOINT_WIDE__", `${breakpoint}px`)}`;
 }
 
 if (
@@ -82,11 +82,11 @@ if (
   const outputs = [
     ["tokens.css", generateDesignTokens(tokens)],
     [
-      "foundation.css",
-      generateFoundationStyles(
+      "foundation-responsive.css",
+      generateResponsiveStyles(
         tokens,
         readFileSync(
-          new URL("./foundation.template.css", import.meta.url),
+          new URL("./foundation-responsive.template.css", import.meta.url),
           "utf8",
         ),
       ),

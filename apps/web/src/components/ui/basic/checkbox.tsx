@@ -1,7 +1,6 @@
-"use client";
 import type { InputHTMLAttributes } from "react";
 import { classes } from "./classes";
-import "../../../styles/foundation.css";
+import "../../../styles";
 
 export type CheckboxProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,

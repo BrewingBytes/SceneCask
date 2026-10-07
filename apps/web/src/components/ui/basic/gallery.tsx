@@ -29,7 +29,7 @@ export function ComponentGallery({
   const [errorVisible, setErrorVisible] = useState(true);
   return (
     <AppShell
-      currentPath="/library"
+      currentPath="/"
       betaEnabled={betaEnabled}
       unreadCount={3}
       accountAction={
