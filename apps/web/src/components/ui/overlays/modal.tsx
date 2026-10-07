@@ -4,14 +4,15 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
-  type KeyboardEvent,
   type ReactNode,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { classes } from "../basic/classes";
 import {
+  focusInto,
   isTopLayer,
   PERSIST_ATTRIBUTE,
   pushLayer,
@@ -82,20 +83,46 @@ function OpenModal({
   const pressStartedOnScrim = useRef(false);
   const cancellable = dismissible && !busy;
 
+  const previous = useRef<HTMLElement | null>(null);
+  const cancel = useRef(() => {});
+  useEffect(() => {
+    cancel.current = () => {
+      if (cancellable) onOpenChange(false);
+    };
+  });
+
+  // Layout effects all run before any passive effect, so this records the trigger
+  // even when a nested layer opening in the same commit moves focus first.
+  useLayoutEffect(() => {
+    // Recorded once: a StrictMode remount must not replace it with a nested layer's control.
+    const active = document.activeElement;
+    if (
+      !previous.current &&
+      active instanceof HTMLElement &&
+      !scrim.current!.contains(active)
+    )
+      previous.current = active;
+  }, []);
+
   useEffect(() => {
     const container = scrim.current!,
       surface = panel.current!;
-    const previous =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const fallback = returnFocusRef;
-    const release = pushLayer(container, depth);
+    const release = pushLayer({
+      container,
+      surface,
+      depth,
+      previous: previous.current,
+      fallback: returnFocusRef,
+    });
     const target =
       initialFocusRef?.current ??
       surface.querySelector<HTMLElement>("[data-autofocus]") ??
-      tabbableWithin(surface.querySelector(".sc-modal-body") ?? surface)[0] ??
-      tabbableWithin(surface)[0] ??
-      surface;
-    target.focus();
+      tabbableWithin(surface.querySelector(".sc-modal-body") ?? surface)[0];
+    // A nested layer opened in the same commit is already on top and keeps focus.
+    if (isTopLayer(container)) {
+      if (target) target.focus();
+      else focusInto(surface);
+    }
     // Focus can only escape through programmatic moves; pull it back into the top layer.
     const guard = (event: FocusEvent) => {
       const next = event.target as Node;
@@ -104,32 +131,32 @@ function OpenModal({
         !container.contains(next) &&
         !(next instanceof Element && next.closest(`[${PERSIST_ATTRIBUTE}]`))
       )
-        (tabbableWithin(surface)[0] ?? surface).focus();
+        focusInto(surface);
+    };
+    // Listen on window so Escape and Tab work even when focus has fallen to body.
+    // Inner components (Menu) that handle a key call preventDefault first.
+    const keys = (event: KeyboardEvent) => {
+      if (!isTopLayer(container) || event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancel.current();
+      } else trapTab(event, surface);
     };
     document.addEventListener("focusin", guard);
+    window.addEventListener("keydown", keys);
     return () => {
       document.removeEventListener("focusin", guard);
+      window.removeEventListener("keydown", keys);
       release();
-      const destination = previous?.isConnected ? previous : fallback?.current;
-      destination?.focus();
     };
     // Focus moves once per opening; later prop changes must not steal focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!isTopLayer(scrim.current!)) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      if (cancellable) onOpenChange(false);
-    } else trapTab(event, panel.current!);
-  };
-
   return (
     <div
       ref={scrim}
       className={classes("sc-overlay", `sc-overlay-${variant}`)}
-      onKeyDown={onKeyDown}
       onPointerDown={(event) => {
         pressStartedOnScrim.current = event.target === event.currentTarget;
       }}
@@ -154,6 +181,8 @@ function OpenModal({
         tabIndex={-1}
         className={classes("sc-modal", `sc-modal-${variant}`, className)}
       >
+        {/* Header, body and footer all nest: a dialog opened from any of them stacks above. */}
+        <LayerDepth.Provider value={depth + 1}>
         <div className="sc-modal-header">
           <div className="sc-modal-heading">
             {kicker && <p className="sc-kicker">{kicker}</p>}
@@ -168,12 +197,9 @@ function OpenModal({
             {description}
           </div>
         )}
-        {children && (
-          <LayerDepth.Provider value={depth + 1}>
-            <div className="sc-modal-body">{children}</div>
-          </LayerDepth.Provider>
-        )}
+        {children && <div className="sc-modal-body">{children}</div>}
         {footer && <div className="sc-modal-footer sc-actions">{footer}</div>}
+        </LayerDepth.Provider>
       </div>
     </div>
   );

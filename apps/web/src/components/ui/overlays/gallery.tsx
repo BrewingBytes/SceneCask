@@ -218,6 +218,15 @@ export function OverlayGallery() {
               </Button>
               <Button
                 variant="quiet"
+                onClick={() =>
+                  // Same id and copy: a fresh version still restarts its 6s.
+                  show({ id: "same", tone: "success", message: "Saved again" })
+                }
+              >
+                Repeat same toast
+              </Button>
+              <Button
+                variant="quiet"
                 onClick={() => {
                   // Re-issuing one id with new copy restarts its 6s.
                   setSaves((count) => count + 1);
@@ -299,6 +308,26 @@ export function OverlayGallery() {
               },
             ]}
           />
+        <ConfirmDialog
+          open={removeOpen}
+          onOpenChange={(open) => {
+            setRemoveOpen(open);
+            if (!open) setFailed(null);
+          }}
+          title="Remove Hollow Orchard?"
+          description="Your watch history is kept. You can add the show again at any time."
+          confirmLabel={errorFor("remove") ? "Retry" : "Remove"}
+          destructive
+          busy={pending === "remove"}
+          error={errorFor("remove")}
+          onConfirm={() =>
+            run("remove", () => {
+              setRemoveOpen(false);
+              setSheet(false);
+              showSuccess("Removed from library");
+            })
+          }
+        />
           </>
         }
       >
@@ -324,26 +353,6 @@ export function OverlayGallery() {
         <Button variant="destructive" onClick={() => setRemoveOpen(true)}>
           Remove from library…
         </Button>
-        <ConfirmDialog
-          open={removeOpen}
-          onOpenChange={(open) => {
-            setRemoveOpen(open);
-            if (!open) setFailed(null);
-          }}
-          title="Remove Hollow Orchard?"
-          description="Your watch history is kept. You can add the show again at any time."
-          confirmLabel={errorFor("remove") ? "Retry" : "Remove"}
-          destructive
-          busy={pending === "remove"}
-          error={errorFor("remove")}
-          onConfirm={() =>
-            run("remove", () => {
-              setRemoveOpen(false);
-              setSheet(false);
-              showSuccess("Removed from library");
-            })
-          }
-        />
       </Sheet>
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </AppShell>

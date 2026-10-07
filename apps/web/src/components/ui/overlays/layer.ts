@@ -1,5 +1,9 @@
 "use client";
-import { useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useSyncExternalStore,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
+} from "react";
 
 // Elements marked with this attribute (the toast viewport) stay reachable and announced while a modal is open.
 export const PERSIST_ATTRIBUTE = "data-sc-overlay-persist";
@@ -63,13 +67,25 @@ export function trapTab(event: KeyboardEvent | ReactKeyboardEvent, container: HT
   }
 }
 
+export interface Layer {
+  container: HTMLElement;
+  /** The dialog panel, focused (or its first tabbable) when nothing better exists. */
+  surface: HTMLElement;
+  depth: number;
+  /** Focused before the layer opened, recorded before any nested layer moves focus. */
+  previous: HTMLElement | null;
+  fallback?: RefObject<HTMLElement | null>;
+}
+
 // Ordered by nesting depth, then opening order, so a parent opened in the same commit
 // as its nested child (child effects run first) still ends up beneath it.
-const stack: { container: HTMLElement; depth: number }[] = [];
+const stack: Layer[] = [];
 const madeInert = new Set<HTMLElement>();
 let bodyStyle: { overflow: string; paddingRight: string } | null = null;
 // Portals appended to body while a modal is open must become inert too.
 let observer: MutationObserver | null = null;
+// Layers closed in the current commit; focus is restored once after all cleanups.
+const released: Layer[] = [];
 
 function sync() {
   for (const element of madeInert) element.inert = false;
@@ -108,18 +124,46 @@ function sync() {
   }
 }
 
+export const focusInto = (surface: HTMLElement) =>
+  (tabbableWithin(surface)[0] ?? surface).focus();
+
+const usable = (element: HTMLElement | null | undefined): element is HTMLElement =>
+  !!element &&
+  element.isConnected &&
+  !element.closest("[inert]") &&
+  !element.matches(":disabled");
+
+function restoreFocus() {
+  // A layer pushed again (React StrictMode remount) is not closed.
+  const closed = released
+    .splice(0)
+    .filter((layer) => !stack.some((open) => open.container === layer.container))
+    .sort((a, b) => a.depth - b.depth);
+  if (!closed.length) return;
+  const top = stack.at(-1);
+  if (top?.container.contains(document.activeElement)) return;
+  // The outermost closed layer wins, so closing a parent with its child returns to the page.
+  for (const layer of closed)
+    for (const candidate of [layer.previous, layer.fallback?.current])
+      if (usable(candidate)) return candidate.focus();
+  if (top) focusInto(top.surface);
+}
+
 /**
  * Register a modal layer at its nesting depth: everything outside the top layer
- * becomes inert and the page stops scrolling.
+ * becomes inert and the page stops scrolling. Releasing it restores focus to the
+ * element focused before it opened, its fallback, or the layer now on top.
  */
-export function pushLayer(container: HTMLElement, depth: number) {
-  const index = stack.findIndex((layer) => layer.depth > depth);
-  stack.splice(index < 0 ? stack.length : index, 0, { container, depth });
+export function pushLayer(layer: Layer) {
+  const index = stack.findIndex((open) => open.depth > layer.depth);
+  stack.splice(index < 0 ? stack.length : index, 0, layer);
   sync();
   return () => {
-    const index = stack.findIndex((layer) => layer.container === container);
+    const index = stack.indexOf(layer);
     if (index >= 0) stack.splice(index, 1);
     sync();
+    if (!released.length) queueMicrotask(restoreFocus);
+    released.push(layer);
   };
 }
 

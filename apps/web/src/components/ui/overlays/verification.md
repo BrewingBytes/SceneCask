@@ -12,9 +12,9 @@ not run this suite.
 
 | Actual command/check | Result |
 | --- | --- |
-| `yarn playwright test --config apps/web/src/components/ui/overlays/playwright.config.ts` (CI=1, owned server) | Pass: 21 Chromium tests. |
-| Same, `--repeat-each=3` | Pass: 63/63. Toast tests also 30/30 at `--repeat-each=10` after pausing the fake clock (an earlier run flaked when real latency advanced running fake time). |
-| Regression tests vs. reverted fixes | Each of menu Tab propagation, same-commit nesting, late-portal inert, re-issued toast id and type-ahead prefix fails with its fix reverted and passes with it. The stale-focus toast timer, `summary`/media tabbables and the persist-constant refactor have no dedicated test. |
+| `yarn playwright test --config apps/web/src/components/ui/overlays/playwright.config.ts` (CI=1, owned server) | Pass: 24 Chromium tests. |
+| Same, `--repeat-each=5` | Pass: 120/120. Toast tests also 30/30 at `--repeat-each=10` after pausing the fake clock (an earlier run flaked when real latency advanced running fake time). |
+| Regression tests vs. reverted fixes | Each of menu Tab propagation, same-commit nesting, late-portal inert, re-issued toast id and type-ahead prefix fails with its fix reverted and passes with it. Second review round: footer/header nesting depth, recording the trigger once (StrictMode remount), deferred focus restore after same-commit parent+child close, window-level Escape/Tab with focus on body, and same-copy toast re-show likewise fail when reverted. Outermost-first restore ordering is not independently distinguishable (a closed child's trigger is always inside its closed parent). The stale-focus toast timer, `summary`/media tabbables and the persist-constant refactor have no dedicated test. |
 | `node apps/web/src/components/ui/overlays/gallery-server.mjs --build` | Pass: the fixture app compiles and prerenders. |
 | `yarn lint` | Pass: web ESLint (react-hooks compiler rules), Rust fmt/clippy. |
 | `yarn typecheck` | Pass. |
@@ -36,8 +36,11 @@ What the overlay suite proves:
   trigger. Body scrolling is locked while open and restored after.
 - **Nesting.** A confirmation inside a sheet traps focus. Escape closes only the
   confirmation, then the sheet, and focus returns each time. Layers opened in the
-  same commit stack by nesting depth. A portal appended while a modal is open
-  becomes inert.
+  same commit (confirmation in the sheet footer) stack by nesting depth; closing
+  the confirmation moves focus into the sheet, and closing the sheet returns it to
+  the page trigger. Closing sheet and confirmation together (Remove success)
+  returns focus to the page trigger with no `inert` left. Escape and Tab work after
+  focus falls to `body`. A portal appended while a modal is open becomes inert.
 - **Busy and failure (acceptance 2).** While busy, repeated click and Enter, Escape,
   Cancel and the scrim leave the dialog open, and exactly one action starts. The
   failure alert persists after 1s, Retry succeeds, focus returns, and a success
@@ -46,7 +49,7 @@ What the overlay suite proves:
   message. Success is present at 5.9s and gone at 6.1s. The error is still present
   after a further 60s, with Retry and Dismiss. Busy Retry runs once, then the error
   is replaced by a success. Dismiss removes the error. Focus pauses expiry, which
-  resumes after blur. Re-issuing an id with new copy restarts the 6s.
+  resumes after blur. Re-showing a toast id, with new or identical copy, restarts the 6s.
 - **Menu.** `aria-haspopup`/`aria-expanded` are set. Enter, Space, ArrowDown and
   ArrowUp open the menu. Arrows wrap; Home, End and type-ahead (including a
   multi-character prefix) work. A disabled item stays focusable but cannot be
@@ -96,9 +99,9 @@ verified only through the accessibility tree and axe.
 - **Not integration evidence:** the gallery fixtures simulate latency and failure.
   Real mutations, Undo semantics and copy belong to feature issues and to the
   R24/R38 integration gates.
-- **Inert scope:** only direct `body` children are made inert, and that includes
-  ones added while a modal is open. Toasts stay interactive during a modal, but
-  they are outside its Tab cycle.
+- **Inert scope:** only direct `body` children are made inert, including ones added
+  while a modal is open. Toasts stay interactive during a modal, but they are
+  outside its Tab cycle.
 - **Dismissed toasts:** dismissing a toast leaves focus on `body`.
 - **Out of scope:** SpoilerNotice (listed with R04/R05 primitives in D01) is not
   part of issue #5's requirements and is not implemented here.

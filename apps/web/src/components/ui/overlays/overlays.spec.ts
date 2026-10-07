@@ -136,7 +136,43 @@ test("parent and nested layers opened together stack in nesting order", async ({
   expect(await confirm.evaluate((el) => !!el.closest("[inert]"))).toBe(false);
   await page.keyboard.press("Escape");
   await expect(confirm).toHaveCount(0);
-  await expect(page.getByRole("dialog", { name: "Hollow Orchard" })).toBeVisible();
+  const sheet = page.getByRole("dialog", { name: "Hollow Orchard" });
+  await expect(sheet).toBeVisible();
+  // The page trigger is inert under the sheet, so focus moves into the sheet.
+  expect(await activeInside(page, "[role=dialog]")).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Open nested confirmation" }),
+  ).toBeFocused();
+});
+
+test("closing a parent and nested layer together returns focus to the page trigger", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const trigger = page.getByRole("button", { name: "Add to library" });
+  await trigger.click();
+  await page.getByRole("button", { name: "Remove from library…" }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(
+    await page.evaluate(() => document.querySelectorAll("[inert]").length),
+  ).toBe(0);
+});
+
+test("Escape still closes a modal after focus falls to body", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add to library" }).click();
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  await page.keyboard.press("Tab");
+  expect(await activeInside(page, "[role=dialog]")).toBe(true);
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("portals appended while a modal is open become inert", async ({ page }) => {
@@ -272,6 +308,24 @@ test("re-issuing a toast id with new copy restarts its 6s", async ({ page }) => 
   await expect(status).toHaveText(/Saved 2/);
   await page.clock.runFor(1100);
   await expect(status).not.toHaveText(/Saved/);
+});
+
+test("re-showing the same toast restarts its 6s", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/");
+  await page.clock.pauseAt(Date.now() + 1000);
+  const status = page.getByRole("region", { name: "Notifications" }).getByRole("status");
+  const repeat = page.getByRole("button", { name: "Repeat same toast" });
+  await repeat.click();
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(5000);
+  await repeat.focus();
+  await page.keyboard.press("Enter");
+  await repeat.blur();
+  await page.clock.runFor(5000);
+  await expect(status).toHaveText(/Saved again/);
+  await page.clock.runFor(1100);
+  await expect(status).not.toHaveText(/Saved again/);
 });
 
 test("focused or hovered toasts pause the timer", async ({ page }) => {

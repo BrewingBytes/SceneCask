@@ -150,7 +150,8 @@ export function Menu({
         at: now,
       };
       // A longer prefix may still match the current item, so search from it.
-      const start = typed.current.text.length > 1 ? index : index + 1;
+      const start =
+        typed.current.text.length > 1 ? Math.max(index, 0) : index + 1;
       const order = [...all.slice(start), ...all.slice(0, start)];
       const match =
         order.find((item) =>

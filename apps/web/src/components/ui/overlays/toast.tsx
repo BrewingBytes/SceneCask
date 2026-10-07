@@ -26,6 +26,11 @@ export interface ToastMessage {
   busy?: "undo" | "retry" | "action";
   /** Success/info toasts that must wait for an explicit Dismiss. Errors always persist. */
   persistent?: boolean;
+  /**
+   * Changes when the same toast is shown again: restarts its 6s and re-announces it.
+   * useToastQueue sets it on every show(); without it, only new copy restarts.
+   */
+  version?: number;
 }
 
 export interface ToastViewportProps {
@@ -64,7 +69,7 @@ export function ToastViewport({
       <div role="status" className="sc-toast-region">
         {statuses.map((toast) => (
           <ToastCard
-            key={`${toast.id}:${toast.message}`}
+            key={`${toast.id}:${toast.version ?? toast.message}`}
             toast={toast}
             onDismiss={onDismiss}
           />
@@ -73,7 +78,7 @@ export function ToastViewport({
       <div role="alert" className="sc-toast-region">
         {errors.map((toast) => (
           <ToastCard
-            key={`${toast.id}:${toast.message}`}
+            key={`${toast.id}:${toast.version ?? toast.message}`}
             toast={toast}
             onDismiss={onDismiss}
           />
@@ -98,13 +103,21 @@ function ToastCard({
   const expires = toast.tone !== "error" && !toast.persistent;
   const card = useRef<HTMLDivElement>(null);
 
+  // Parents often pass an inline onDismiss; a ref keeps re-renders from restarting timers.
+  const dismiss = useRef(onDismiss);
+  useEffect(() => {
+    dismiss.current = onDismiss;
+  });
+  // Removing the focused action fires no blur, so recheck focus when actions change.
+  const actions = [!!toast.onUndo, !!toast.onRetry, !!toast.action].join();
+
   useEffect(() => {
     if (!expires || hovered || toast.busy) return;
-    // A focused action that was removed fires no blur; only real focus inside pauses.
+    // Only real focus inside pauses; a stale flag from a removed action does not.
     if (focused && card.current?.contains(document.activeElement)) return;
     const started = Date.now();
     const timer = setTimeout(
-      () => onDismiss(toast.id, "timeout"),
+      () => dismiss.current(toast.id, "timeout"),
       remaining.current,
     );
     return () => {
@@ -114,7 +127,7 @@ function ToastCard({
         remaining.current - (Date.now() - started),
       );
     };
-  }, [expires, hovered, focused, toast, onDismiss]);
+  }, [expires, hovered, focused, toast.busy, toast.id, actions]);
 
   return (
     <div
@@ -186,8 +199,9 @@ export function useToastQueue(limit = 3) {
   const show = useCallback(
     (input: ToastInput) => {
       const id = input.id ?? `toast-${++counter.current}`;
+      const version = ++counter.current;
       setToasts((current) => {
-        const next = [...current.filter((toast) => toast.id !== id), { ...input, id }];
+        const next = [...current.filter((toast) => toast.id !== id), { ...input, id, version }];
         let excess =
           next.filter((toast) => toast.tone !== "error").length - limit;
         return next.filter(

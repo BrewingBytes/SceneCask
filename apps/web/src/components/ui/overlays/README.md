@@ -13,7 +13,7 @@ permissions. Feature dialogs (catch-up, add sheet, delete account) compose these
 | ConfirmDialog | Dialog props plus `confirmLabel`, `onConfirm`, `cancelLabel` (default Cancel), `destructive`, `confirmDisabled`, `error`. `alertdialog` with Cancel focused first. While `busy`, Confirm blocks repeat activation (R04 Button) and Cancel, Escape and the scrim are blocked, so an in-flight mutation is never silently discarded. `error` renders in an always-mounted alert region and persists until the caller clears it; the caller usually relabels Confirm as Retry. |
 | Sheet | Dialog props plus `closeLabel` (default Close). Header close button when dismissible. 560px centered panel from 860px; a bottom sheet with rounded top corners and safe-area padding below. The body scrolls; header and footer stay visible. |
 | Menu | `open`, `onOpenChange`, `label` (menu and trigger name), optional `triggerLabel`, `trigger` content, `triggerVariant` (default quiet), `items`, `header`, `align` (`start`/`end`, default end). Items: `id`, `label`, `onSelect`, `href` (Next.js Link), `disabled` (focusable, `aria-disabled`), `tone="destructive"`, `checked` (renders `menuitemcheckbox`). WAI-ARIA menu button: Enter/Space/ArrowDown open on the first item, ArrowUp on the last; arrows wrap; Home/End; type-ahead; Escape and Tab close and focus the trigger; outside presses or focus leaving close. Selecting closes and focuses the trigger before `onSelect` runs, so a dialog opened by an item returns focus to the trigger. Escape in a menu never closes an enclosing dialog. |
-| ToastViewport | `toasts`, `onDismiss(id, "timeout" \| "dismiss")`, `label` (default Notifications), `aboveBottomNav` (default true). Mount once near the root. Persistent polite `status` and assertive `alert` regions exist before the first message. Success/info expire after 6s (`TOAST_DURATION_MS`, the handoff token), paused while hovered, focused or busy; errors and `persistent` toasts stay until dismissed. Optional `onUndo`, `onRetry`, one extra `action` (for example Discuss) and an always-present Dismiss. `busy: "undo" \| "retry" \| "action"` shows that action busy, blocks duplicates and Dismiss, and pauses expiry. Portaled outside the page and marked `data-sc-overlay-persist` so an open modal does not make it inert. |
+| ToastViewport | `toasts`, `onDismiss(id, "timeout" \| "dismiss")`, `label` (default Notifications), `aboveBottomNav` (default true). Mount once near the root. Persistent polite `status` and assertive `alert` regions exist before the first message. Success/info expire after 6s (`TOAST_DURATION_MS`, the handoff token), paused while hovered, focused or busy; errors and `persistent` toasts stay until dismissed. Showing a toast again with a new `version` (useToastQueue does this on every `show`) restarts its 6s and re-announces it. Optional `onUndo`, `onRetry`, one extra `action` (for example Discuss) and an always-present Dismiss. `busy: "undo" \| "retry" \| "action"` shows that action busy, blocks duplicates and Dismiss, and pauses expiry. Portaled outside the page and marked `data-sc-overlay-persist` so an open modal does not make it inert. |
 | useToastQueue | `{ toasts, show, update, dismiss }`. `show` returns an id (or reuses `input.id` to replace). Keeps at most `limit` (default 3) success/info toasts, dropping the oldest; errors are never dropped. Holds messages only; callers run Undo/Retry and update or dismiss with the outcome. |
 
 Toast messages and dialog titles/descriptions must be safe product copy: never
@@ -27,10 +27,16 @@ conditions; a test fails if it drifts from `--sc-layout-breakpoint-wide`. All
 controls are at least 44px. Reduced motion removes overlay, menu and toast
 animations. Overlays close without an exit animation.
 
-Known limits: a modal makes direct `body` children inert when it opens; nodes
-added to `body` while it is open are not made inert. While a modal is open, toast
-buttons stay clickable but are outside the Tab cycle. Dismissing a toast does not
-move focus anywhere specific.
+Focus: each modal records the element focused before it opened. On close,
+focus returns to the outermost closed layer's trigger, then `returnFocusRef`, then
+the modal still open beneath. Escape and the Tab trap listen on `window`, so they
+work even if focus fell to `body`; components inside a modal that handle Escape or
+Tab themselves call `preventDefault` (as Menu does). Nested modals opened from a
+header, body or footer stack above their parent, also when both open in one commit.
+Body children added while a modal is open are made inert too.
+
+Known limits: while a modal is open, toast buttons stay clickable but are outside
+the Tab cycle. Dismissing a toast does not move focus anywhere specific.
 
 ## Isolated gallery and checks
 
