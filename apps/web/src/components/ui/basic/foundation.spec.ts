@@ -217,3 +217,138 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: `test-results/r04/focus-${width}.png` });
   });
 }
+
+test("SSR image failure before hydration is recovered", async ({ page }) => {
+  let releaseScripts!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    releaseScripts = resolve;
+  });
+  await page.route(/\.js(?:\?|$)/, async (route) => {
+    await blocked;
+    await route.continue();
+  });
+  try {
+    await page.goto("/pre-hydration", { waitUntil: "commit" });
+    const image = page.locator(".sc-art img");
+    await expect(image).toHaveCount(1);
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (el) =>
+            (el as HTMLImageElement).complete &&
+            (el as HTMLImageElement).naturalWidth === 0,
+        ),
+      )
+      .toBe(true);
+    const geometry = await page.locator(".sc-art").boundingBox();
+    releaseScripts();
+    await expect(image).toHaveCount(0);
+    await expect(page.getByRole("img", { name: "SSR artwork" })).toBeVisible();
+    expect(await page.locator(".sc-art").boundingBox()).toEqual(geometry);
+  } finally {
+    releaseScripts();
+  }
+});
+
+test("empty/stale/disabled selection keeps an enabled tab and matching panel reachable", async ({
+  page,
+}) => {
+  await page.goto("/regressions");
+  for (const trigger of [null, "Use stale tab", "Disable selected tab"]) {
+    if (trigger) await page.getByRole("button", { name: trigger }).click();
+    const first = page.getByRole("tab", { name: "First", exact: true });
+    await expect(first).toHaveAttribute("tabindex", "0");
+    await expect(first).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tabpanel")).toHaveText("First panel");
+    await page.getByRole("button", { name: "Disable selected tab" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(first).toBeFocused();
+  }
+});
+
+test("busy button retains keyboard focus and blocks repeated clicks, Enter, Space and submission", async ({
+  page,
+}) => {
+  await page.goto("/regressions");
+  const retry = page.getByRole("button", {
+    name: "Retry fixture",
+    exact: true,
+  });
+  await retry.focus();
+  await page.keyboard.press("Enter");
+  await expect(retry).toBeFocused();
+  await expect(retry).not.toHaveAttribute("disabled");
+  await expect(retry).toHaveAttribute("aria-disabled", "true");
+  const submits = await page.getByLabel("Submit count").textContent();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  await retry.dispatchEvent("click");
+  await expect(page.getByLabel("Attempt count")).toHaveText("1");
+  await expect(page.getByLabel("Submit count")).toHaveText(submits!);
+  await expect(retry).toBeFocused();
+});
+
+test("Unicode initials and shared field descriptions", async ({ page }) => {
+  await page.goto("/regressions");
+  await expect(page.getByRole("img", { name: "Unicode initials" })).toHaveText(
+    "AB😀",
+  );
+  await expect(page.getByLabel("Shared input")).toHaveAccessibleDescription(
+    "Additional instructions. Input hint. Input error.",
+  );
+  await expect(page.getByLabel("Shared textarea")).toHaveAccessibleDescription(
+    "Additional instructions. Textarea hint. Textarea error.",
+  );
+  await expect(page.getByLabel("Shared textarea")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+});
+
+test("shell navigation uses a client transition", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    (window as unknown as { navigationMarker: string }).navigationMarker =
+      "preserved";
+  });
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "Home", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Home navigation fixture" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { navigationMarker: string }).navigationMarker,
+    ),
+  ).toBe("preserved");
+});
+
+test("rendered dimensions and shape respond to CSS tokens", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Save show", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Saved example." }),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    const style = document.documentElement.style;
+    style.setProperty("--sc-radius-sm", "18px");
+    style.setProperty("--sc-layout-touch-target-min", "60px");
+    style.setProperty("--sc-layout-gutter-0", "28px");
+  });
+  await page.setViewportSize({ width: 390, height: 900 });
+  const button = page.getByRole("button", { name: "Save show", exact: true });
+  expect(await button.evaluate((el) => getComputedStyle(el).borderRadius)).toBe(
+    "18px",
+  );
+  expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(60);
+  expect(
+    await page
+      .locator("main")
+      .evaluate((el) => getComputedStyle(el).paddingLeft),
+  ).toBe("28px");
+});
