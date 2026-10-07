@@ -1,8 +1,7 @@
 # R11 catalog boundary and integration handoff
 
-Issue #7 implements C05 TV search and initial/repeated atomic import. Prerequisites
-R02/PR #54 and R03/PR #56 are merged and present in the branch base. It also reuses
-R06's merged session/error/security boundary (PR #61).
+Issue #7 implements C05 TV search and initial/repeated atomic import on top of the
+R06 session/error/security boundary.
 
 `TvProvider` separates provider HTTP from catalog persistence. `Tmdb::new(token)`
 accepts a server-only TMDB API read-access token. The production API origin is fixed
@@ -27,9 +26,7 @@ layers and PostgreSQL.
 
 Keep token loading in the integration owner's configuration/startup code. No live
 TMDB request is necessary for construction. Appropriate TMDB API access is still a
-deployment input. No new schema, API contract, generated client or shared router
-changes are needed. The user authorized the minimal supporting Cargo dependency,
-lockfile and module-export edits in this session.
+deployment input.
 
 ## Bounds and behavior
 
@@ -46,7 +43,10 @@ lockfile and module-export edits in this session.
 - Provider response body at most 4 MiB; search operation budget 20 seconds; complete
   catalog fetch budget 30 seconds, season list at most 1,000. A timeout or incomplete
   season/episode count aborts before any write transaction starts.
-- Recent complete imports are reused for 24 hours. Stale imports fetch a validated
+- Recent complete imports are reused for 24 hours. If refreshing a stale complete
+  import fails (provider error, invalid or conflicting snapshot), the transaction
+  rolls back and the stored show ID is returned; only a first import returns 502.
+  Stale imports fetch a validated
   full snapshot first, then take a namespaced transaction advisory lock on provider
   show ID and lock the show row. Lock wait is capped at 5 seconds, statements at
   10 seconds. Concurrent initial imports may fetch in parallel, but recheck freshness
@@ -58,13 +58,16 @@ lockfile and module-export edits in this session.
 - Complete-import flag and fetched timestamp become visible only after commit.
   Existing history/progress rows are never written or deleted by the importer.
 - Missing/empty dates remain null; valid date-only releases have null reliable
-  timezone. R13/R18 must apply the C05 UTC-midnight estimated fallback. Future dates
-  are retained. Unknown status remains unknown. Specials are imported as season 0.
+  timezone. R13/R18 must apply the C05 UTC-midnight estimated fallback. Future
+  dates are retained. Unknown status remains unknown. Specials are imported as
+  season 0. Search skips unusable results and maps a malformed year to null.
+- `catalog_revision` advances only through the 0002 triggers, so an unchanged
+  refresh keeps catch-up previews valid.
 - Images use `/configuration`'s secure base and supported w500/original poster size.
   Missing or unsafe paths map to null; image links contain no credential. The
   importer response contains only `showId`, never episode metadata.
 
-## Attribution and follow-ups
+## Attribution
 
 The adapter exposes `ATTRIBUTION`, `ATTRIBUTION_URL` and `ATTRIBUTION_GUIDE` for D04.
 R24/settings UI must display the required approved TMDB logo alongside the text and
@@ -75,32 +78,3 @@ Official references checked 2026-10-07: [TV search](https://developer.themoviedb
 [season details](https://developer.themoviedb.org/reference/tv-season-details),
 [image configuration](https://developer.themoviedb.org/docs/image-basics), and
 [attribution guidance](https://developer.themoviedb.org/docs/faq).
-
-R12 (#10) can build the durable scheduled refresh worker on the provider/import
-boundary after this PR merges. R18 (#17) and R19 (#18) have their R11 prerequisite
-satisfied, but still require their other backlog dependencies. Scheduled refresh,
-viewer-filtered catalog DTOs and live app registration remain with their owners.
-No live-provider smoke check has been performed; CI uses local fixture HTTP only.
-
-## Validation recorded 2026-10-07
-
-Automated checks on this branch:
-
-| Command | Actual result |
-| --- | --- |
-| `yarn lint` | Passed web lint, Rust formatting and all-target Clippy with warnings denied. |
-| `yarn typecheck` | Passed. |
-| `yarn test` with local PostgreSQL and SMTP capture configured | Passed all 52 API tests: 19 unit, 8 catalog integration/cache, 3 health, 2 mail, 6 schema, 14 session. Twelve tests are new catalog coverage (4 provider + 8 integration/cache); seven use freshly migrated PostgreSQL. |
-| `yarn build` | Passed Next.js production build and locked Rust build. |
-| `yarn api:check` | Passed OpenAPI validation, 20 contract/client tests, generated-client/mapping drift check. |
-| `yarn test:e2e` with real API/PostgreSQL | Passed all 6 existing foundation/browser tests, including same-origin API health and 320/390/859/860/1440 layouts. These are regressions, not a new catalog browser journey. |
-| `git diff --check` | Passed. |
-
-Provider evidence is synthetic HTTP replay, not a live provider smoke check.
-PostgreSQL evidence covers eight overlapping imports converging on one UUID,
-initial and stale-import rollback after intermediate writes, stable IDs through
-renumbering/archive/restore, retained watched history during provider failure,
-auth/verification/CSRF/validation/no-store boundaries and per-user search throttling.
-Transport tests cover timeout, 429 cooldown, 5xx, redirect, malformed and oversized
-responses without payload/credential echo. No manual UI testing was required and
-no UI files changed. Main application wiring is deliberately left to R24.

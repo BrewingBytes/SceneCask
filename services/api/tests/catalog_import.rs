@@ -162,6 +162,15 @@ async fn concurrent_imports_converge_and_recent_imports_survive_provider_failure
         .await,
         2
     );
+    // An unchanged refresh must not invalidate catch-up previews.
+    let revision_sql = "SELECT catalog_revision FROM shows WHERE tmdb_id = 123";
+    let revision = count(&pool, revision_sql).await;
+    stale(&pool).await;
+    importer
+        .import(&ImportRequest { provider_id: 123 })
+        .await
+        .unwrap();
+    assert_eq!(count(&pool, revision_sql).await, revision);
     let imported_calls = provider.imports.load(Ordering::SeqCst);
     provider.failed.store(true, Ordering::SeqCst);
     assert_eq!(
@@ -374,9 +383,9 @@ async fn corrections_archival_restore_and_failed_reimport_preserve_watched_histo
         importer
             .import(&ImportRequest { provider_id: 123 })
             .await
-            .unwrap_err()
-            .code(),
-        ErrorCode::ProviderUnavailable
+            .unwrap()
+            .show_id,
+        id
     );
     assert_eq!(
         count(
@@ -618,17 +627,16 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
         "CSRF_FAILED"
     );
     assert_eq!(provider.imports.load(Ordering::SeqCst), 0);
-    for path in ["/shows/search", "/shows/search?q=orchard&page=bad"] {
-        assert_eq!(
-            http_call(&app, path, Some(&session), None, false).await.0,
-            StatusCode::BAD_REQUEST
-        );
-    }
-    for path in ["/shows/search?q=x", "/shows/search?q=orchard&page=501"] {
-        assert_eq!(
-            http_call(&app, path, Some(&session), None, false).await.0,
-            StatusCode::UNPROCESSABLE_ENTITY
-        );
+    for (path, field) in [
+        ("/shows/search", "q"),
+        ("/shows/search?q=x", "q"),
+        ("/shows/search?q=orchard&page=bad", "page"),
+        ("/shows/search?q=orchard&page=70000", "page"),
+        ("/shows/search?q=orchard&page=501", "page"),
+    ] {
+        let (status, error) = http_call(&app, path, Some(&session), None, false).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{path}");
+        assert!(error["error"]["fields"].get(field).is_some(), "{path}");
     }
     let (status, results) =
         http_call(&app, "/shows/search?q=orchard", Some(&session), None, false).await;
@@ -658,11 +666,21 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
     assert!(!result.to_string().contains("Protected"));
     stale(&pool).await;
     provider.failed.store(true, Ordering::SeqCst);
-    let (status, error) = http_call(
+    let (status, reused) = http_call(
         &app,
         "/shows/import",
         Some(&session),
         Some(r#"{"providerId":123}"#),
+        true,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(reused["showId"], result["showId"]);
+    let (status, error) = http_call(
+        &app,
+        "/shows/import",
+        Some(&session),
+        Some(r#"{"providerId":777}"#),
         true,
     )
     .await;
@@ -706,10 +724,11 @@ async fn searches_are_rate_limited_even_when_results_are_cached(pool: PgPool) {
 async fn failed_stale_import_rolls_back_archival_and_in_place_updates(pool: PgPool) {
     let provider = Fixture::new();
     let importer = Importer::new(pool.clone(), Arc::clone(&provider));
-    importer
+    let id = importer
         .import(&ImportRequest { provider_id: 123 })
         .await
-        .unwrap();
+        .unwrap()
+        .show_id;
     sqlx::raw_sql("INSERT INTO shows (tmdb_id, title, fetched_at, complete_import) VALUES (999, 'Other show', now(), true);
         INSERT INTO seasons (tmdb_id, show_id, number) SELECT 9990, id, 1 FROM shows WHERE tmdb_id = 999;
         INSERT INTO episodes (tmdb_id, show_id, season_id, number) SELECT 9991, show_id, id, 1 FROM seasons WHERE tmdb_id = 9990;").execute(&pool).await.unwrap();
@@ -725,11 +744,15 @@ async fn failed_stale_import_rolls_back_archival_and_in_place_updates(pool: PgPo
         snapshot.seasons[0].episodes[0].title = Some("Replacement protected title".into());
         snapshot.seasons[0].episodes[1].provider_id = 9991; // collides after the first episode update
     }
-    let error = importer
-        .import(&ImportRequest { provider_id: 123 })
-        .await
-        .unwrap_err();
-    assert_eq!(error.code(), ErrorCode::ProviderUnavailable);
+    // The rejected refresh rolls back and the last good catalog stays usable.
+    assert_eq!(
+        importer
+            .import(&ImportRequest { provider_id: 123 })
+            .await
+            .unwrap()
+            .show_id,
+        id
+    );
     assert_eq!(
         count(
             &pool,

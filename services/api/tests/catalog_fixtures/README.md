@@ -9,7 +9,8 @@ the outbound TV endpoint/query/bearer behavior, mapping and failure redaction.
 PostgreSQL/handler tests use the same modeled catalog at the `TvProvider` boundary.
 
 Cases include ambiguous titles with different year/genre metadata, missing poster,
-empty first-air date, unknown extra fields, specials, null episode date, future
+empty first-air date, an unusable result and a malformed date (skipped and
+nulled), unknown extra fields, specials, null episode date, future
 episode, missing details and protected episode title/overview/still sentinels.
 Configuration and genre-list fixtures, 429/5xx/timeout/malformed/oversized/incomplete
 responses are supplied by the HTTP harness in provider/tmdb.rs. No external

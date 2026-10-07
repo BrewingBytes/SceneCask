@@ -31,17 +31,28 @@ impl<P: TvProvider> Importer<P> {
             return Err(ApiError::new(ErrorCode::ValidationError)
                 .with_field("providerId", "Choose a valid TV show."));
         }
-        if let Some(id) = recent(&self.pool, request.provider_id).await? {
+        if let Some(id) = complete(&self.pool, request.provider_id, true).await? {
             return Ok(ImportResult { show_id: id });
         }
+        match self.refresh(request.provider_id).await {
+            // C05: a failed refresh keeps the last good catalog usable; only a first import fails.
+            Err(error) if error.code() == ErrorCode::ProviderUnavailable => {
+                match complete(&self.pool, request.provider_id, false).await? {
+                    Some(id) => Ok(ImportResult { show_id: id }),
+                    None => Err(error),
+                }
+            }
+            result => result,
+        }
+    }
+
+    async fn refresh(&self, provider_id: i64) -> Result<ImportResult, ApiError> {
         // Do not hold a database transaction while waiting on provider I/O.
-        let catalog = tokio::time::timeout(
-            Duration::from_secs(30),
-            self.provider.catalog(request.provider_id),
-        )
-        .await
-        .map_err(|_| ProviderError::Unavailable)??;
-        catalog.validate(request.provider_id)?;
+        let catalog =
+            tokio::time::timeout(Duration::from_secs(30), self.provider.catalog(provider_id))
+                .await
+                .map_err(|_| ProviderError::Unavailable)??;
+        catalog.validate(provider_id)?;
         let mut tx = self.pool.begin().await?;
         sqlx::query("SET LOCAL lock_timeout = '5s'")
             .execute(&mut *tx)
@@ -51,10 +62,10 @@ impl<P: TvProvider> Importer<P> {
             .await?;
         // Cross-process lock also works before a show row exists. Every importer uses this key.
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('catalog.import.' || $1::bigint::text, 0))")
-            .bind(request.provider_id).execute(&mut *tx).await?;
+            .bind(provider_id).execute(&mut *tx).await?;
         let existing: Option<(Uuid, bool)> = sqlx::query_as(
             "SELECT id, complete_import AND fetched_at > now() - interval '24 hours' FROM shows WHERE tmdb_id = $1 FOR UPDATE")
-            .bind(request.provider_id).fetch_optional(&mut *tx).await?;
+            .bind(provider_id).fetch_optional(&mut *tx).await?;
         if let Some((id, true)) = existing {
             tx.commit().await?;
             return Ok(ImportResult { show_id: id });
@@ -70,9 +81,20 @@ impl<P: TvProvider> Importer<P> {
     }
 }
 
-async fn recent(pool: &PgPool, provider_id: i64) -> Result<Option<Uuid>, ApiError> {
-    Ok(sqlx::query_scalar("SELECT id FROM shows WHERE tmdb_id = $1 AND complete_import AND fetched_at > now() - interval '24 hours'")
-        .bind(provider_id).fetch_optional(pool).await?)
+/// The show's ID if it has a complete import; `recent_only` also requires a fetch within 24 hours.
+async fn complete(
+    pool: &PgPool,
+    provider_id: i64,
+    recent_only: bool,
+) -> Result<Option<Uuid>, ApiError> {
+    Ok(sqlx::query_scalar(
+        "SELECT id FROM shows WHERE tmdb_id = $1 AND complete_import
+         AND (NOT $2 OR fetched_at > now() - interval '24 hours')",
+    )
+    .bind(provider_id)
+    .bind(recent_only)
+    .fetch_optional(pool)
+    .await?)
 }
 
 fn import_database_error(error: sqlx::Error) -> ApiError {
@@ -137,8 +159,10 @@ async fn persist(
             }
         }
     }
+    // catalog_revision advances through the 0002 triggers only when seasons/episodes change, so
+    // an unchanged refresh keeps catch-up previews valid.
     sqlx::query("UPDATE shows SET title = $2, first_air_year = $3, genres = $4, synopsis = $5, poster_path = $6,
-                 status = $7, fetched_at = now(), complete_import = true, catalog_revision = catalog_revision + 1 WHERE id = $1")
+                 status = $7, fetched_at = now(), complete_import = true WHERE id = $1")
         .bind(id).bind(&catalog.title).bind(catalog.year).bind(sqlx::types::Json(&catalog.genres)).bind(&catalog.synopsis)
         .bind(&catalog.poster_path).bind(catalog.status.as_str()).execute(&mut **tx).await.map_err(import_database_error)?;
     Ok(())

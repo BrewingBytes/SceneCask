@@ -241,15 +241,16 @@ impl TvProvider for Tmdb {
             return Err(ProviderError::InvalidData);
         }
         let mut items = Vec::with_capacity(response.results.len());
+        // One unusable result must not hide the rest; skip it and keep a malformed year null.
         for show in response.results {
             if show.id <= 0 || show.name.trim().is_empty() {
-                return Err(ProviderError::InvalidData);
+                continue;
             }
             items.push(SearchShow {
                 provider: "tmdb",
                 provider_id: show.id,
                 title: show.name,
-                year: year(show.first_air_date.as_deref())?,
+                year: year(show.first_air_date.as_deref()).ok().flatten(),
                 genres: show
                     .genre_ids
                     .iter()
@@ -532,6 +533,10 @@ mod tests {
         assert!(results.items[1].poster_url.is_none());
         assert!(results.items[2].poster_url.is_none());
         assert!(results.items[2].year.is_none());
+        // The id-0/empty-name result is skipped; the malformed date becomes a null year.
+        assert_eq!(results.items.len(), 4);
+        assert_eq!(results.items[3].provider_id, 126);
+        assert!(results.items[3].year.is_none());
         let serialized = serde_json::to_string(&results).unwrap();
         for value in ["overview", "private_unknown", "fixture-only", "untrusted"] {
             assert!(!serialized.contains(value));

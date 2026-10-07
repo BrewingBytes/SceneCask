@@ -52,6 +52,33 @@ fn first_page() -> u16 {
     1
 }
 
+/// Raw query string parameters, so a missing `q` or non-numeric `page` is a 422 field error
+/// like any other invalid value rather than a 400 request-format error.
+#[derive(Deserialize)]
+pub struct SearchParams {
+    pub q: Option<String>,
+    pub page: Option<String>,
+}
+
+impl TryFrom<SearchParams> for SearchQuery {
+    type Error = ApiError;
+
+    fn try_from(params: SearchParams) -> Result<Self, ApiError> {
+        let page = match params.page {
+            None => first_page(),
+            Some(page) => page.parse().map_err(|_| page_error())?,
+        };
+        Ok(Self {
+            q: params.q.unwrap_or_default(),
+            page,
+        })
+    }
+}
+
+fn page_error() -> ApiError {
+    ApiError::new(ErrorCode::ValidationError).with_field("page", "Use a page from 1 to 500.")
+}
+
 impl SearchQuery {
     pub fn validate(&self) -> Result<&str, ApiError> {
         let q = self.q.trim();
@@ -61,8 +88,7 @@ impl SearchQuery {
             );
         }
         if !(1..=500).contains(&self.page) {
-            return Err(ApiError::new(ErrorCode::ValidationError)
-                .with_field("page", "Use a page from 1 to 500."));
+            return Err(page_error());
         }
         Ok(q)
     }
@@ -226,12 +252,12 @@ impl<P> Clone for SearchState<P> {
 pub async fn search_handler<P: TvProvider + 'static>(
     verified: crate::modules::auth::session::VerifiedUser,
     axum::extract::State(state): axum::extract::State<SearchState<P>>,
-    query: Result<axum::extract::Query<SearchQuery>, axum::extract::rejection::QueryRejection>,
+    query: Result<axum::extract::Query<SearchParams>, axum::extract::rejection::QueryRejection>,
 ) -> Result<axum::Json<SearchResults>, ApiError> {
     state.limiter.check(
         &format!("catalog.search:{}", verified.0.user.id),
         &[state.rule],
     )?;
-    let axum::extract::Query(query) = query.map_err(|_| ApiError::malformed())?;
-    Ok(axum::Json(state.search.search(&query).await?))
+    let axum::extract::Query(params) = query.map_err(|_| ApiError::malformed())?;
+    Ok(axum::Json(state.search.search(&params.try_into()?).await?))
 }
