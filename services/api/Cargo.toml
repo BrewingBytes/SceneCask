@@ -11,11 +11,18 @@ publish = false
 
 [dependencies]
 axum = "=0.8.9"
+base64 = "=0.22.1"
+getrandom = "=0.4.3"
+hmac = "=0.13.0"
 serde = { version = "=1.0.229", features = ["derive"] }
-sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres"] }
+serde_json = "=1.0.151"
+sha2 = "=0.11.0"
+sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid"] }
+subtle = "=2.6.1"
 tokio = { version = "=1.53.2", features = ["macros", "rt-multi-thread", "net", "signal", "time"] }
 tracing = "=0.1.44"
 tracing-subscriber = "=0.3.23"
+uuid = { version = "=1.24.0", features = ["serde", "v4"] }
 
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 
@@ -23,5 +30,7 @@ lettre = { version = "=0.11.23", default-features = false, features = ["builder"
 # Test-only: #[sqlx::test] and sqlx::migrate!() for the schema tests. Only adds features to the
 # [dependencies] entry, which pins the version; the caret requirement follows that pin.
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate"] }
+# Test-only: paused tokio clock for rate-limit window tests; the version follows the pin above.
+tokio = { version = "1", features = ["test-util"] }
 tower = { version = "=0.5.3", features = ["util"] }
 tracing-test = { version = "=0.2.6", features = ["no-env-filter"] }

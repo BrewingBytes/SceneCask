@@ -1,5 +1,8 @@
 pub mod config;
+pub mod error;
 pub mod mail;
+pub mod middleware;
+pub mod modules;
 
 use axum::{
     Json, Router,
@@ -64,7 +67,8 @@ fn not_ready(reason: &'static str) -> Response {
     health(StatusCode::SERVICE_UNAVAILABLE, "database_unavailable")
 }
 
-fn failure_kind(error: &sqlx::Error) -> &'static str {
+/// Fixed category for a database error; sqlx error text can contain connection details.
+pub(crate) fn failure_kind(error: &sqlx::Error) -> &'static str {
     match error {
         sqlx::Error::PoolTimedOut => "pool_timeout",
         sqlx::Error::PoolClosed => "pool_closed",
