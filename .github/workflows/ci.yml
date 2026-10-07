@@ -55,6 +55,8 @@ jobs:
       - run: yarn test:e2e
       - run: yarn test:ui
         if: ${{ hashFiles('apps/web/src/components/ui/basic/playwright.config.ts') != '' }}
+      - run: yarn test:overlays
+        if: ${{ hashFiles('apps/web/src/components/ui/overlays/playwright.config.ts') != '' }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
