@@ -7,7 +7,8 @@
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test:ui": "playwright test --config src/components/ui/basic/playwright.config.ts"
+    "test:ui": "playwright test --config src/components/ui/basic/playwright.config.ts",
+    "test:overlays": "playwright test --config src/components/ui/overlays/playwright.config.ts"
   },
   "dependencies": {
     "graphemer": "1.4.0",
