@@ -17,7 +17,7 @@ styles, basic primitives, shell, verification files, and the manifest/CI wiring 
 | `yarn api:check` | Pass: OpenAPI validated, 20 contract/client checks, generated client and operation mapping current. No API changes in R04. |
 | `yarn test`, with local `.env` loaded by Node and inherited by Yarn | Pass: 12 Rust tests, including real PostgreSQL migrations/constraints/lifecycle and health/SMTP tests. |
 | `yarn test:e2e`, with the same local environment | Pass: 6 existing browser tests including same-origin real API/PostgreSQL health checks. This proves the foundation smoke flow, not future account/tracking flows. |
-| `yarn test:ui` | Pass: 27 Chromium component/gallery checks using the pinned workspace axe dependency. |
+| `yarn test:ui` | Pass: 26 Chromium component/gallery checks using the pinned workspace axe dependency. |
 | Gallery production build (`node apps/web/src/components/ui/basic/gallery-server.mjs --build`) | Pass: all gallery fixtures, including SVG hydration and server primitives, compile and render with bundled assets. |
 
 The gallery suite measured no horizontal document overflow at 320, 390, 859,
@@ -69,25 +69,9 @@ Intl.Segmenter compatibility with complete emoji; parent notification on invalid
 Tabs selection and all-disabled focus/content; explicit retryKey recovery of an
 unchanged image URL; radio value updates before and after attaching a callback;
 and a copied `.ts` helper exercising side-effect, re-export and dynamic imports.
-All 27 Chromium tests and 8 Node tests pass. Lint, typecheck, immutable install,
+All 26 Chromium tests and 8 Node tests pass. Lint, typecheck, immutable install,
 web/Rust build and isolated gallery build were rerun. API/PostgreSQL/root browser
 evidence above is retained from the preceding revision, with those modules unchanged.
-
-Two original photographic assets were generated with the built-in image_gen tool
-and bundled as WebP (about 380 KB total): a portrait orchard poster and a landscape
-harbor still. `ArtworkFigure` composes the existing Poster with semantic captions.
-An additional browser check verifies decoded images, local asset responses,
-correct 2:3/16:9 crop geometry and retained fallback examples. All 27 browser
-checks pass; axe still reports zero violations at mobile/desktop sizes. Lint,
-typecheck, design checks and production builds were rerun for this addition.
-Prompts and asset provenance are recorded in [artwork/README.md](artwork/README.md).
-
-
-Photo validation was repeated in a clean detached checkout of the committed PR
-with only the photo patch applied, after concurrent unrelated edits appeared in
-the shared workspace. The shared checkout reported three regressions from those
-Avatar/Tabs edits; they were preserved and excluded from the photo commit. The
-isolated result is the evidence for the photo change.
 
 ## Manual visual review
 

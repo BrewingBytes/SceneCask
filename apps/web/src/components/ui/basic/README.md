@@ -30,7 +30,6 @@ The shell includes a skip link and focusable main landmark. Mobile navigation is
 | Tabs | Controlled value/onChange, group label, unique value/label/content options. Empty/stale/disabled selections render the first enabled tab/panel and notify the parent through onChange. When all tabs are disabled, the tablist remains focusable, an unavailable status appears, and the panel matching the controlled value stays visible. Roving focus, arrow wrap, Home/End, disabled option skipping, and linked panels. |
 | Progress | Required label/value; optional max (default 100). Bounds invalid/nonfinite values without displaying false progress. |
 | Poster | Authorized src or null, required safe alt (empty for decorative art), poster/still aspect, optional className. Reserved 2:3/16:9 geometry, striped fallback on missing/failed images including failures before hydration, decode validation for zero intrinsic width SVGs, recovery when src changes or the caller changes retryKey to retry an unchanged URL. |
-| ArtworkFigure | Poster props plus a caption; reusable semantic figure/figcaption wrapper. |
 | Avatar | Initials and accessible label; Lazy Intl.Segmenter with a pinned Graphemer fallback when unavailable, preserving full graphemes, fixed 44px, no uploads. |
 | Skeleton | Accessible loading label and optional width/height; reduced motion disables pulse. |
 | EmptyState | Title, optional children/action. |
@@ -81,7 +80,7 @@ values remain unchanged. Unitless weight/line-height values are validated separa
 
 `ComponentGallery` exports isolated examples. Its separate Next.js verification
 app lives under this module, with beta `/`, alpha `/alpha`, and an artwork test
-fixture `/art`. The gallery includes two bundled photographic examples alongside the unavailable-artwork states, composed with `ArtworkFigure`. Prompts and provenance are in [artwork/README.md](artwork/README.md). None of these routes belongs to the production application.
+fixture `/art`. None of these routes belongs to the production application.
 
 From the repository root:
 

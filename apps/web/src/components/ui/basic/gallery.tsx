@@ -1,10 +1,7 @@
 "use client";
 import { useState } from "react";
-import orchardPoster from "./artwork/orchard-poster.webp";
-import harborStill from "./artwork/harbor-still.webp";
 import { AppShell } from "../../shell";
 import {
-  ArtworkFigure,
   Avatar,
   Badge,
   Button,
@@ -148,20 +145,6 @@ export function ComponentGallery({
             <Skeleton label="Loading progress" width="65%" height={16} />
           </div>
           <div className="sc-gallery-card">
-            <h3>Photographic artwork</h3>
-            <div className="sc-gallery-art" data-testid="gallery-photos">
-              <ArtworkFigure
-                src={orchardPoster.src}
-                alt="A farmhouse in a misty orchard at sunrise"
-                caption="Orchard · poster"
-              />
-              <ArtworkFigure
-                src={harborStill.src}
-                aspect="still"
-                alt="Fishing boats and lantern-lit houses beside a harbor at dusk"
-                caption="Harbor · landscape still"
-              />
-            </div>
             <h3>Missing artwork</h3>
             <div className="sc-gallery-art">
               <Poster alt="Poster unavailable" />

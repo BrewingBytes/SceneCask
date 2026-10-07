@@ -32,16 +32,6 @@ for (const width of [320, 390, 859, 860, 1440]) {
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
     await page.evaluate(() => document.fonts.ready);
-    for (const photo of await page
-      .getByTestId("gallery-photos")
-      .locator("img")
-      .all()) {
-      await expect
-        .poll(() =>
-          photo.evaluate((el) => (el as HTMLImageElement).naturalWidth),
-        )
-        .toBeGreaterThan(0);
-    }
     if (width === 390 || width === 1440)
       await page.screenshot({
         path: `test-results/r04/gallery-${width}.png`,
@@ -122,10 +112,10 @@ test("keyboard, fields, disabled buttons and persistent errors", async ({
   await expect(page.locator(".sc-error").getByRole("alert")).toHaveCount(0);
 });
 
-test("fallback ratios, local fonts and reduced motion", async ({ page, baseURL }) => {
+test("fallback ratios, local fonts and reduced motion", async ({ page }) => {
   const external: string[] = [];
   page.on("request", (request) => {
-    if (!request.url().startsWith(baseURL!))
+    if (!request.url().startsWith("http://127.0.0.1:3104"))
       external.push(new URL(request.url()).host);
   });
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -134,7 +124,7 @@ test("fallback ratios, local fonts and reduced motion", async ({ page, baseURL }
     [".sc-art-poster", 2 / 3],
     [".sc-art-still", 16 / 9],
   ] as const) {
-    const box = await page.locator(selector).first().boundingBox();
+    const box = await page.locator(selector).boundingBox();
     expect(box!.width / box!.height).toBeCloseTo(ratio, 2);
   }
   expect(
@@ -539,36 +529,4 @@ test("copied TS side-effect/re-export/dynamic modules resolve in the gallery", a
   await expect(page.getByLabel("Copied module")).toHaveText(
     "Copied dynamic module loaded",
   );
-});
-
-test("bundled gallery photos load with captions and preserve poster/still geometry", async ({
-  page,
-}) => {
-  await page.goto("/");
-  const photos = page.getByTestId("gallery-photos");
-  await expect(photos.locator("img")).toHaveCount(2);
-  await expect(photos.getByText("Orchard · poster")).toBeVisible();
-  await expect(photos.getByText("Harbor · landscape still")).toBeVisible();
-  for (const [alt, ratio] of [
-    ["A farmhouse in a misty orchard at sunrise", 2 / 3],
-    ["Fishing boats and lantern-lit houses beside a harbor at dusk", 16 / 9],
-  ] as const) {
-    const image = photos.getByRole("img", { name: alt });
-    await expect
-      .poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-      .toBeGreaterThan(0);
-    const box = await image.boundingBox();
-    expect(box!.width / box!.height).toBeCloseTo(ratio, 2);
-    expect(await image.evaluate((el) => getComputedStyle(el).objectFit)).toBe(
-      "cover",
-    );
-    const src = await image.getAttribute("src");
-    expect(src).toMatch(/^\/_next\/static\/media\//);
-    const response = await page.request.get(src!);
-    expect(response.status()).toBe(200);
-    expect(response.headers()["content-type"]).toContain("image/webp");
-  }
-  await expect(
-    page.getByRole("img", { name: "Poster unavailable" }),
-  ).toBeVisible();
 });

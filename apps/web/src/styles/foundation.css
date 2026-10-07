@@ -468,16 +468,3 @@ textarea.sc-input {
     scroll-behavior: auto !important;
   }
 }
-
-.sc-art-figure {
-  margin: 0;
-  min-width: 0;
-}
-.sc-art-figure figcaption {
-  margin-block-start: var(--sc-space-2);
-  font-size: var(--sc-type-label-size);
-  color: var(--sc-color-ink-secondary);
-}
-.sc-gallery-art + h3 {
-  margin-block-start: var(--sc-space-6);
-}
