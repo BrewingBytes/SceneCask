@@ -44,6 +44,22 @@ test("changed breakpoint updates generated media queries; invalid inputs identif
   );
 });
 
+test("border values ending in a hex color or CSS keyword pass through unchanged", () => {
+  const css = generateDesignTokens({
+    color: { line: "#ddd", "paper-2": "#eee" },
+    border: {
+      subtle: "1px solid paper-2",
+      clear: "1px solid transparent",
+      current: "2px dashed currentcolor",
+      hex: "1px solid #fff",
+    },
+  });
+  assert.match(css, /--sc-border-subtle: 1px solid var\(--sc-color-paper-2\);/);
+  assert.match(css, /--sc-border-clear: 1px solid transparent;/);
+  assert.match(css, /--sc-border-current: 2px dashed currentcolor;/);
+  assert.match(css, /--sc-border-hex: 1px solid #fff;/);
+});
+
 test("new numeric tokens require explicit types instead of silently producing unitless CSS", () => {
   for (const tokens of [{ focus: { gap: 4 } }, { motion: { delay: 120 } }]) {
     assert.throws(

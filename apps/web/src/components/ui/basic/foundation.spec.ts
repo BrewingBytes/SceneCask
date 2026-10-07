@@ -112,11 +112,15 @@ test("keyboard, fields, disabled buttons and persistent errors", async ({
   await expect(page.locator(".sc-error").getByRole("alert")).toHaveCount(0);
 });
 
-test("fallback ratios, local fonts and reduced motion", async ({ page }) => {
+test("fallback ratios, local fonts and reduced motion", async ({
+  page,
+  baseURL,
+}) => {
+  const origin = new URL(baseURL!).origin;
   const external: string[] = [];
   page.on("request", (request) => {
-    if (!request.url().startsWith("http://127.0.0.1:3104"))
-      external.push(new URL(request.url()).host);
+    const url = new URL(request.url());
+    if (url.origin !== origin) external.push(url.host);
   });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
@@ -261,7 +265,12 @@ test("empty/stale/disabled selection keeps an enabled tab and matching panel rea
     const first = page.getByRole("tab", { name: "First", exact: true });
     await expect(first).toHaveAttribute("tabindex", "0");
     await expect(first).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByLabel("Selected tab")).toHaveText("first");
+    // The parent's value is left alone; only the displayed tab falls back.
+    await expect(page.getByLabel("Selected tab")).toHaveText(
+      { "Use stale tab": "stale", "Disable selected tab": "second" }[
+        trigger ?? ""
+      ] ?? "",
+    );
     await expect(page.getByRole("tabpanel")).toHaveText("First panel");
     await page.getByRole("button", { name: "Disable all tabs" }).focus();
     await page.keyboard.press("Tab");
@@ -289,6 +298,48 @@ test("busy button retains keyboard focus and blocks repeated clicks, Enter, Spac
   await expect(page.getByLabel("Attempt count")).toHaveText("1");
   await expect(page.getByLabel("Submit count")).toHaveText(submits!);
   await expect(retry).toBeFocused();
+  // Ancestor listeners still observe every click, including the three blocked ones.
+  await expect(page.getByLabel("Ancestor click count")).toHaveText("4");
+  // The caller's own capture handler is blocked like onClick.
+  await expect(page.getByLabel("Capture count")).toHaveText("1");
+  // Blocking happens in the capture phase, so a wrapper that stops native
+  // propagation cannot let a busy submit button submit.
+  await page
+    .getByRole("button", { name: "Isolated busy submit" })
+    .dispatchEvent("click");
+  await expect(page.getByLabel("Wrapped form submissions")).toHaveText("0");
+});
+
+test("one status per loading area and politely announced field errors", async ({
+  page,
+}) => {
+  await page.goto("/regressions");
+  // The empty error live region adds no grid gap below a field without errors.
+  const hint = page.getByText("Plain hint.", { exact: true });
+  const field = hint.locator(
+    "xpath=ancestor::div[contains(@class,'sc-field')][1]",
+  );
+  const [hintBox, fieldBox] = [
+    await hint.boundingBox(),
+    await field.boundingBox(),
+  ];
+  expect(fieldBox!.y + fieldBox!.height).toBeCloseTo(
+    hintBox!.y + hintBox!.height,
+    0,
+  );
+  const list = page.getByTestId("skeleton-list");
+  await expect(list.getByRole("status")).toHaveCount(1);
+  await expect(list.getByRole("status")).toHaveText("Loading list");
+  // Errors live in a polite region rather than one assertive alert per field.
+  for (const message of ["Input error.", "Textarea error."]) {
+    const error = page.getByText(message, { exact: true });
+    await expect(error).toBeVisible();
+    await expect(error).not.toHaveRole("alert");
+    await expect(error.locator("xpath=..")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+  }
 });
 
 test("Unicode initials and shared field descriptions", async ({ page }) => {
@@ -462,7 +513,7 @@ test("missing Intl.Segmenter preserves shared imports and complete graphemes", a
     "🇷🇴🇺🇸",
   );
   await page.getByRole("button", { name: "Use stale tab" }).click();
-  await expect(page.getByLabel("Selected tab")).toHaveText("first");
+  await expect(page.getByRole("tabpanel")).toHaveText("First panel");
   expect(errors).toEqual([]);
 });
 test("all-disabled tabs preserve controlled content and a focusable explanation", async ({
@@ -476,7 +527,7 @@ test("all-disabled tabs preserve controlled content and a focusable explanation"
   await expect(list).toBeFocused();
   await expect(page.getByText("No tabs are available.")).toBeVisible();
   await expect(page.getByRole("tabpanel")).toHaveText("First panel");
-  await expect(page.getByLabel("Selected tab")).toHaveText("first");
+  await expect(page.getByLabel("Selected tab")).toHaveText("");
 });
 test("an unchanged artwork URL retries when the caller changes retryKey", async ({
   page,

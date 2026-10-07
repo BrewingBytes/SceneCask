@@ -152,6 +152,10 @@ textarea.sc-input {
 .sc-field-error {
   color: var(--sc-color-error);
 }
+.sc-field-status:empty {
+  /* Out of grid flow so it adds no gap, but still present as a live region. */
+  position: absolute;
+}
 .sc-choice {
   display: flex;
   align-items: center;
@@ -427,34 +431,6 @@ textarea.sc-input {
 }
 .sc-skip:focus {
   transform: none;
-}
-.sc-gallery-intro {
-  padding-bottom: var(--sc-space-6);
-  border-bottom: var(--sc-border-section-rule);
-}
-.sc-gallery-section {
-  margin-top: var(--sc-space-6);
-}
-.sc-gallery-grid {
-  display: grid;
-  gap: var(--sc-space-5);
-}
-.sc-gallery-card {
-  min-width: 0;
-  padding: var(--sc-space-5);
-  border: var(--sc-border-hairline);
-  border-radius: var(--sc-radius-md);
-  background: var(--sc-color-paper-raised);
-}
-.sc-gallery-fields {
-  display: grid;
-  gap: var(--sc-space-4);
-}
-.sc-gallery-art {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: var(--sc-space-4);
-  align-items: start;
 }
 @media (prefers-reduced-motion: reduce) {
   .sc-foundation *,

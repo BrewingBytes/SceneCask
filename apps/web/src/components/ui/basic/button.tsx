@@ -18,6 +18,10 @@ export function Button({
   onClickCapture,
   ...props
 }: ButtonProps) {
+  const blocked =
+    busy ||
+    props["aria-disabled"] === true ||
+    props["aria-disabled"] === "true";
   return (
     <button
       {...props}
@@ -25,19 +29,15 @@ export function Button({
       className={classes("sc-button", `sc-button-${variant}`, className)}
       disabled={disabled}
       aria-disabled={busy || disabled || props["aria-disabled"] || undefined}
+      // Block the default action in the capture phase, before any listener can stop
+      // propagation, and skip only this button's handlers so ancestors still see the click.
       onClickCapture={(event) => {
-        if (
-          busy ||
-          props["aria-disabled"] === true ||
-          props["aria-disabled"] === "true"
-        ) {
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
-        onClickCapture?.(event);
+        if (blocked) event.preventDefault();
+        else onClickCapture?.(event);
       }}
-      onClick={onClick}
+      onClick={(event) => {
+        if (!blocked) onClick?.(event);
+      }}
       aria-busy={busy || undefined}
     >
       {children}

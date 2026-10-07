@@ -1,7 +1,7 @@
 "use client";
 import { Navigation } from "../../../../../shell/navigation";
 import { classes, loadMessage } from "./copy-helper";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Avatar,
   Button,
@@ -10,6 +10,7 @@ import {
   TextField,
   RadioGroup,
   Poster,
+  Skeleton,
 } from "../../../index";
 export default function RegressionFixture() {
   const [copyMessage, setCopyMessage] = useState("");
@@ -22,6 +23,17 @@ export default function RegressionFixture() {
   const [busy, setBusy] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [submits, setSubmits] = useState(0);
+  const [ancestorClicks, setAncestorClicks] = useState(0);
+  const [captures, setCaptures] = useState(0);
+  const [isolatedSubmits, setIsolatedSubmits] = useState(0);
+  const isolating = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Simulates a third-party wrapper that stops native click propagation.
+    const wrapper = isolating.current;
+    const stop = (event: Event) => event.stopPropagation();
+    wrapper?.addEventListener("click", stop);
+    return () => wrapper?.removeEventListener("click", stop);
+  }, []);
   return (
     <main className="sc-foundation" style={{ padding: 24 }}>
       <Button onClick={async () => setCopyMessage(await loadMessage())}>
@@ -84,6 +96,7 @@ export default function RegressionFixture() {
         Retry same artwork
       </Button>
       <form
+        onClick={() => setAncestorClicks((count) => count + 1)}
         onSubmit={(event) => {
           event.preventDefault();
           setSubmits((count) => count + 1);
@@ -92,6 +105,7 @@ export default function RegressionFixture() {
         <Button
           type="submit"
           busy={busy}
+          onClickCapture={() => setCaptures((count) => count + 1)}
           onClick={() => {
             setBusy(true);
             setAttempts((count) => count + 1);
@@ -101,7 +115,28 @@ export default function RegressionFixture() {
         </Button>
         <output aria-label="Attempt count">{attempts}</output>
         <output aria-label="Submit count">{submits}</output>
+        <output aria-label="Ancestor click count">{ancestorClicks}</output>
+        <output aria-label="Capture count">{captures}</output>
       </form>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          setIsolatedSubmits((count) => count + 1);
+        }}
+      >
+        <div ref={isolating}>
+          <Button type="submit" busy>
+            Isolated busy submit
+          </Button>
+        </div>
+        <output aria-label="Wrapped form submissions">{isolatedSubmits}</output>
+      </form>
+      <TextField label="Plain input" hint="Plain hint." />
+      <div data-testid="skeleton-list" aria-busy="true">
+        <Skeleton label="Loading list" />
+        <Skeleton decorative />
+        <Skeleton decorative />
+      </div>
       <Avatar initials="AB😀Z" label="Unicode initials" />
       <Avatar initials="🇷🇴🇺🇸" label="Flag initials" />
       <Avatar initials="👨‍👩‍👧‍👦ABC" label="Family initials" />

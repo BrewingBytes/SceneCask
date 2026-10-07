@@ -20,7 +20,19 @@ Omit the issue number if there is no issue. See README.md for examples.
 | --- | --- |
 | | |
 
-<!-- Add screenshots or a verification report when relevant. Include material limitations or follow-up dependencies. Delete unused guidance. -->
+<!-- Add a verification report when relevant. Include material limitations or follow-up dependencies. Delete unused guidance. -->
+
+## 📸 Screenshots
+
+<!--
+Required for any PR that changes the UI: attach screenshots of each changed screen or
+component at mobile (390px) and desktop (1440px) widths, including empty, error and
+loading states when they changed. Write "No UI changes" if none apply.
+-->
+
+| Screen / state | Mobile (390px) | Desktop (1440px) |
+| --- | --- | --- |
+| | | |
 
 ## 🔗 Closes
 

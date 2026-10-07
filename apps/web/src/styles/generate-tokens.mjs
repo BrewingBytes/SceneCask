@@ -2,6 +2,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
+const CSS_COLOR_KEYWORDS = new Set([
+  "transparent",
+  "currentcolor",
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+]);
+
 /** Translate the design handoff's dimensions/references into usable CSS values. */
 export function generateDesignTokens(tokens) {
   const declarations = [];
@@ -61,7 +70,9 @@ export function generateDesignTokens(tokens) {
         );
     } else if (typeof value === "string") {
       if (path[0] === "border" || key === "focus-ring") {
-        css = value.replace(/\b([a-z][a-z-]*)$/, (name) => {
+        // Only a bare trailing word names a color token; hex values and CSS keywords pass through.
+        css = value.replace(/(?<=^|\s)([a-z][a-z0-9-]*)$/, (name) => {
+          if (CSS_COLOR_KEYWORDS.has(name)) return name;
           if (!Object.hasOwn(tokens.color ?? {}, name))
             throw new Error(`Unknown color reference in design token: ${key}`);
           return `var(--sc-color-${name})`;

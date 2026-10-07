@@ -30,7 +30,4 @@
   .sc-reading {
     font-size: var(--sc-type-reading-size-1);
   }
-  .sc-gallery-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }

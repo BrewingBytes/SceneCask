@@ -49,11 +49,14 @@ export function Field({
           {hint}
         </p>
       )}
-      {error && (
-        <p id={`${fieldId}-error`} className="sc-field-error">
-          {error}
-        </p>
-      )}
+      {/* Always rendered so errors added later are announced without interrupting. */}
+      <div className="sc-field-status" aria-live="polite">
+        {error && (
+          <p id={`${fieldId}-error`} className="sc-field-error">
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

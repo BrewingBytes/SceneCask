@@ -21,17 +21,17 @@ The shell includes a skip link and focusable main landmark. Mobile navigation is
 
 | Component | Public inputs and behavior |
 | --- | --- |
-| Button | Native button props; primary/secondary/quiet/destructive, disabled, busy. Default type is button. Busy keeps its accessible name and focus, sets aria-disabled/aria-busy, and blocks repeated activation and form submission. Explicit disabled still uses the native attribute. |
-| Field | Reusable render-prop wrapper with label, hint, error, id and describedBy; passes a generated control ID and accessibility props to custom controls. |
+| Button | Native button props; primary/secondary/quiet/destructive, disabled, busy. Default type is button. Busy keeps its accessible name and focus, sets aria-disabled/aria-busy, and blocks repeated activation and form submission without hiding the click from ancestor listeners. Explicit disabled still uses the native attribute. |
+| Field | Reusable render-prop wrapper with label, hint, error, id and describedBy; passes a generated control ID and accessibility props to custom controls. Errors render in a polite live region so they are announced when they appear without interrupting; use ErrorState for an assertive form-level alert. |
 | TextField / TextArea | Native input props plus required label, optional hint/error. Stable generated IDs join labels and descriptions. Error sets aria-invalid. |
 | Checkbox | Native checkbox props and a required label; the whole label is a 44px target. |
 | RadioGroup | Controlled `value` (with or without a callback), or uncontrolled `defaultValue` for native server rendering; group label/name, labeled options, optional disabled states. Native arrow-key behavior. |
 | Badge | Children and neutral/accent/error tone; informational, not interactive. |
-| Tabs | Controlled value/onChange, group label, unique value/label/content options. Empty/stale/disabled selections render the first enabled tab/panel and notify the parent through onChange. When all tabs are disabled, the tablist remains focusable, an unavailable status appears, and the panel matching the controlled value stays visible. Roving focus, arrow wrap, Home/End, disabled option skipping, and linked panels. |
+| Tabs | Controlled value/onChange, group label, unique value/label/content options. Empty/stale/disabled selections render the first enabled tab/panel without calling onChange, so a deep-linked value survives until its tab becomes available. When all tabs are disabled, the tablist remains focusable, an unavailable status appears, and the panel matching the controlled value (or the first panel) stays visible. Hidden panels stay mounted so their state survives tab switches. Roving focus, arrow wrap, Home/End, disabled option skipping, and linked panels. |
 | Progress | Required label/value; optional max (default 100). Bounds invalid/nonfinite values without displaying false progress. |
 | Poster | Authorized src or null, required safe alt (empty for decorative art), poster/still aspect, optional className. Reserved 2:3/16:9 geometry, striped fallback on missing/failed images including failures before hydration, decode validation for zero intrinsic width SVGs, recovery when src changes or the caller changes retryKey to retry an unchanged URL. |
 | Avatar | Initials and accessible label; Lazy Intl.Segmenter with a pinned Graphemer fallback when unavailable, preserving full graphemes, fixed 44px, no uploads. |
-| Skeleton | Accessible loading label and optional width/height; reduced motion disables pulse. |
+| Skeleton | Optional width/height. Requires either `label` (one Skeleton per loading area, announced as a status) or `decorative` (hidden from assistive technology); reduced motion disables pulse. |
 | EmptyState | Title, optional children/action. |
 | ErrorState | Safe title/children, optional onRetry/onDismiss and retry busy state. Alert announces the failure; errors persist until explicitly dismissed or replaced by the caller. |
 

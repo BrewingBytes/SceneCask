@@ -26,6 +26,8 @@ Do not report this pending step as a validated API schema.
 Never log configuration values, credentials, protected content or provider payloads.
 Errors must omit protected strings and image paths. UI features require D09 browser
 verification. Record actual automated/manual evidence and remaining limitations.
+PRs that change the UI must attach mobile (390px) and desktop (1440px) screenshots
+in the PR template's Screenshots section.
 
 ## Git conventions
 

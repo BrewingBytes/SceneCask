@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import "./gallery.css";
 import { AppShell } from "../../shell";
 import {
   Avatar,
@@ -142,7 +143,7 @@ export function ComponentGallery({
             <p className="sc-kicker">Loading</p>
             <Skeleton label="Loading show" height={24} />
             <br />
-            <Skeleton label="Loading progress" width="65%" height={16} />
+            <Skeleton decorative width="65%" height={16} />
           </div>
           <div className="sc-gallery-card">
             <h3>Missing artwork</h3>

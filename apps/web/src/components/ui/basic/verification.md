@@ -10,14 +10,14 @@ styles, basic primitives, shell, verification files, and the manifest/CI wiring 
 | Actual command/check | Result |
 | --- | --- |
 | `yarn install --immutable` | Pass: pinned axe-core dependency and lockfile install reproducibly (existing ESLint peer warning). |
-| `yarn test:design` | Pass: generated token/responsive output has no drift; all 8 Node tests pass, including real signal-killed child exit handling. |
+| `yarn test:design` | Pass: generated token/responsive output has no drift; all 9 Node tests pass, including real signal-killed child exit handling. |
 | `yarn lint` | Pass: web ESLint, pinned Rust format/clippy. |
 | `yarn typecheck` | Pass: Next route generation and TypeScript. |
 | `yarn build` | Pass: production web build and pinned Rust build. |
 | `yarn api:check` | Pass: OpenAPI validated, 20 contract/client checks, generated client and operation mapping current. No API changes in R04. |
 | `yarn test`, with local `.env` loaded by Node and inherited by Yarn | Pass: 12 Rust tests, including real PostgreSQL migrations/constraints/lifecycle and health/SMTP tests. |
 | `yarn test:e2e`, with the same local environment | Pass: 6 existing browser tests including same-origin real API/PostgreSQL health checks. This proves the foundation smoke flow, not future account/tracking flows. |
-| `yarn test:ui` | Pass: 26 Chromium component/gallery checks using the pinned workspace axe dependency. |
+| `yarn test:ui` | Pass: 27 Chromium component/gallery checks using the pinned workspace axe dependency. |
 | Gallery production build (`node apps/web/src/components/ui/basic/gallery-server.mjs --build`) | Pass: all gallery fixtures, including SVG hydration and server primitives, compile and render with bundled assets. |
 
 The gallery suite measured no horizontal document overflow at 320, 390, 859,
@@ -48,8 +48,8 @@ intrinsic width, stable ref inspection across renders, flag/family graphemes,
 Home's root href/active state, and all seven static primitives rendered on the
 server with native choices operating while JavaScript is disabled. The SVG test
 allows development StrictMode's initial ref reattachment, then verifies no decode
-calls are added by subsequent renders. Eight Node tests cover token normalization,
-null omission, diagnostics, changed breakpoints, normal/signal child exits, copied import resolution, and actual SIGKILL-abandoned lease recovery. Ambiguous numeric tokens now fail generation unless explicit typed units are supplied.
+calls are added by subsequent renders. Nine Node tests cover token normalization,
+border color references alongside hex/keyword pass-through, null omission, diagnostics, changed breakpoints, normal/signal child exits, copied import resolution, and actual SIGKILL-abandoned lease recovery. Ambiguous numeric tokens now fail generation unless explicit typed units are supplied.
 
 A separate server-reuse smoke ran all 19 tests against an already-running preview;
 the preview and its pre-existing JavaScript asset still returned 200 afterwards.
@@ -65,13 +65,30 @@ production build were rerun after the latest refinements. CI wiring is isolated 
 execution and does not claim a hosted CI result.
 
 The latest review adds server-page Field render-function coverage; missing
-Intl.Segmenter compatibility with complete emoji; parent notification on invalid
-Tabs selection and all-disabled focus/content; explicit retryKey recovery of an
+Intl.Segmenter compatibility with complete emoji; display-only fallback for invalid
+Tabs selection (the parent value is left unchanged) and all-disabled focus/content; explicit retryKey recovery of an
 unchanged image URL; radio value updates before and after attaching a callback;
 and a copied `.ts` helper exercising side-effect, re-export and dynamic imports.
-All 26 Chromium tests and 8 Node tests pass. Lint, typecheck, immutable install,
-web/Rust build and isolated gallery build were rerun. API/PostgreSQL/root browser
-evidence above is retained from the preceding revision, with those modules unchanged.
+All 27 Chromium tests and 9 Node tests pass. Lint, typecheck, web build and
+isolated gallery build were rerun. API/PostgreSQL/root browser evidence above is
+retained from the preceding revision, with those modules unchanged.
+
+A follow-up review round added: busy/aria-disabled Buttons skip their own click and
+capture handlers without stopping ancestor listeners; one labelled Skeleton per
+loading area with unlabelled placeholders hidden from assistive technology; field
+errors in an always-present polite live region; hidden Tabs panels kept mounted;
+gallery-only styles moved to `gallery.css`; and bundled fonts converted to WOFF2
+(744 KB to 264 KB). Regression checks cover ancestor/capture click counts, a single
+loading status, and polite non-alert field errors.
+
+A further round moved busy-button blocking (`preventDefault`) into the capture
+phase so a wrapper that stops native propagation cannot let a busy submit button
+submit; took the empty error live region out of grid flow so error-free fields add
+no trailing gap; and made Skeleton require either `label` or `decorative`. New
+checks cover both cases and were confirmed to fail against the previous code.
+All 27 Chromium tests and 9 Node tests pass; lint, typecheck, web build and gallery
+build pass. The 390/1440 gallery and states screenshots in `verification/` were
+regenerated from this run and inspected.
 
 ## Manual visual review
 

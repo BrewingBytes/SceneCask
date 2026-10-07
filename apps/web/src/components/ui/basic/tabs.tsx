@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import "../../../styles";
 
 export interface TabsProps {
@@ -21,20 +21,9 @@ export function Tabs({ label, value, onChange, tabs }: TabsProps) {
     .filter((index) => index >= 0);
   const selected =
     available.find((index) => tabs[index].value === value) ?? available[0];
-  const fallback = selected === undefined ? undefined : tabs[selected].value;
-  const lastCorrection = useRef<string | null>(null);
-  useEffect(() => {
-    if (fallback === undefined || fallback === value) {
-      lastCorrection.current = null;
-      return;
-    }
-    const correction = JSON.stringify([value, fallback]);
-    if (lastCorrection.current !== correction) {
-      lastCorrection.current = correction;
-      onChange(fallback);
-    }
-  }, [value, fallback, onChange]);
-  const panel = selected ?? tabs.findIndex((tab) => tab.value === value);
+  // A stale or disabled value only changes what is shown; the parent's value is never rewritten.
+  const panel =
+    selected ?? Math.max(0, tabs.findIndex((tab) => tab.value === value));
   return (
     <div className="sc-tabs">
       <div
