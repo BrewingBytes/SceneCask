@@ -43,3 +43,29 @@ test("changed breakpoint updates generated media queries; invalid inputs identif
     /border-hairline/,
   );
 });
+
+test("new numeric tokens require explicit types instead of silently producing unitless CSS", () => {
+  for (const tokens of [{ focus: { gap: 4 } }, { motion: { delay: 120 } }]) {
+    assert.throws(
+      () => generateDesignTokens(tokens),
+      /explicit \$type\/\$value units/,
+    );
+  }
+  const css = generateDesignTokens({
+    focus: { gap: { $type: "dimension", $value: { value: 0.5, unit: "rem" } } },
+    motion: {
+      delay: { $type: "duration", $value: { value: 120, unit: "ms" } },
+    },
+  });
+  assert.match(css, /--sc-focus-gap: 0.5rem;/);
+  assert.match(css, /--sc-motion-delay: 120ms;/);
+  assert.throws(
+    () =>
+      generateDesignTokens({
+        focus: {
+          gap: { $type: "dimension", $value: { value: 4, unit: "invalid" } },
+        },
+      }),
+    /focus-gap/,
+  );
+});

@@ -3,21 +3,21 @@
 Prerequisite: issue #1 was closed by merged PR #42 at 08:36:55 UTC; its merge
 commit `809c527b07e71fd0a8d212b91fb5c33a30b866f9` is an ancestor of this work.
 The working tree was clean before implementation. Changes are confined to R04's
-styles, basic primitives, shell, verification files, and the manifest/CI wiring explicitly requested in review.
+styles, basic primitives, shell, verification files, and the manifest/CI wiring split into R01 PR #58. PR #57 is based on that branch so its review diff contains no R01-owned manifests, lockfile or CI edits. R01 sign-off is pending, not claimed.
 
 ## Automated evidence
 
 | Actual command/check | Result |
 | --- | --- |
 | `yarn install --immutable` | Pass: pinned axe-core dependency and lockfile install reproducibly (existing ESLint peer warning). |
-| `yarn test:design` | Pass: generated token/responsive output has no drift; all 5 Node tests pass, including real signal-killed child exit handling. |
+| `yarn test:design` | Pass: generated token/responsive output has no drift; all 8 Node tests pass, including real signal-killed child exit handling. |
 | `yarn lint` | Pass: web ESLint, pinned Rust format/clippy. |
 | `yarn typecheck` | Pass: Next route generation and TypeScript. |
 | `yarn build` | Pass: production web build and pinned Rust build. |
 | `yarn api:check` | Pass: OpenAPI validated, 20 contract/client checks, generated client and operation mapping current. No API changes in R04. |
 | `yarn test`, with local `.env` loaded by Node and inherited by Yarn | Pass: 12 Rust tests, including real PostgreSQL migrations/constraints/lifecycle and health/SMTP tests. |
 | `yarn test:e2e`, with the same local environment | Pass: 6 existing browser tests including same-origin real API/PostgreSQL health checks. This proves the foundation smoke flow, not future account/tracking flows. |
-| `yarn test:ui` | Pass: 21 Chromium component/gallery checks using the pinned workspace axe dependency. |
+| `yarn test:ui` | Pass: 26 Chromium component/gallery checks using the pinned workspace axe dependency. |
 | Gallery production build (`node apps/web/src/components/ui/basic/gallery-server.mjs --build`) | Pass: all gallery fixtures, including SVG hydration and server primitives, compile and render with bundled assets. |
 
 The gallery suite measured no horizontal document overflow at 320, 390, 859,
@@ -37,7 +37,7 @@ network inspection found no external gallery requests; all three font families
 loaded locally.
 
 Axe-core 4.10.3 reported **zero violations** at 390 and 1440px for WCAG 2 A/AA
-and WCAG 2.1 AA, including rendered color contrast. The dependency is pinned in the root manifest and lockfile; the suite imports its bundled source without manual downloads or environment variables.
+and WCAG 2.1 AA, including rendered color contrast. The dependency is pinned in the importing web workspace and lockfile; the suite imports its bundled source without manual downloads or environment variables.
 
 Review refinements added six browser regressions: failed SSR artwork before
 JavaScript/hydration, reachable fallback tabs for empty/stale/disabled selection,
@@ -48,8 +48,8 @@ intrinsic width, stable ref inspection across renders, flag/family graphemes,
 Home's root href/active state, and all seven static primitives rendered on the
 server with native choices operating while JavaScript is disabled. The SVG test
 allows development StrictMode's initial ref reattachment, then verifies no decode
-calls are added by subsequent renders. Five Node tests cover token normalization,
-null omission, diagnostics, changed breakpoints, and normal/signal child exits.
+calls are added by subsequent renders. Eight Node tests cover token normalization,
+null omission, diagnostics, changed breakpoints, normal/signal child exits, copied import resolution, and actual SIGKILL-abandoned lease recovery. Ambiguous numeric tokens now fail generation unless explicit typed units are supplied.
 
 A separate server-reuse smoke ran all 19 tests against an already-running preview;
 the preview and its pre-existing JavaScript asset still returned 200 afterwards.
@@ -60,9 +60,18 @@ that cleanup leaves no temporary app behind.
 
 Immutable install, lint, typecheck, production web/Rust build, real PostgreSQL/SMTP
 tests, OpenAPI checks, root browser checks, token drift, and the isolated gallery
-production build were rerun after the latest refinements. CI now invokes
-`test:design` and `test:ui` on every pull request; this report records local
+production build were rerun after the latest refinements. CI wiring is isolated in R01 PR #58 and invokes
+`test:design` and `test:ui` whenever the foundation modules are present; this report records local
 execution and does not claim a hosted CI result.
+
+The latest review adds server-page Field render-function coverage; missing
+Intl.Segmenter compatibility with complete emoji; parent notification on invalid
+Tabs selection and all-disabled focus/content; explicit retryKey recovery of an
+unchanged image URL; radio value updates before and after attaching a callback;
+and a copied `.ts` helper exercising side-effect, re-export and dynamic imports.
+All 26 Chromium tests and 8 Node tests pass. Lint, typecheck, immutable install,
+web/Rust build and isolated gallery build were rerun. API/PostgreSQL/root browser
+evidence above is retained from the preceding revision, with those modules unchanged.
 
 ## Manual visual review
 
@@ -82,7 +91,7 @@ not a claim of a separate human-operated keyboard session.
 ## Scope and handoff
 
 No contract deviations, prototype controls/support.js imports, API calls, domain
-routes, migrations, generated-client changes, or shared router edits. The requested root manifest/lockfile and CI updates only register the foundation checks and pinned axe dependency.
+routes, migrations, generated-client changes, or shared router edits. R01 PR #58 contains the requested manifest/lockfile and CI updates that register the foundation checks and workspace-scoped dependencies. Merge/review PR #58 before PR #57.
 The gallery is a separate verification app under the owned module. Its generated
 Next.js output is scoped to a runner-owned temporary app; production routes remain under
 R24/R38 integration ownership. See README for preview, checks, cleanup, and props.

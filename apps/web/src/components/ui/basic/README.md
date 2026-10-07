@@ -6,7 +6,7 @@ Import `AppShell` and `AppShellProps` from `components/shell`. Imports load
 Render primitives inside `AppShell` or a `.sc-foundation` wrapper for typography.
 Each primitive has its own file (for example `button.tsx`, `poster.tsx`, and
 `tabs.tsx`); barrel exports preserve existing imports and named props. `Field`
-is also exported for custom controls sharing label/hint/error wiring. The shell
+is also exported for custom controls sharing label/hint/error wiring. It has no client boundary, so server pages can pass its render function directly. The shell
 exports reusable `SiteHeader`, `Navigation`, `BrandLink`, `NotificationLink`,
 `PageContainer`, and `NavIcon` components.
 
@@ -25,12 +25,12 @@ The shell includes a skip link and focusable main landmark. Mobile navigation is
 | Field | Reusable render-prop wrapper with label, hint, error, id and describedBy; passes a generated control ID and accessibility props to custom controls. |
 | TextField / TextArea | Native input props plus required label, optional hint/error. Stable generated IDs join labels and descriptions. Error sets aria-invalid. |
 | Checkbox | Native checkbox props and a required label; the whole label is a 44px target. |
-| RadioGroup | Controlled value/onChange, or initial value without a callback for native server rendering; group label/name, labeled options, optional disabled states. Native arrow-key behavior. |
+| RadioGroup | Controlled `value` (with or without a callback), or uncontrolled `defaultValue` for native server rendering; group label/name, labeled options, optional disabled states. Native arrow-key behavior. |
 | Badge | Children and neutral/accent/error tone; informational, not interactive. |
-| Tabs | Controlled value/onChange, group label, unique value/label/content options. Empty/stale/disabled selections render the first enabled tab/panel without changing the caller’s value. Roving focus, arrow wrap, Home/End, disabled option skipping, and linked panels. |
+| Tabs | Controlled value/onChange, group label, unique value/label/content options. Empty/stale/disabled selections render the first enabled tab/panel and notify the parent through onChange. When all tabs are disabled, the tablist remains focusable, an unavailable status appears, and the panel matching the controlled value stays visible. Roving focus, arrow wrap, Home/End, disabled option skipping, and linked panels. |
 | Progress | Required label/value; optional max (default 100). Bounds invalid/nonfinite values without displaying false progress. |
-| Poster | Authorized src or null, required safe alt (empty for decorative art), poster/still aspect, optional className. Reserved 2:3/16:9 geometry, striped fallback on missing/failed images including failures before hydration, decode validation for zero intrinsic width SVGs, recovery when src changes. |
-| Avatar | Initials and accessible label; Unicode grapheme-safe truncation using Intl.Segmenter, fixed 44px, no uploads. |
+| Poster | Authorized src or null, required safe alt (empty for decorative art), poster/still aspect, optional className. Reserved 2:3/16:9 geometry, striped fallback on missing/failed images including failures before hydration, decode validation for zero intrinsic width SVGs, recovery when src changes or the caller changes retryKey to retry an unchanged URL. |
+| Avatar | Initials and accessible label; Lazy Intl.Segmenter with a pinned Graphemer fallback when unavailable, preserving full graphemes, fixed 44px, no uploads. |
 | Skeleton | Accessible loading label and optional width/height; reduced motion disables pulse. |
 | EmptyState | Title, optional children/action. |
 | ErrorState | Safe title/children, optional onRetry/onDismiss and retry busy state. Alert announces the failure; errors persist until explicitly dismissed or replaced by the caller. |
@@ -63,7 +63,18 @@ yarn test:design
 ```
 
 `test:design` checks generated token/responsive output for drift and runs the
-Node generator and child-process exit tests. CI runs it on every pull request.
+Node generator, child-process exit and gallery-workspace tests. CI runs it on every pull request.
+
+New numeric tokens outside the legacy handoff schema must carry explicit type
+metadata. Unsupported or ambiguous numbers fail generation, including `--check`.
+For example:
+
+```json
+{"focus":{"gap":{"$type":"dimension","$value":{"value":0.5,"unit":"rem"}}},"motion":{"delay":{"$type":"duration","$value":{"value":120,"unit":"ms"}}}}
+```
+
+Supported numeric types are dimension, duration and number. Approved handoff
+values remain unchanged. Unitless weight/line-height values are validated separately.
 
 ## Isolated gallery and checks
 
@@ -90,11 +101,11 @@ The suite imports axe-core 4.10.3 from the pinned workspace dependency; no manua
 download or environment variable is needed. CI runs it after the real API browser
 suite and uploads the browser evidence.
 
-The runner copies the verification app into a unique repository-root `.next`
+The runner parses module specifiers with TypeScript and copies the verification app into a unique repository-root `.next`
 directory, separate from the production web build. It deletes only that directory
 when its child exits. Playwright requests graceful shutdown for servers it starts;
 when it reuses a developer’s server, it does not launch the runner or delete any
-server artifacts. No global teardown runs. Preview servers remain live until
+server artifacts. Static, side-effect, re-export and literal dynamic imports are handled in TS/JS files; internal imports point to copied files and external relative imports point to their original source. On the next startup, recorded abandoned directories are reaped only when both owner and child processes have exited. SIGKILL cannot run immediate cleanup. No global teardown runs. Preview servers remain live until
 stopped by their owner.
 
 A standalone production-build check uses the same isolated runner and cleanup:
@@ -104,7 +115,7 @@ node apps/web/src/components/ui/basic/gallery-server.mjs --build
 ```
 
 Generated output stays outside source inputs, so repository lint/typecheck/build
-can run while a gallery preview is open. The requested manifest/CI wiring adds `test:design` and `test:ui` without changing
+can run while a gallery preview is open. The R01-owned manifest/CI wiring in PR #58 adds `test:design` and `test:ui` without changing
 application routers or the real web/API browser configuration. Static primitives
 can be imported directly by server components; native checkbox/radio interaction
 is also verified with JavaScript disabled.

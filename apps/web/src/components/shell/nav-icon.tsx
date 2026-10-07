@@ -1,6 +1,13 @@
 // Lucide outline paths (ISC). Decorative icons accompany visible labels.
-export type NavIconName = "Home" | "Discover" | "Library" | "Friends";
+export type NavIconName =
+  | "Home"
+  | "Discover"
+  | "Library"
+  | "Friends"
+  | "Notifications";
 const paths: Record<NavIconName, string> = {
+  Notifications:
+    "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-11 12a2 2 0 0 0 4 0",
   Home: "m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z",
   Discover: "m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12Z",
   Library: "M4 6v14M8 4v16M12 8v12m4-16 4 16",

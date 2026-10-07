@@ -11,6 +11,31 @@ export function generateDesignTokens(tokens) {
       value.forEach((item, index) => flatten(item, [...path, index]));
       return;
     }
+    if (typeof value === "object" && Object.hasOwn(value, "$value")) {
+      const key = path.join("-");
+      const raw = value.$value;
+      if (["dimension", "duration"].includes(value.$type)) {
+        const units =
+          value.$type === "duration"
+            ? ["ms", "s"]
+            : ["px", "rem", "em", "vw", "vh", "%"];
+        if (
+          !raw ||
+          typeof raw.value !== "number" ||
+          !Number.isFinite(raw.value) ||
+          !units.includes(raw.unit)
+        )
+          throw new Error(`Invalid typed design token: ${key}`);
+        flatten(`${raw.value}${raw.unit}`, path);
+      } else if (
+        value.$type === "number" &&
+        typeof raw === "number" &&
+        Number.isFinite(raw)
+      ) {
+        flatten(String(raw), path);
+      } else throw new Error(`Unsupported typed design token: ${key}`);
+      return;
+    }
     if (typeof value === "object") {
       Object.entries(value)
         .filter(([key]) => !key.startsWith("_"))
@@ -24,10 +49,16 @@ export function generateDesignTokens(tokens) {
         throw new Error(`Invalid numeric design token: ${key}`);
       if (
         ["space", "layout", "radius"].includes(path[0]) ||
-        path.includes("size") ||
+        (path[0] === "type" && path.includes("size")) ||
         key === "focus-offset"
       )
         css = `${value}px`;
+      else if (
+        !(path[0] === "type" && ["weight", "lineHeight"].includes(path.at(-1)))
+      )
+        throw new Error(
+          `Numeric design token needs explicit $type/$value units: ${key}`,
+        );
     } else if (typeof value === "string") {
       if (path[0] === "border" || key === "focus-ring") {
         css = value.replace(/\b([a-z][a-z-]*)$/, (name) => {

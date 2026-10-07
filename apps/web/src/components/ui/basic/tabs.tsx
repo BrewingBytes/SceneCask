@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import "../../../styles";
 
 export interface TabsProps {
@@ -21,9 +21,29 @@ export function Tabs({ label, value, onChange, tabs }: TabsProps) {
     .filter((index) => index >= 0);
   const selected =
     available.find((index) => tabs[index].value === value) ?? available[0];
+  const fallback = selected === undefined ? undefined : tabs[selected].value;
+  const lastCorrection = useRef<string | null>(null);
+  useEffect(() => {
+    if (fallback === undefined || fallback === value) {
+      lastCorrection.current = null;
+      return;
+    }
+    const correction = JSON.stringify([value, fallback]);
+    if (lastCorrection.current !== correction) {
+      lastCorrection.current = correction;
+      onChange(fallback);
+    }
+  }, [value, fallback, onChange]);
+  const panel = selected ?? tabs.findIndex((tab) => tab.value === value);
   return (
     <div className="sc-tabs">
-      <div role="tablist" aria-label={label} className="sc-tab-list">
+      <div
+        role="tablist"
+        aria-label={label}
+        className="sc-tab-list"
+        tabIndex={available.length ? undefined : 0}
+        aria-disabled={available.length ? undefined : true}
+      >
         {tabs.map((tab, index) => (
           <button
             key={tab.value}
@@ -34,7 +54,7 @@ export function Tabs({ label, value, onChange, tabs }: TabsProps) {
             role="tab"
             id={`${id}-tab-${index}`}
             aria-controls={`${id}-panel-${index}`}
-            aria-selected={selected === index}
+            aria-selected={panel === index}
             tabIndex={selected === index ? 0 : -1}
             disabled={tab.disabled}
             onClick={() => onChange(tab.value)}
@@ -66,13 +86,14 @@ export function Tabs({ label, value, onChange, tabs }: TabsProps) {
           </button>
         ))}
       </div>
+      {!available.length && <p role="status">No tabs are available.</p>}
       {tabs.map((tab, index) => (
         <div
           key={tab.value}
           role="tabpanel"
           id={`${id}-panel-${index}`}
           aria-labelledby={`${id}-tab-${index}`}
-          hidden={selected !== index}
+          hidden={panel !== index}
           tabIndex={0}
           className="sc-tab-panel"
         >

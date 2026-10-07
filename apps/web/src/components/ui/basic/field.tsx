@@ -1,4 +1,3 @@
-"use client";
 import { useId, type AriaAttributes, type ReactNode } from "react";
 import { classes } from "./classes";
 import "../../../styles";

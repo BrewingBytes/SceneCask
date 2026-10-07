@@ -1,3 +1,4 @@
+import { Field } from "../../../field";
 import { Avatar } from "../../../avatar";
 import { Badge } from "../../../badge";
 import { Checkbox } from "../../../checkbox";
@@ -8,6 +9,9 @@ import { Skeleton } from "../../../skeleton";
 export default function ServerPrimitives() {
   return (
     <main className="sc-foundation">
+      <Field label="Server field" hint="Server hint">
+        {(props) => <input {...props} />}
+      </Field>
       <Badge>Server badge</Badge>
       <Avatar initials="🇷🇴🇺🇸" label="Server avatar" />
       <Progress value={25} label="Server progress" />
@@ -17,7 +21,7 @@ export default function ServerPrimitives() {
       <RadioGroup
         label="Native choices"
         name="choices"
-        value="first"
+        defaultValue="first"
         options={[
           { value: "first", label: "First native choice" },
           { value: "second", label: "Second native choice" },

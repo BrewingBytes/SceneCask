@@ -8,14 +8,20 @@ export interface PosterProps {
   alt: string;
   aspect?: "poster" | "still";
   className?: string;
+  /** Change when retrying the same URL after a load failure. */
+  retryKey?: string | number;
 }
 export function Poster({
   src,
   alt,
   aspect = "poster",
   className,
+  retryKey,
 }: PosterProps) {
-  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const [failedSource, setFailedSource] = useState<{
+    src: string | null;
+    retryKey?: string | number;
+  } | null>(null);
   const inspectImage = useCallback(
     (element: HTMLImageElement | null) => {
       if (!element) return;
@@ -24,16 +30,17 @@ export function Poster({
       // Decoding distinguishes a completed failure that happened before hydration.
       if (element.complete && element.naturalWidth === 0) {
         void element.decode().catch(() => {
-          if (current) setFailedSource(src ?? null);
+          if (current) setFailedSource({ src: src ?? null, retryKey });
         });
       }
       return () => {
         current = false;
       };
     },
-    [src],
+    [src, retryKey],
   );
-  const hasImage = !!src && failedSource !== src;
+  const hasImage =
+    !!src && !(failedSource?.src === src && failedSource.retryKey === retryKey);
   return (
     <div className={classes("sc-art", `sc-art-${aspect}`, className)}>
       {hasImage ? (
@@ -45,7 +52,7 @@ export function Poster({
           alt={alt}
           width={aspect === "poster" ? 200 : 320}
           height={aspect === "poster" ? 300 : 180}
-          onError={() => setFailedSource(src)}
+          onError={() => setFailedSource({ src, retryKey })}
         />
       ) : (
         <div

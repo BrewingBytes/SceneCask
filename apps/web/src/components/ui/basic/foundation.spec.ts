@@ -261,8 +261,9 @@ test("empty/stale/disabled selection keeps an enabled tab and matching panel rea
     const first = page.getByRole("tab", { name: "First", exact: true });
     await expect(first).toHaveAttribute("tabindex", "0");
     await expect(first).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByLabel("Selected tab")).toHaveText("first");
     await expect(page.getByRole("tabpanel")).toHaveText("First panel");
-    await page.getByRole("button", { name: "Disable selected tab" }).focus();
+    await page.getByRole("button", { name: "Disable all tabs" }).focus();
     await page.keyboard.press("Tab");
     await expect(first).toBeFocused();
   }
@@ -422,6 +423,9 @@ test("static primitives render and native choices work without JavaScript", asyn
     const response = await page.goto("/server-primitives");
     expect(response?.status()).toBe(200);
     await expect(page.getByText("Server badge")).toBeVisible();
+    await expect(page.getByLabel("Server field")).toHaveAccessibleDescription(
+      "Server hint",
+    );
     await expect(page.getByRole("img", { name: "Server avatar" })).toHaveText(
       "🇷🇴🇺🇸",
     );
@@ -440,4 +444,89 @@ test("static primitives render and native choices work without JavaScript", asyn
   } finally {
     await context.close();
   }
+});
+
+test("missing Intl.Segmenter preserves shared imports and complete graphemes", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Intl, "Segmenter", { value: undefined });
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/regressions");
+  await expect(page.getByRole("img", { name: "Family initials" })).toHaveText(
+    "👨‍👩‍👧‍👦AB",
+  );
+  await expect(page.getByRole("img", { name: "Flag initials" })).toHaveText(
+    "🇷🇴🇺🇸",
+  );
+  await page.getByRole("button", { name: "Use stale tab" }).click();
+  await expect(page.getByLabel("Selected tab")).toHaveText("first");
+  expect(errors).toEqual([]);
+});
+test("all-disabled tabs preserve controlled content and a focusable explanation", async ({
+  page,
+}) => {
+  await page.goto("/regressions");
+  await page.getByRole("button", { name: "Disable all tabs" }).click();
+  const list = page.getByRole("tablist", { name: "Resilient tabs" });
+  await expect(list).toHaveAttribute("aria-disabled", "true");
+  await list.focus();
+  await expect(list).toBeFocused();
+  await expect(page.getByText("No tabs are available.")).toBeVisible();
+  await expect(page.getByRole("tabpanel")).toHaveText("First panel");
+  await expect(page.getByLabel("Selected tab")).toHaveText("first");
+});
+test("an unchanged artwork URL retries when the caller changes retryKey", async ({
+  page,
+}) => {
+  let available = false;
+  await page.route("**/recovering-art.svg", (route) =>
+    available
+      ? route.fulfill({
+          contentType: "image/svg+xml",
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="30"><rect width="20" height="30" fill="red"/></svg>',
+        })
+      : route.fulfill({ status: 404, body: "" }),
+  );
+  await page.goto("/regressions");
+  const artwork = page.getByRole("img", { name: "Retry artwork" });
+  await expect(artwork).not.toHaveAttribute("src");
+  available = true;
+  await page.getByRole("button", { name: "Retry same artwork" }).click();
+  await expect(artwork).toHaveAttribute("src", "/recovering-art.svg");
+  await expect
+    .poll(() => artwork.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+    .toBeGreaterThan(0);
+});
+test("controlled radios track value without callbacks and remain controlled when a callback is added", async ({
+  page,
+}) => {
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") warnings.push(message.text());
+  });
+  await page.goto("/regressions");
+  await expect(page.getByLabel("First controlled radio")).toBeChecked();
+  await page.getByRole("button", { name: "Change radio value" }).click();
+  await expect(page.getByLabel("Second controlled radio")).toBeChecked();
+  await page.getByRole("button", { name: "Enable radio callback" }).click();
+  await page.getByLabel("First controlled radio").check();
+  await expect(page.getByLabel("First controlled radio")).toBeChecked();
+  expect(
+    warnings.filter((message) =>
+      /uncontrolled|controlled input|read-only field/.test(message),
+    ),
+  ).toEqual([]);
+});
+
+test("copied TS side-effect/re-export/dynamic modules resolve in the gallery", async ({
+  page,
+}) => {
+  await page.goto("/regressions");
+  await page.getByRole("button", { name: "Load copied module" }).click();
+  await expect(page.getByLabel("Copied module")).toHaveText(
+    "Copied dynamic module loaded",
+  );
 });
