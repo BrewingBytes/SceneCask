@@ -1,0 +1,303 @@
+/* R05 overlays: dialog, sheet, menu and toast. Tokens come from styles/tokens.css. */
+:root {
+  --sc-overlay-dialog-width: 480px;
+  --sc-overlay-sheet-width: 560px;
+  --sc-overlay-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.25);
+}
+
+.sc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--sc-color-scrim);
+  font-family: var(--sc-font-ui);
+  font-size: var(--sc-type-body-ui-size);
+  font-weight: var(--sc-type-body-ui-weight);
+  color: var(--sc-color-ink);
+  animation: sc-overlay-fade var(--sc-motion-fast) both;
+}
+.sc-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-3);
+  width: 100%;
+  max-width: var(--sc-overlay-dialog-width);
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sc-space-5) var(--sc-space-4)
+    calc(var(--sc-space-5) + env(safe-area-inset-bottom));
+  border-radius: var(--sc-radius-lg) var(--sc-radius-lg) 0 0;
+  background: var(--sc-color-paper);
+  box-shadow: var(--sc-overlay-shadow);
+  overflow-wrap: anywhere;
+  animation: sc-overlay-rise var(--sc-motion-fast) both;
+}
+.sc-modal:focus-visible,
+.sc-modal :focus-visible,
+.sc-menu :focus-visible,
+.sc-toast :focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-modal-sheet {
+  max-width: var(--sc-overlay-sheet-width);
+  overflow: hidden;
+}
+.sc-modal-sheet .sc-modal-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  /* Keep focus rings of edge controls visible inside the scroller. */
+  margin: calc(-1 * var(--sc-space-1));
+  padding: var(--sc-space-1);
+}
+.sc-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sc-space-2);
+}
+.sc-modal-heading .sc-kicker {
+  margin: 0 0 var(--sc-space-0);
+}
+.sc-modal-title {
+  margin: 0;
+  font-size: var(--sc-type-section-size);
+  font-weight: var(--sc-type-section-weight);
+  letter-spacing: var(--sc-type-section-tracking);
+  line-height: 1.15;
+}
+.sc-modal-close {
+  flex: none;
+  margin: calc(-1 * var(--sc-space-1)) calc(-1 * var(--sc-space-1)) 0 0;
+  padding: 0;
+  border-radius: var(--sc-radius-pill);
+}
+.sc-modal-description {
+  font-family: var(--sc-type-reading-family);
+  font-size: var(--sc-type-reading-size-0);
+  line-height: var(--sc-type-reading-lineHeight);
+}
+.sc-modal-description > :first-child,
+.sc-modal-body > :first-child {
+  margin-top: 0;
+}
+.sc-modal-description > :last-child,
+.sc-modal-body > :last-child {
+  margin-bottom: 0;
+}
+.sc-modal-error:not(:empty) {
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border: 1px solid var(--sc-color-error);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-error-surface);
+  color: var(--sc-color-error);
+  font-weight: var(--sc-type-label-weight);
+}
+.sc-modal-footer {
+  justify-content: flex-end;
+  margin-top: var(--sc-space-0);
+}
+.sc-modal-footer .sc-button {
+  flex: 1 1 auto;
+}
+
+.sc-menu {
+  position: relative;
+  display: inline-flex;
+}
+.sc-menu-popover {
+  position: absolute;
+  top: calc(100% + var(--sc-space-1));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 2 * var(--sc-space-3)));
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  padding: var(--sc-space-1);
+  border: var(--sc-border-hairline);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-paper-raised);
+  box-shadow: var(--sc-overlay-shadow);
+  color: var(--sc-color-ink);
+  font-family: var(--sc-font-ui);
+  animation: sc-overlay-fade var(--sc-motion-fast) both;
+}
+.sc-menu-end {
+  right: 0;
+}
+.sc-menu-start {
+  left: 0;
+}
+/* Footer menus open upward so the panel edge does not clip them. */
+.sc-modal-footer .sc-menu-popover {
+  top: auto;
+  bottom: calc(100% + var(--sc-space-1));
+}
+.sc-menu-header {
+  padding: var(--sc-space-2) var(--sc-space-2) var(--sc-space-2);
+  margin-bottom: var(--sc-space-0);
+  border-bottom: var(--sc-border-hairline);
+  overflow-wrap: anywhere;
+}
+.sc-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2);
+  min-height: var(--sc-layout-touch-target-min);
+  width: 100%;
+  padding: var(--sc-space-1) var(--sc-space-2);
+  border: 0;
+  border-radius: var(--sc-radius-sm);
+  background: none;
+  color: inherit;
+  font: var(--sc-type-label-weight) var(--sc-type-body-ui-size) var(--sc-font-ui);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.sc-menu-item:hover:not([aria-disabled="true"]),
+.sc-menu-item:focus-visible {
+  background: var(--sc-color-paper-2);
+}
+.sc-menu-item[aria-disabled="true"] {
+  color: var(--sc-color-ink-muted);
+  cursor: not-allowed;
+}
+.sc-menu-item-destructive:not([aria-disabled="true"]) {
+  color: var(--sc-color-destructive);
+}
+.sc-menu-check {
+  flex: none;
+}
+
+.sc-toast-viewport {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--sc-space-4) + env(safe-area-inset-bottom));
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--sc-space-3));
+  transform: translateX(-50%);
+  font-family: var(--sc-font-ui);
+  pointer-events: none;
+}
+.sc-toast-viewport-nav {
+  bottom: calc(
+    var(--sc-layout-bottom-nav-height) + var(--sc-space-3) +
+      env(safe-area-inset-bottom)
+  );
+}
+.sc-toast-region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-1);
+}
+.sc-toast-region + .sc-toast-region:not(:empty) {
+  margin-top: var(--sc-space-1);
+}
+.sc-toast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1) var(--sc-space-2);
+  padding: var(--sc-space-1) var(--sc-space-1) var(--sc-space-1)
+    var(--sc-space-4);
+  border-radius: var(--sc-radius-lg);
+  background: var(--sc-color-ink);
+  color: var(--sc-color-paper);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+  overflow-wrap: anywhere;
+  animation: sc-overlay-rise var(--sc-motion-fast) both;
+}
+.sc-toast-error {
+  background: var(--sc-color-error);
+}
+.sc-toast-message {
+  flex: 1 1 160px;
+  margin: 0;
+  font-size: var(--sc-type-label-size);
+  line-height: 1.35;
+}
+.sc-toast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-1);
+}
+.sc-toast .sc-toast-action {
+  border-color: transparent;
+  border-radius: var(--sc-radius-pill);
+  background: var(--sc-color-paper);
+  color: var(--sc-color-ink);
+  font-weight: 700;
+}
+.sc-toast-error .sc-toast-action {
+  color: var(--sc-color-error);
+}
+.sc-toast .sc-toast-dismiss {
+  background: transparent;
+  color: var(--sc-color-paper);
+}
+.sc-toast .sc-toast-action:hover:not([aria-disabled="true"]) {
+  background: var(--sc-color-paper-2);
+}
+.sc-toast .sc-toast-dismiss:hover:not([aria-disabled="true"]) {
+  background: rgba(255, 255, 255, 0.14);
+}
+.sc-toast :focus-visible {
+  outline-color: var(--sc-color-paper);
+}
+
+@keyframes sc-overlay-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sc-overlay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* The 860px breakpoint matches --sc-layout-breakpoint-wide; media queries cannot read variables. */
+@media (min-width: 860px) {
+  .sc-overlay {
+    align-items: center;
+    padding: var(--sc-space-7);
+  }
+  .sc-modal {
+    padding: var(--sc-space-5);
+    border-radius: var(--sc-radius-lg);
+  }
+  .sc-modal-footer .sc-button {
+    flex: 0 0 auto;
+  }
+  .sc-toast-viewport-nav {
+    bottom: calc(var(--sc-space-6) + env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-overlay,
+  .sc-modal,
+  .sc-menu-popover,
+  .sc-toast,
+  .sc-overlay *,
+  .sc-menu *,
+  .sc-toast * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
