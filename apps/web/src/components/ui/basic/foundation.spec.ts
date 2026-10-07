@@ -302,6 +302,8 @@ test("busy button retains keyboard focus and blocks repeated clicks, Enter, Spac
   await expect(page.getByLabel("Ancestor click count")).toHaveText("4");
   // The caller's own capture handler is blocked like onClick.
   await expect(page.getByLabel("Capture count")).toHaveText("1");
+  // Other activation handlers are skipped while busy too.
+  await expect(page.getByLabel("Key count")).toHaveText("1");
   // Blocking happens in the capture phase, so a wrapper that stops native
   // propagation cannot let a busy submit button submit.
   await page
@@ -314,6 +316,12 @@ test("one status per loading area and politely announced field errors", async ({
   page,
 }) => {
   await page.goto("/regressions");
+  // Primitives outside .sc-foundation stay within their container.
+  const unwrapped = page.getByTestId("unwrapped");
+  const input = unwrapped.getByLabel("Unwrapped input");
+  expect((await input.boundingBox())!.width).toBeLessThanOrEqual(
+    (await unwrapped.boundingBox())!.width,
+  );
   // The empty error live region adds no grid gap below a field without errors.
   const hint = page.getByText("Plain hint.", { exact: true });
   const field = hint.locator(

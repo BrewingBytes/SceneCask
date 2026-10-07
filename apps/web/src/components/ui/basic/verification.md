@@ -90,6 +90,12 @@ All 27 Chromium tests and 9 Node tests pass; lint, typecheck, web build and gall
 build pass. The 390/1440 gallery and states screenshots in `verification/` were
 regenerated from this run and inspected.
 
+A final round made primitives use `border-box` sizing outside `.sc-foundation`
+(an unwrapped 240px TextField no longer overflows) and made busy/aria-disabled
+Buttons skip pointer, mouse, key and touch handlers as well as click. Both new
+checks were confirmed to fail against the previous code. All 27 Chromium and
+9 Node tests pass; lint, typecheck, web build and gallery build pass.
+
 ## Manual visual review
 
 Inspected the full 390/1440 gallery screenshots and the corresponding empty/error

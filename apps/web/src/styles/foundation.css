@@ -17,7 +17,11 @@
 }
 .sc-foundation *,
 .sc-foundation *::before,
-.sc-foundation *::after {
+.sc-foundation *::after,
+/* Primitives also size correctly on pages rendered outside .sc-foundation. */
+:is([class^="sc-"], [class*=" sc-"]),
+:is([class^="sc-"], [class*=" sc-"])::before,
+:is([class^="sc-"], [class*=" sc-"])::after {
   box-sizing: border-box;
 }
 .sc-foundation h1 {

@@ -1,4 +1,3 @@
-
 import "../../../styles";
 
 export interface ProgressProps {

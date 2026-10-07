@@ -21,7 +21,7 @@ The shell includes a skip link and focusable main landmark. Mobile navigation is
 
 | Component | Public inputs and behavior |
 | --- | --- |
-| Button | Native button props; primary/secondary/quiet/destructive, disabled, busy. Default type is button. Busy keeps its accessible name and focus, sets aria-disabled/aria-busy, and blocks repeated activation and form submission without hiding the click from ancestor listeners. Explicit disabled still uses the native attribute. |
+| Button | Native button props; primary/secondary/quiet/destructive, disabled, busy. Default type is button. Busy keeps its accessible name and focus, sets aria-disabled/aria-busy, and blocks repeated activation (click, pointer, mouse, key and touch handlers) and form submission without hiding the click from ancestor listeners. Explicit disabled still uses the native attribute. |
 | Field | Reusable render-prop wrapper with label, hint, error, id and describedBy; passes a generated control ID and accessibility props to custom controls. Errors render in a polite live region so they are announced when they appear without interrupting; use ErrorState for an assertive form-level alert. |
 | TextField / TextArea | Native input props plus required label, optional hint/error. Stable generated IDs join labels and descriptions. Error sets aria-invalid. |
 | Checkbox | Native checkbox props and a required label; the whole label is a 44px target. |

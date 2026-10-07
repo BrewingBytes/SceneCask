@@ -3,6 +3,18 @@ import type { ButtonHTMLAttributes } from "react";
 import { classes } from "./classes";
 import "../../../styles";
 
+// Activation handlers a blocked button must not run; click is handled separately.
+const activationHandlers = [
+  "onPointerDown",
+  "onPointerUp",
+  "onMouseDown",
+  "onMouseUp",
+  "onKeyDown",
+  "onKeyUp",
+  "onTouchStart",
+  "onTouchEnd",
+] as const;
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "quiet" | "destructive";
   busy?: boolean;
@@ -22,9 +34,13 @@ export function Button({
     busy ||
     props["aria-disabled"] === true ||
     props["aria-disabled"] === "true";
+  const guarded = blocked
+    ? Object.fromEntries(activationHandlers.map((name) => [name, undefined]))
+    : {};
   return (
     <button
       {...props}
+      {...guarded}
       type={type}
       className={classes("sc-button", `sc-button-${variant}`, className)}
       disabled={disabled}
