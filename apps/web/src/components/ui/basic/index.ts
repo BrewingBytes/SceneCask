@@ -12,3 +12,4 @@ export * from "./skeleton";
 export * from "./empty-state";
 export * from "./error-state";
 export * from "./field";
+export * from "./artwork-figure";
