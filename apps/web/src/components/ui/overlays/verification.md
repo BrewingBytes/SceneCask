@@ -3,7 +3,8 @@
 Prerequisite: R04 (#4) is closed by merged PR #57 (`3601f32`), and R01's
 foundation wiring PR #58 (`c97049d`) is merged. Both are ancestors of this work.
 The working tree was clean before implementation. Changes stay inside
-`apps/web/src/components/ui/overlays/**`. Registering the overlay suite in root
+`apps/web/src/components/ui/overlays/**`, except that R04's gallery launcher now calls
+a shared `basic/gallery-runner.mjs` (R04/R05 shared-primitive ownership; behavior unchanged). Registering the overlay suite in root
 scripts and CI is R01-owned and proposed separately. Until that lands, CI does
 not run this suite.
 
@@ -12,13 +13,14 @@ not run this suite.
 | Actual command/check | Result |
 | --- | --- |
 | `yarn playwright test --config apps/web/src/components/ui/overlays/playwright.config.ts` (CI=1, owned server) | Pass: 21 Chromium tests. |
-| Same, `--repeat-each=3` | Pass: 63/63, no flakes. |
+| Same, `--repeat-each=3` | Pass: 63/63. Toast tests also 30/30 at `--repeat-each=10` after pausing the fake clock (an earlier run flaked when real latency advanced running fake time). |
+| Regression tests vs. reverted fixes | Each of menu Tab propagation, same-commit nesting, late-portal inert, re-issued toast id and type-ahead prefix fails with its fix reverted and passes with it. The stale-focus toast timer, `summary`/media tabbables and the persist-constant refactor have no dedicated test. |
 | `node apps/web/src/components/ui/overlays/gallery-server.mjs --build` | Pass: the fixture app compiles and prerenders. |
 | `yarn lint` | Pass: web ESLint (react-hooks compiler rules), Rust fmt/clippy. |
 | `yarn typecheck` | Pass. |
 | `yarn build` | Pass: production web build and Rust build. |
 | `yarn test:design` | Pass: 9 Node tests, no token drift. |
-| `yarn test:ui` (R04 suite) | Pass: 27 tests; R04 unaffected. |
+| `yarn test:ui` (R04 suite) and R04 gallery `--build` | Pass: 27 tests and build through the shared runner. |
 | `yarn api:check` | Pass: client current. No API changes in R05. |
 | `yarn test` with local `.env` (PostgreSQL 18 container) | Pass: 12 Rust tests. No backend changes. |
 | `yarn test:e2e` with local `.env` | Pass: 6 tests. No integration changes; this is not overlay integration evidence. |
@@ -100,7 +102,5 @@ verified only through the accessibility tree and axe.
 - **Dismissed toasts:** dismissing a toast leaves focus on `body`.
 - **Out of scope:** SpoilerNotice (listed with R04/R05 primitives in D01) is not
   part of issue #5's requirements and is not implemented here.
-- **Duplicated runner:** `gallery-server.mjs` duplicates R04's 20-line runner and
-  differs only in fixture and port. Sharing it would mean changing R04's file.
 - **Unblocked:** features that need dialogs, sheets, menus or toasts can start
   composing these, for example catch-up confirm, the add sheet and the account menu.

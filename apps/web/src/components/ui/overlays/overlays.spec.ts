@@ -216,6 +216,8 @@ test("success toast expires after 6s; error toast persists with Retry and Dismis
 }) => {
   await page.clock.install();
   await page.goto("/");
+  // Paused fake time advances only through runFor, independent of test latency.
+  await page.clock.pauseAt(Date.now() + 1000);
   const region = page.getByRole("region", { name: "Notifications" });
   const status = region.getByRole("status");
   const alert = region.getByRole("alert");
@@ -255,6 +257,8 @@ test("success toast expires after 6s; error toast persists with Retry and Dismis
 test("re-issuing a toast id with new copy restarts its 6s", async ({ page }) => {
   await page.clock.install();
   await page.goto("/");
+  // Paused fake time advances only through runFor, independent of test latency.
+  await page.clock.pauseAt(Date.now() + 1000);
   const status = page.getByRole("region", { name: "Notifications" }).getByRole("status");
   const repeat = page.getByRole("button", { name: "Repeat save toast" });
   await repeat.click();
@@ -273,6 +277,8 @@ test("re-issuing a toast id with new copy restarts its 6s", async ({ page }) => 
 test("focused or hovered toasts pause the timer", async ({ page }) => {
   await page.clock.install();
   await page.goto("/");
+  // Paused fake time advances only through runFor, independent of test latency.
+  await page.clock.pauseAt(Date.now() + 1000);
   const status = page.getByRole("region", { name: "Notifications" }).getByRole("status");
   await page.getByRole("button", { name: "Show success toast" }).click();
   await status.getByRole("button", { name: "Undo" }).focus();
@@ -303,8 +309,11 @@ test("menu button keyboard, selection and outside dismissal", async ({ page }) =
   await expect(signOut).toBeFocused();
   await page.keyboard.press("Home");
   await expect(settings).toBeFocused();
-  // A longer prefix keeps searching from the current item.
+  // A longer prefix keeps searching from the current item: "s" moves from Sign out
+  // to Settings, and "se" stays there instead of jumping to Send feedback.
+  await page.keyboard.press("End");
   await page.keyboard.press("s");
+  await expect(settings).toBeFocused();
   await page.keyboard.press("e");
   await expect(settings).toBeFocused();
   await page.waitForTimeout(600);

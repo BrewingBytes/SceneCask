@@ -36,7 +36,8 @@ move focus anywhere specific.
 
 The verification app under `gallery-app/` renders `OverlayGallery` with
 simulated latency and a "Make the next action fail" fixture control. It is not a
-production route. It reuses R04's isolated workspace runner on port 3105.
+production route. It runs on port 3105 through `basic/gallery-runner.mjs`,
+the isolated workspace runner now shared with R04's gallery (port 3104).
 
 ```sh
 node apps/web/src/components/ui/overlays/gallery-server.mjs          # preview

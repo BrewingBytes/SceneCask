@@ -117,6 +117,11 @@ export function OverlayGallery() {
             },
             { id: "export", label: "Export data", disabled: true },
             {
+              id: "feedback",
+              label: "Send feedback",
+              onSelect: () => setAnnouncement("Send feedback selected."),
+            },
+            {
               id: "sign-out",
               label: "Sign out",
               onSelect: () => setAnnouncement("Sign out selected."),
