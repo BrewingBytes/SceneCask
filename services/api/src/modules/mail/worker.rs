@@ -52,10 +52,14 @@ impl<T: MailTransport + Sync, C: Compose + Sync> Worker<T, C> {
         }
     }
 
-    /// Claims and processes one batch of due messages.
+    /// Processes up to one batch of due messages. Each is claimed just before it is composed and
+    /// sent, so its lease covers one send rather than a whole batch of them.
     pub async fn run_once(&self) -> Result<Pass, sqlx::Error> {
         let mut pass = Pass::default();
-        for message in outbox::claim(&self.pool, self.batch, outbox::LEASE).await? {
+        for _ in 0..self.batch {
+            let Some(message) = outbox::claim(&self.pool, 1, outbox::LEASE).await?.pop() else {
+                break;
+            };
             let result = match self.composer.compose(&message).await {
                 Ok(Composed::Send(email)) => self.transport.send(email).await.map(|()| true),
                 Ok(Composed::Skip) => Ok(false),
@@ -63,7 +67,7 @@ impl<T: MailTransport + Sync, C: Compose + Sync> Worker<T, C> {
             };
             match result {
                 Ok(sent) => {
-                    outbox::settle(&self.pool, message.id).await?;
+                    outbox::settle(&self.pool, &message).await?;
                     if sent {
                         pass.sent += 1;
                     } else {

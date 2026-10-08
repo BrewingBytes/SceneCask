@@ -146,14 +146,13 @@ async fn verify(
         return Err(ApiError::new(ErrorCode::ValidationError)
             .with_field("token", "Use the link from your email."));
     }
-    // Per client IP; without one, per token so one client cannot exhaust a shared budget.
-    let key = match ip {
-        Some(ip) => format!("verify:{ip}"),
-        None => format!(
-            "verify:-|{}",
-            URL_SAFE_NO_PAD.encode(Sha256::digest(request.token.as_bytes()))
-        ),
-    };
+    // Per client IP plus token, so a shared IP (the reverse proxy, NAT) is never one global budget
+    // that a client could exhaust for everyone.
+    let key = format!(
+        "verify:{}|{}",
+        display_ip(ip),
+        URL_SAFE_NO_PAD.encode(Sha256::digest(request.token.as_bytes()))
+    );
     security.limiter.check(&key, &AUTH_RULES)?;
     let expired = || ApiError::new(ErrorCode::TokenExpired);
     let secret = Secret::decode(&request.token).ok_or_else(expired)?;

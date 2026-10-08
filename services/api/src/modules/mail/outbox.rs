@@ -87,13 +87,18 @@ pub async fn claim(
         .collect()
 }
 
-/// Settles a message: sent, or nothing left to send.
-pub async fn settle(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE outbox SET delivered_at = now() WHERE id = $1 AND delivered_at IS NULL")
-        .bind(id)
-        .execute(pool)
-        .await
-        .map(drop)
+/// Settles a message: sent, or nothing left to send. A claim whose lease was already taken over
+/// (attempts moved on) is left to its new holder.
+pub async fn settle(pool: &PgPool, claimed: &Claimed) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE outbox SET delivered_at = now()
+         WHERE id = $1 AND attempts = $2 AND delivered_at IS NULL",
+    )
+    .bind(claimed.id)
+    .bind(claimed.attempts)
+    .execute(pool)
+    .await
+    .map(drop)
 }
 
 /// Releases a failed claim to retry after `delay`. A claim whose lease was already taken over

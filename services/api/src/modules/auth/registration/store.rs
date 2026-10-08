@@ -14,10 +14,14 @@ use crate::modules::mail::outbox;
 /// unique index serves the lookup.
 const NORMALIZED: &str = r#"casefold($1 COLLATE pg_unicode_fast) COLLATE "default""#;
 
-/// Creates a pending account, or refreshes the password of a pending one whose cooldown has
-/// passed, and queues its verification email. Verified, disabled and cooling-down accounts are
-/// left unchanged. Concurrent registrations of one email serialize on the unique index and then
-/// on the row lock, so they create one account and queue one email.
+/// Creates a pending account and queues its verification email, or queues a new email for a
+/// pending one whose cooldown has passed. Verified, disabled and cooling-down accounts are left
+/// unchanged. Concurrent registrations of one email serialize on the unique index and then on the
+/// row lock, so they create one account and queue one email.
+///
+/// Once a link has been minted, a pending account's password is kept: the mailbox owner cannot
+/// tell which registration a link confirms, so a later registrant must not be able to swap in
+/// their own password before the owner clicks.
 pub(super) async fn register(
     pool: &PgPool,
     email: &str,
@@ -33,18 +37,19 @@ pub(super) async fn register(
     .await?;
     let user_id = match created {
         Some(user_id) => Some(user_id),
-        // The latest registrant's password replaces the pending one only when a new link is
-        // sent, and that link invalidates the earlier ones.
         None => match lock_pending(&mut tx, email).await? {
             Some(user_id) if !cooling_down(&mut tx, user_id).await? => Some(user_id),
             _ => None,
         },
     };
     if let Some(user_id) = user_id {
+        // A pending password is replaced only while no link for it was ever minted.
         sqlx::query(
             "INSERT INTO password_credentials (user_id, argon2_hash) VALUES ($1, $2)
              ON CONFLICT (user_id) DO UPDATE SET argon2_hash = excluded.argon2_hash,
-                                                 updated_at = now()",
+                                                 updated_at = now()
+             WHERE NOT EXISTS (SELECT 1 FROM auth_tokens
+                               WHERE user_id = $1 AND purpose = 'verify')",
         )
         .bind(user_id)
         .bind(argon2_hash)

@@ -3,7 +3,10 @@
 //! the real transport. Expiry and cooldown are driven by moving rows back in time against the
 //! database clock.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use axum::{Router, http::StatusCode, routing::get};
 use lettre::Message;
@@ -449,16 +452,18 @@ async fn existing_accounts_are_enumeration_safe_and_unchanged(pool: PgPool) {
         2
     );
 
-    // After the cooldown, re-registering a pending account takes the latest password and sends a
-    // new link; the earlier link stops working.
+    // After the cooldown, re-registering a pending account sends a new link and the earlier one
+    // stops working, but a link was already minted, so a later registrant cannot swap in their
+    // own password: the newest link still activates the original one.
     let first = token_in(&deliver(&pool).await[0]);
     age_tokens(&pool, pending, 61).await;
     register(&app, EMAIL, "the-newest-long-password").await;
-    assert_ne!(password_hash(&pool, pending).await, original);
+    assert_eq!(password_hash(&pool, pending).await, original);
     let (status, headers, body) = verify(&app, &first).await;
     assert_error(status, &headers, &body, 410, "TOKEN_EXPIRED");
     let second = token_in(&deliver(&pool).await[0]);
     assert_eq!(verify(&app, &second).await.0, StatusCode::OK);
+    assert_eq!(password_hash(&pool, pending).await, original);
 }
 
 #[sqlx::test]
@@ -555,6 +560,64 @@ async fn crashed_worker_lease_is_recovered(pool: PgPool) {
     make_due(&pool).await;
     assert_eq!(deliver(&pool).await.len(), 1);
     assert_eq!(count(&pool, "SELECT attempts::bigint FROM outbox").await, 2);
+}
+
+#[sqlx::test]
+async fn a_taken_over_claim_cannot_settle_or_delay_the_message(pool: PgPool) {
+    let (_, app) = app(&pool);
+    register(&app, EMAIL, PASSWORD).await;
+    // A slow worker's lease ends and another worker takes the message over.
+    let stale = outbox::claim(&pool, 1, outbox::LEASE)
+        .await
+        .unwrap()
+        .remove(0);
+    make_due(&pool).await;
+    let current = outbox::claim(&pool, 1, outbox::LEASE)
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!((stale.id, current.attempts), (current.id, 2));
+    // The stale holder finishing late changes nothing; the current holder settles it.
+    outbox::settle(&pool, &stale).await.unwrap();
+    outbox::retry_later(&pool, &stale, Duration::ZERO)
+        .await
+        .unwrap();
+    let pending = "SELECT count(*) FROM outbox WHERE delivered_at IS NULL AND available_at > now()";
+    assert_eq!(count(&pool, pending).await, 1);
+    outbox::settle(&pool, &current).await.unwrap();
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM outbox WHERE delivered_at IS NULL"
+        )
+        .await,
+        0
+    );
+}
+
+#[sqlx::test]
+async fn each_message_is_leased_just_before_its_own_send(pool: PgPool) {
+    let (_, app) = app(&pool);
+    for n in 0..3 {
+        register(&app, &format!("user{n}@example.test"), PASSWORD).await;
+    }
+    // While the first message is being sent, the rest of the batch is still unclaimed.
+    let unclaimed = "SELECT count(*) FROM outbox WHERE attempts = 0";
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let probe = Probe(pool.clone(), Arc::clone(&observed), unclaimed);
+    assert_eq!(worker(&pool, probe).run_once().await.unwrap().sent, 3);
+    assert_eq!(*observed.lock().unwrap(), [2, 1, 0]);
+}
+
+/// Records, at each send, how many rows `sql` counts.
+struct Probe(PgPool, Arc<Mutex<Vec<i64>>>, &'static str);
+
+impl MailTransport for Probe {
+    async fn send(&self, _: Message) -> Result<(), &'static str> {
+        let seen = count(&self.0, self.2).await;
+        self.1.lock().unwrap().push(seen);
+        Ok(())
+    }
 }
 
 #[sqlx::test]
