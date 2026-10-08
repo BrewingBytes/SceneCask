@@ -4,6 +4,9 @@
 
 use sqlx::{AssertSqlSafe, PgPool, migrate::Migrator};
 
+mod common;
+use common::{assert_sqlstate as rejects, count};
+
 static MIGRATOR: Migrator = sqlx::migrate!();
 
 const ANA: &str = "00000000-0000-4000-8000-00000000a0a1";
@@ -293,27 +296,6 @@ async fn public_tables(pool: &PgPool) -> Vec<String> {
     .fetch_all(pool)
     .await
     .unwrap()
-}
-
-async fn count(pool: &PgPool, sql: &str) -> i64 {
-    sqlx::query_scalar(AssertSqlSafe(sql.to_owned()))
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-/// Runs `sql` and asserts PostgreSQL rejects it with `code` (SQLSTATE).
-async fn rejects(pool: &PgPool, code: &str, sql: &str) {
-    let error = sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
-        .execute(pool)
-        .await
-        .expect_err(&format!("expected SQLSTATE {code} for: {sql}"));
-    let actual = error.as_database_error().and_then(|e| e.code());
-    assert_eq!(
-        actual.as_deref(),
-        Some(code),
-        "expected SQLSTATE {code}, got {actual:?} for: {sql}"
-    );
 }
 
 /// Runs a delete that an `ON DELETE RESTRICT` reference must block.
