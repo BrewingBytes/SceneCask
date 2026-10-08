@@ -1,0 +1,9 @@
+Welcome to SceneCask.
+
+Verify your email address to finish creating your account:
+
+{{link}}
+
+This link works once and expires in 24 hours. If it has expired, request a new one from the verification page.
+
+If you did not create a SceneCask account, you can ignore this email.
