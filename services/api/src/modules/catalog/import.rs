@@ -1,10 +1,12 @@
 //! Atomic imports preserve stable provider identity and never delete progress-bearing rows.
-use super::provider::{Catalog, ProviderError, TvProvider};
-use crate::error::{ApiError, ErrorCode};
+use std::{sync::Arc, time::Duration};
+
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
-use std::{sync::Arc, time::Duration};
 use uuid::Uuid;
+
+use super::provider::{Catalog, ProviderError, TvProvider};
+use crate::error::{ApiError, ErrorCode};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -36,12 +38,11 @@ impl<P: TvProvider> Importer<P> {
         }
         match self.refresh(request.provider_id).await {
             // C05: a failed refresh keeps the last good catalog usable; only a first import fails.
-            Err(error) if error.code() == ErrorCode::ProviderUnavailable => {
-                match complete(&self.pool, request.provider_id, false).await? {
-                    Some(id) => Ok(ImportResult { show_id: id }),
-                    None => Err(error),
-                }
-            }
+            // Database failures (lock/statement timeouts) fall back too, not only provider errors.
+            Err(error) => match complete(&self.pool, request.provider_id, false).await? {
+                Some(id) => Ok(ImportResult { show_id: id }),
+                None => Err(error),
+            },
             result => result,
         }
     }
@@ -143,20 +144,37 @@ async fn persist(
         .await
         .map_err(import_database_error)?;
         let season_id = season_id.ok_or(ProviderError::InvalidData)?;
-        for episode in &season.episodes {
-            let episode_id: Option<Uuid> = sqlx::query_scalar(
-                "INSERT INTO episodes (tmdb_id, show_id, season_id, number, title, overview, still_path, air_date, release_timezone)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
+        if season.episodes.is_empty() {
+            continue;
+        }
+        // One statement per season keeps the locked transaction short for long-running shows.
+        // Episode IDs are unique per snapshot (Catalog::validate), so no row is upserted twice; a
+        // short count means an ID belongs to another show.
+        let episodes = &season.episodes;
+        let upserted: i64 = sqlx::query_scalar(
+            "WITH upserted AS (
+                 INSERT INTO episodes (tmdb_id, show_id, season_id, number, title, overview, still_path, air_date, release_timezone)
+                 SELECT e.tmdb_id, $2, $3, e.number, e.title, e.overview, e.still_path, e.air_date, NULL
+                 FROM UNNEST($1::bigint[], $4::int[], $5::text[], $6::text[], $7::text[], $8::date[])
+                     AS e (tmdb_id, number, title, overview, still_path, air_date)
                  ON CONFLICT (tmdb_id) DO UPDATE SET season_id = EXCLUDED.season_id, number = EXCLUDED.number,
                  title = EXCLUDED.title, overview = EXCLUDED.overview, still_path = EXCLUDED.still_path,
                  air_date = EXCLUDED.air_date, release_timezone = NULL, archived_at = NULL
-                 WHERE episodes.show_id = EXCLUDED.show_id RETURNING id")
-                .bind(episode.provider_id).bind(id).bind(season_id).bind(episode.number)
-                .bind(&episode.title).bind(&episode.overview).bind(&episode.still_path).bind(episode.air_date)
-                .fetch_optional(&mut **tx).await.map_err(import_database_error)?;
-            if episode_id.is_none() {
-                return Err(ProviderError::InvalidData.into());
-            }
+                 WHERE episodes.show_id = EXCLUDED.show_id RETURNING 1)
+             SELECT count(*) FROM upserted")
+            .bind(episodes.iter().map(|e| e.provider_id).collect::<Vec<_>>())
+            .bind(id)
+            .bind(season_id)
+            .bind(episodes.iter().map(|e| e.number).collect::<Vec<_>>())
+            .bind(episodes.iter().map(|e| e.title.as_deref()).collect::<Vec<_>>())
+            .bind(episodes.iter().map(|e| e.overview.as_deref()).collect::<Vec<_>>())
+            .bind(episodes.iter().map(|e| e.still_path.as_deref()).collect::<Vec<_>>())
+            .bind(episodes.iter().map(|e| e.air_date).collect::<Vec<_>>())
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(import_database_error)?;
+        if usize::try_from(upserted).ok() != Some(episodes.len()) {
+            return Err(ProviderError::InvalidData.into());
         }
     }
     // catalog_revision advances through the 0002 triggers only when seasons/episodes change, so

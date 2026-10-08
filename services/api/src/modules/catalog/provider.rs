@@ -1,15 +1,17 @@
 //! TV-only metadata boundary. Only search DTOs may be serialized to clients here.
 pub mod tmdb;
 
-use crate::error::{ApiError, ErrorCode};
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
     sync::Arc,
     time::Duration,
 };
+
+use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::Instant};
+
+use crate::error::{ApiError, ErrorCode};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderError {

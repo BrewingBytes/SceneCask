@@ -1,15 +1,17 @@
 //! Server-only TMDB adapter. Errors discard request URLs, credentials and provider bodies.
-use super::*;
+use std::{
+    collections::BTreeMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use chrono::{Datelike, NaiveDate};
 use reqwest::{
     Client, Url,
     header::{AUTHORIZATION, HeaderValue, RETRY_AFTER},
 };
 use serde::de::DeserializeOwned;
-use std::{
-    collections::BTreeMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+
+use super::*;
 
 const MAX_BODY: usize = 4 * 1024 * 1024;
 const METADATA_TTL: Duration = Duration::from_secs(24 * 60 * 60);
@@ -242,7 +244,11 @@ impl TvProvider for Tmdb {
         }
         let mut items = Vec::with_capacity(response.results.len());
         // One unusable result must not hide the rest; skip it and keep a malformed year null.
+        // Each result is parsed separately so a null or missing field skips only that result.
         for show in response.results {
+            let Ok(show) = serde_json::from_value::<RawSearchShow>(show) else {
+                continue;
+            };
             if show.id <= 0 || show.name.trim().is_empty() {
                 continue;
             }
@@ -365,7 +371,7 @@ struct Genres {
 struct RawSearch {
     page: u16,
     total_pages: u32,
-    results: Vec<RawSearchShow>,
+    results: Vec<serde_json::Value>,
 }
 #[derive(Deserialize)]
 struct RawSearchShow {
@@ -413,14 +419,16 @@ struct RawEpisode {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use axum::{
         Router,
         extract::{Request, State},
         http::StatusCode,
         response::IntoResponse,
     };
-    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
 
     const FIXTURE: &str = include_str!("../../../../tests/catalog_fixtures/search.json");
     const SHOW: &str = include_str!("../../../../tests/catalog_fixtures/show.json");
@@ -533,7 +541,8 @@ mod tests {
         assert!(results.items[1].poster_url.is_none());
         assert!(results.items[2].poster_url.is_none());
         assert!(results.items[2].year.is_none());
-        // The id-0/empty-name result is skipped; the malformed date becomes a null year.
+        // Unusable results (id 0, empty or null name, missing genre_ids) are skipped without
+        // failing the page; the malformed date becomes a null year.
         assert_eq!(results.items.len(), 4);
         assert_eq!(results.items[3].provider_id, 126);
         assert!(results.items[3].year.is_none());

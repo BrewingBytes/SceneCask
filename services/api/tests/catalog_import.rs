@@ -1,4 +1,12 @@
 //! R11 integration evidence uses migrated PostgreSQL, never SQLite or provider credentials.
+use std::{
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
+
 use scenecask_api::{
     error::ErrorCode,
     modules::catalog::{
@@ -10,13 +18,6 @@ use scenecask_api::{
     },
 };
 use sqlx::PgPool;
-use std::{
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
-    time::Duration,
-};
 use uuid::Uuid;
 
 struct Fixture {
