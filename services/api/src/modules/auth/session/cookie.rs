@@ -1,10 +1,12 @@
 //! Cookie names, parsing and Set-Cookie values (C04). Cookie values are opaque secrets; never
 //! log them.
 
+use std::time::Duration;
+
+use axum::http::{HeaderMap, HeaderValue, header};
+
 use super::secret::Secret;
 use crate::middleware::CookieMode;
-use axum::http::{HeaderMap, HeaderValue, header};
-use std::time::Duration;
 
 #[derive(Clone, Copy)]
 pub enum Kind {

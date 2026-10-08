@@ -1,12 +1,13 @@
 //! JSON body extractor whose rejections use the C03 envelope and never echo parser messages,
 //! which can quote submitted content.
 
-use crate::error::ApiError;
 use axum::{
     Json,
     extract::{FromRequest, Request},
 };
 use serde::{Deserialize, de::DeserializeOwned};
+
+use crate::error::ApiError;
 
 pub struct ApiJson<T>(pub T);
 

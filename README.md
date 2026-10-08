@@ -63,10 +63,11 @@ server; set SMOKE_ORIGIN to check another origin. E2e captures 390/1440 screensh
 and checks 320px overflow and the 860px gutter breakpoint. The foundation page is
 static and has no interactive controls or loading/error states.
 
-C01 also supports these direct Rust checks:
+C01 also supports these direct Rust checks. Imports are grouped std, external, then local
+(`yarn fmt:api` applies it):
 
 ```sh
-cargo fmt --manifest-path services/api/Cargo.toml --check
+cargo fmt --manifest-path services/api/Cargo.toml --check -- --config group_imports=StdExternalCrate
 cargo clippy --manifest-path services/api/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path services/api/Cargo.toml
 ```

@@ -1,6 +1,8 @@
 //! C03 error envelope: `{error:{code,message,fields?,requestId}}` with safe, fixed messages.
 //! Messages never echo submitted data, protected strings, asset paths or configuration.
 
+use std::collections::BTreeMap;
+
 use axum::{
     Json,
     extract::rejection::JsonRejection,
@@ -8,7 +10,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
-use std::collections::BTreeMap;
 use uuid::Uuid;
 
 tokio::task_local! {
@@ -214,8 +215,9 @@ pub async fn not_found() -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::body::to_bytes;
+
+    use super::*;
 
     async fn body(error: ApiError) -> (StatusCode, serde_json::Value, Option<HeaderValue>) {
         let response = with_request_id(Uuid::nil(), async { error.into_response() }).await;

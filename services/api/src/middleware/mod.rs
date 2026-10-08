@@ -6,16 +6,18 @@ pub mod json;
 pub mod rate_limit;
 pub mod request;
 
-use crate::{
-    error,
-    modules::auth::session::{self, Lifetimes},
-};
+use std::sync::Arc;
+
 use axum::{
     Router, extract::DefaultBodyLimit, middleware::from_fn, middleware::from_fn_with_state,
 };
 use rate_limit::{RateLimiter, Rule};
 use sqlx::PgPool;
-use std::sync::Arc;
+
+use crate::{
+    error,
+    modules::auth::session::{self, Lifetimes},
+};
 
 /// Cookie attributes. The non-Secure development exception exists only for a loopback origin.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -4,6 +4,8 @@ pub mod mail;
 pub mod middleware;
 pub mod modules;
 
+use std::time::Duration;
+
 use axum::{
     Json, Router,
     extract::State,
@@ -13,7 +15,6 @@ use axum::{
 };
 use serde::Serialize;
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::time::Duration;
 
 pub fn database_pool(url: &str) -> Result<PgPool, &'static str> {
     PgPoolOptions::new()
