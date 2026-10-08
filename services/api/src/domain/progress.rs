@@ -17,16 +17,16 @@ pub enum ShowStatus {
 
 /// One catalog episode joined with the user's mark. Season 0 holds specials.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Episode {
+pub struct Episode<'a> {
     pub id: Uuid,
     pub season: i32,
     pub number: i32,
-    pub schedule: Schedule,
+    pub schedule: Schedule<'a>,
     pub archived: bool,
     pub watched: bool,
 }
 
-impl Episode {
+impl Episode<'_> {
     /// Regular episodes still in the provider's catalog; only these count toward progress.
     /// Archived episodes stay in history but leave active ordering.
     fn is_active_regular(&self) -> bool {
@@ -40,7 +40,7 @@ pub struct Show<'a> {
     pub status: ShowStatus,
     /// False until a full provider import succeeds; an incomplete catalog never yields Completed.
     pub complete_import: bool,
-    pub episodes: &'a [Episode],
+    pub episodes: &'a [Episode<'a>],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,7 +83,8 @@ pub struct Progress {
     pub state: ProgressState,
     /// First released, unmarked regular episode in season/episode order.
     pub next_episode: Option<EpisodeCode>,
-    /// A regular episode after `next_episode` is marked.
+    /// An unmarked active regular episode precedes a marked one, whatever its release state, so
+    /// the gap matches the discussion gate even when `next_episode` is `None`.
     pub out_of_order: bool,
     /// An active regular episode has no release date.
     pub release_info_incomplete: bool,
@@ -142,11 +143,14 @@ pub fn progress(show: &Show<'_>, now: DateTime<Utc>) -> Progress {
                 number: episode.number,
             }
         }),
-        out_of_order: next.is_some_and(|index| {
-            regular[index + 1..]
-                .iter()
-                .any(|(episode, _)| episode.watched)
-        }),
+        out_of_order: regular
+            .iter()
+            .position(|(episode, _)| !episode.watched)
+            .is_some_and(|gap| {
+                regular[gap + 1..]
+                    .iter()
+                    .any(|(episode, _)| episode.watched)
+            }),
         release_info_incomplete: undated,
     }
 }
@@ -175,15 +179,20 @@ mod tests {
         Utc.with_ymd_and_hms(NOW.0, NOW.1, NOW.2, 12, 0, 0).unwrap()
     }
 
-    fn released() -> Schedule {
+    fn released() -> Schedule<'static> {
         Schedule::Date(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
     }
 
-    fn future() -> Schedule {
+    fn future() -> Schedule<'static> {
         Schedule::Date(NaiveDate::from_ymd_opt(2026, 11, 12).unwrap())
     }
 
-    fn episode(season: i32, number: i32, schedule: Schedule, watched: bool) -> Episode {
+    fn episode(
+        season: i32,
+        number: i32,
+        schedule: Schedule<'static>,
+        watched: bool,
+    ) -> Episode<'static> {
         Episode {
             id: Uuid::from_u128(((season as u128) << 32) | number as u128),
             season,
@@ -194,7 +203,7 @@ mod tests {
         }
     }
 
-    fn show(status: ShowStatus, episodes: &[Episode]) -> Show<'_> {
+    fn show<'a>(status: ShowStatus, episodes: &'a [Episode<'a>]) -> Show<'a> {
         Show {
             status,
             complete_import: true,
@@ -246,7 +255,8 @@ mod tests {
             ];
             let result = progress(&show(ShowStatus::Ended, &episodes), now());
             assert_eq!(result.next_episode, None, "watched={watched}");
-            assert!(!result.out_of_order);
+            // An unmarked undated E2 is still a gap behind E3.
+            assert_eq!(result.out_of_order, !watched, "watched={watched}");
             assert!(result.release_info_incomplete);
             assert_eq!(result.state, ProgressState::CaughtUp, "watched={watched}");
         }
@@ -269,6 +279,19 @@ mod tests {
             episodes[3].schedule.release(now()).state,
             ReleaseState::Future
         );
+    }
+
+    #[test]
+    fn future_gap_behind_a_marked_future_episode_is_out_of_order() {
+        let episodes = [
+            episode(1, 1, released(), true),
+            episode(1, 2, future(), false),
+            episode(1, 3, future(), true),
+        ];
+        let result = progress(&show(ShowStatus::Returning, &episodes), now());
+        assert_eq!(result.next_episode, None);
+        assert!(result.out_of_order);
+        assert_eq!(result.state, ProgressState::CaughtUp);
     }
 
     #[test]
@@ -524,6 +547,7 @@ mod tests {
             1,
             Schedule::Zoned {
                 date: day,
+                zone: "America/New_York",
                 starts_at,
             },
             false,
@@ -615,10 +639,11 @@ mod tests {
             expected_next.and_then(code),
             "{context}"
         );
-        let next_index = expected_next.map(|e| e.number);
+        // Out of order: some unmarked episode, released or not, precedes a marked one.
+        let first_gap = regular.iter().find(|e| !e.watched).map(|e| e.number);
         assert_eq!(
             result.out_of_order,
-            next_index.is_some_and(|n| regular.iter().any(|e| e.number > n && e.watched)),
+            first_gap.is_some_and(|n| regular.iter().any(|e| e.number > n && e.watched)),
             "{context}"
         );
 

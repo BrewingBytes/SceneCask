@@ -3,19 +3,23 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 
+/// Zone reported for date-only releases, which start at UTC midnight.
+pub const FALLBACK_TIMEZONE: &str = "UTC";
+
 /// When an episode becomes available, as stored in the catalog.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Schedule {
+pub enum Schedule<'a> {
     /// No air date from the provider; release is unresolved.
     Undated,
     /// Date-only release without a reliable timezone: starts at UTC midnight and is disclosed as
     /// estimated.
     Date(NaiveDate),
-    /// Date in the provider's zone. `starts_at` is local midnight of `date` in that zone; the
-    /// caller resolves it (PostgreSQL `air_date::timestamp AT TIME ZONE release_timezone`) because
-    /// this module carries no timezone database.
+    /// Date in the provider's IANA `zone`. `starts_at` is local midnight of `date` in that zone;
+    /// the caller resolves it (PostgreSQL `air_date::timestamp AT TIME ZONE release_timezone`)
+    /// because this module carries no timezone database.
     Zoned {
         date: NaiveDate,
+        zone: &'a str,
         starts_at: DateTime<Utc>,
     },
 }
@@ -40,14 +44,17 @@ impl ReleaseState {
 
 /// Release classification at a given instant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Release {
+pub struct Release<'a> {
     pub state: ReleaseState,
     pub date: Option<NaiveDate>,
+    /// Zone `date` is in: the provider's zone, `FALLBACK_TIMEZONE` for date-only releases, or
+    /// `None` when undated.
+    pub timezone: Option<&'a str>,
     /// True when the start instant uses the UTC-midnight fallback.
     pub estimated: bool,
 }
 
-impl Schedule {
+impl<'a> Schedule<'a> {
     /// The instant the episode becomes released, or `None` when undated.
     pub fn starts_at(self) -> Option<DateTime<Utc>> {
         match self {
@@ -58,11 +65,11 @@ impl Schedule {
     }
 
     /// Classifies the release at `now`; an episode is released from its start instant onward.
-    pub fn release(self, now: DateTime<Utc>) -> Release {
-        let (date, estimated) = match self {
-            Self::Undated => (None, false),
-            Self::Date(date) => (Some(date), true),
-            Self::Zoned { date, .. } => (Some(date), false),
+    pub fn release(self, now: DateTime<Utc>) -> Release<'a> {
+        let (date, timezone, estimated) = match self {
+            Self::Undated => (None, None, false),
+            Self::Date(date) => (Some(date), Some(FALLBACK_TIMEZONE), true),
+            Self::Zoned { date, zone, .. } => (Some(date), Some(zone), false),
         };
         let state = match self.starts_at() {
             None => ReleaseState::Unknown,
@@ -72,6 +79,7 @@ impl Schedule {
         Release {
             state,
             date,
+            timezone,
             estimated,
         }
     }
@@ -103,6 +111,7 @@ mod tests {
             let release = schedule.release(now);
             assert_eq!(release.state, state, "at {now}");
             assert_eq!(release.date, Some(date(2026, 11, 12)));
+            assert_eq!(release.timezone, Some("UTC"));
             assert!(release.estimated);
         }
     }
@@ -113,11 +122,13 @@ mod tests {
         // already turned but the episode is still future.
         let east = Schedule::Zoned {
             date: date(2026, 11, 12),
+            zone: "America/New_York",
             starts_at: at(2026, 11, 12, 5, 0, 0),
         };
         // Local midnight in Asia/Tokyo (UTC+9) is 15:00 UTC the previous day.
         let tokyo = Schedule::Zoned {
             date: date(2026, 11, 12),
+            zone: "Asia/Tokyo",
             starts_at: at(2026, 11, 11, 15, 0, 0),
         };
         let cases = [
@@ -132,6 +143,10 @@ mod tests {
             assert_eq!(release.state, state, "{schedule:?} at {now}");
             assert!(!release.estimated);
             assert_eq!(release.date, Some(date(2026, 11, 12)));
+            let Schedule::Zoned { zone, .. } = schedule else {
+                unreachable!()
+            };
+            assert_eq!(release.timezone, Some(zone));
         }
     }
 
@@ -145,6 +160,7 @@ mod tests {
             let release = Schedule::Undated.release(now);
             assert_eq!(release.state, ReleaseState::Unknown);
             assert_eq!(release.date, None);
+            assert_eq!(release.timezone, None);
             assert!(!release.estimated);
         }
         assert_eq!(Schedule::Undated.starts_at(), None);
