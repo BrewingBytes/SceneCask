@@ -25,7 +25,7 @@
     "test:design": "node apps/web/src/styles/generate-tokens.mjs --check && node --test apps/web/src/styles/generate-tokens.test.mjs apps/web/src/components/ui/basic/child-exit.test.mjs apps/web/src/components/ui/basic/gallery-workspace.test.mjs",
     "test:ui": "playwright test --config apps/web/src/components/ui/basic/playwright.config.ts",
     "test:overlays": "playwright test --config apps/web/src/components/ui/overlays/playwright.config.ts",
-    "lint:duplication": "jscpd --config .jscpd.json"
+    "lint:duplication": "node scripts/duplication.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

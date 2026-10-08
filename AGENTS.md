@@ -16,7 +16,7 @@ counts and error assertions; add a missing helper there instead of copying one
 into a feature test file.
 
 Use Yarn and the pinned Rust toolchain. From a configured checkout run:
-- yarn lint (web lint, Rust format and clippy)
+- yarn lint (duplication check, web lint, Rust format and clippy)
 - yarn typecheck
 - yarn test (requires real PostgreSQL via DATABASE_URL)
 - yarn build

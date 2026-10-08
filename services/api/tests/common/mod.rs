@@ -240,15 +240,19 @@ pub async fn count(pool: &PgPool, sql: &str) -> i64 {
 
 /// Runs `sql` and asserts PostgreSQL rejects it with `code` (SQLSTATE).
 pub async fn assert_sqlstate(pool: &PgPool, code: &str, sql: &str) {
+    assert_sqlstate_any(pool, &[code], sql).await;
+}
+
+/// Like `assert_sqlstate`, for errors whose SQLSTATE differs across PostgreSQL versions.
+pub async fn assert_sqlstate_any(pool: &PgPool, codes: &[&str], sql: &str) {
     let error = sqlx::raw_sql(sqlx::AssertSqlSafe(sql.to_owned()))
         .execute(pool)
         .await
-        .expect_err(&format!("expected SQLSTATE {code} for: {sql}"));
+        .expect_err(&format!("expected SQLSTATE {codes:?} for: {sql}"));
     let actual = error.as_database_error().and_then(|e| e.code());
-    assert_eq!(
-        actual.as_deref(),
-        Some(code),
-        "expected SQLSTATE {code}, got {actual:?} for: {sql}"
+    assert!(
+        actual.as_deref().is_some_and(|code| codes.contains(&code)),
+        "expected SQLSTATE {codes:?}, got {actual:?} for: {sql}"
     );
 }
 

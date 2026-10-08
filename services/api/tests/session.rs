@@ -4,7 +4,7 @@
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
+    body::Body,
     http::{Method, Request, StatusCode, header},
     routing::{get, post},
 };
@@ -53,6 +53,13 @@ fn probes(security: &Security) -> Router {
         .merge(session::routes(security.clone()))
 }
 
+/// The session-limited harness with session and probe routes mounted.
+fn session_app(pool: &PgPool) -> (Security, Router) {
+    let harness = TestApp::new(pool, session_limits);
+    let app = harness.routes(probes(&harness.security));
+    (harness.security, app)
+}
+
 async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
     sqlx::query(
         "INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
@@ -67,9 +74,7 @@ async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
 
 #[sqlx::test]
 async fn anonymous_bootstrap_issues_csrf_cookie_without_a_session(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (_, app) = session_app(&pool);
     let (status, headers, body) = send(&app, Call::get("/session")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
@@ -119,9 +124,7 @@ async fn anonymous_bootstrap_issues_csrf_cookie_without_a_session(pool: PgPool) 
 
 #[sqlx::test]
 async fn authenticated_session_returns_user_and_stores_only_a_hash(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, ana).await;
     let (status, _, body) = send(
@@ -157,9 +160,7 @@ async fn authenticated_session_returns_user_and_stores_only_a_hash(pool: PgPool)
 
 #[sqlx::test]
 async fn expired_revoked_or_disabled_sessions_return_401_and_lose_grants(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let expiries = [
         // Idle: last seen more than 7 days ago.
         "UPDATE sessions SET last_seen_at = now() - interval '7 days 1 second' WHERE id_hash = $1",
@@ -224,9 +225,7 @@ async fn expired_revoked_or_disabled_sessions_return_401_and_lose_grants(pool: P
 
 #[sqlx::test]
 async fn activity_slides_idle_expiry_at_most_once_per_interval(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let id = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, id).await;
     let age = || async {
@@ -253,9 +252,7 @@ async fn activity_slides_idle_expiry_at_most_once_per_interval(pool: PgPool) {
 
 #[sqlx::test]
 async fn mutations_without_valid_origin_csrf_or_json_are_rejected_without_writes(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, ana).await;
     let other = sign_in(
@@ -335,9 +332,7 @@ async fn mutations_without_valid_origin_csrf_or_json_are_rejected_without_writes
 
 #[sqlx::test]
 async fn logout_revokes_session_and_grants_and_cannot_be_reused(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, ana).await;
     let kept = sign_in(&security, ana).await;
@@ -402,9 +397,7 @@ async fn logout_revokes_session_and_grants_and_cannot_be_reused(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_rejects_malformed_or_unknown_bodies_without_revoking(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let signed = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
@@ -453,40 +446,42 @@ async fn rotation_and_user_revocation_remove_old_sessions_and_grants(pool: PgPoo
         .with_state(security.clone());
     let app = harness.routes(probe);
     let rotate = |target: Uuid| {
-        Request::post(format!("/rotate/{target}"))
-            .header(header::COOKIE, &old.cookie)
-            .header("x-csrf-token", &old.csrf)
-            .header(header::ORIGIN, ORIGIN)
-            .body(Body::empty())
-            .unwrap()
+        let app = app.clone();
+        let old = &old;
+        async move {
+            let path = format!("/rotate/{target}");
+            let call = Call {
+                content_type: None,
+                ..Call::post(&path, "").signed(old)
+            };
+            send(&app, call).await
+        }
     };
 
     let pending = user(&pool, "pending@example.test", false, "member").await;
-    let (status, headers, body) = parts(app.clone().oneshot(rotate(pending)).await.unwrap()).await;
+    let (status, headers, body) = rotate(pending).await;
     assert_error(status, &headers, &body, 403, "EMAIL_UNVERIFIED");
     assert!(set_cookies(&headers).is_empty());
     assert_eq!(count(&pool, "sessions", &old.hash).await, 1);
     assert_eq!(count(&pool, "reveal_grants", &old.hash).await, 1);
 
-    let response = app.oneshot(rotate(ana)).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let current =
-        String::from_utf8(to_bytes(response.into_body(), 1024).await.unwrap().to_vec()).unwrap();
+    let (status, _, body) = rotate(ana).await;
+    assert_eq!(status, StatusCode::OK);
+    let current = body.as_str().unwrap();
     assert!(current.contains("; Max-Age=2592000"));
     assert_eq!(count(&pool, "sessions", &old.hash).await, 0);
     assert_eq!(count(&pool, "reveal_grants", &old.hash).await, 0);
-    let fresh = signed(&current, String::new());
+    let fresh = signed(current, String::new());
     assert_ne!(fresh.hash, old.hash);
     assert_eq!(count(&pool, "sessions", &fresh.hash).await, 1);
 
     let second = sign_in(&security, ana).await;
     grant(&pool, &second.hash, ana).await;
     assert_eq!(store::revoke_user(&pool, ana).await.unwrap(), 2);
-    let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM reveal_grants")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(remaining, 0);
+    assert_eq!(
+        common::count(&pool, "SELECT count(*) FROM reveal_grants").await,
+        0
+    );
 }
 
 #[sqlx::test]
@@ -574,8 +569,7 @@ async fn reauthentication_rotates_the_secret_and_keeps_grants_and_expiry(pool: P
 
 #[sqlx::test]
 async fn purge_removes_only_expired_sessions(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
+    let security = TestApp::new(&pool, session_limits).security;
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let live = sign_in(&security, ana).await;
     let idle = sign_in(&security, ana).await;
@@ -597,9 +591,7 @@ async fn purge_removes_only_expired_sessions(pool: PgPool) {
 
 #[sqlx::test]
 async fn guards_require_verified_email_and_operator_role(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let member = sign_in(
         &security,
         user(&pool, "member@example.test", true, "member").await,
@@ -650,9 +642,7 @@ async fn guards_require_verified_email_and_operator_role(pool: PgPool) {
 
 #[sqlx::test]
 async fn authenticated_writes_are_rate_limited_per_user(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let ana = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
@@ -691,9 +681,7 @@ async fn authenticated_writes_are_rate_limited_per_user(pool: PgPool) {
 
 #[sqlx::test]
 async fn oversized_bodies_and_unknown_routes_use_the_envelope(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let signed = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
@@ -706,7 +694,8 @@ async fn oversized_bodies_and_unknown_routes_use_the_envelope(pool: PgPool) {
     assert_eq!(body["error"]["message"], "Check the request format.");
     assert_eq!(count(&pool, "sessions", &signed.hash).await, 1);
 
-    // A body without Content-Length (as when chunked) is capped by the extractor limit.
+    // A body without Content-Length (as when chunked) is capped by the extractor limit. `send`
+    // always sets Content-Length, so this probe builds the request directly.
     let response = app
         .clone()
         .oneshot(
@@ -743,9 +732,7 @@ async fn oversized_bodies_and_unknown_routes_use_the_envelope(pool: PgPool) {
 #[sqlx::test]
 #[traced_test]
 async fn logs_never_contain_cookies_tokens_emails_or_query_strings(pool: PgPool) {
-    let harness = TestApp::new(&pool, session_limits);
-    let security = harness.security.clone();
-    let app = harness.routes(probes(&security));
+    let (security, app) = session_app(&pool);
     let signed = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
