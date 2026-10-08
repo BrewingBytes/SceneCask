@@ -4,14 +4,13 @@
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{HeaderMap, Method, Request, StatusCode, header},
-    response::Response,
+    body::Body,
+    http::{Method, Request, StatusCode, header},
     routing::{get, post},
 };
 use scenecask_api::{
     error::{ApiError, ErrorCode},
-    middleware::{self, Security, SecurityConfig, rate_limit::Rule},
+    middleware::{Security, SecurityConfig, rate_limit::Rule},
     modules::auth::session::{
         self, AuthUser, OperatorUser, VerifiedUser, reauthenticate, start_session, store,
     },
@@ -22,20 +21,21 @@ use tower::ServiceExt;
 use tracing_test::traced_test;
 use uuid::Uuid;
 
-const ORIGIN: &str = "https://scenecask.example";
-const COOKIE: &str = "__Host-scenecask";
+mod common;
+use common::{
+    COOKIE, Call, ORIGIN, TestApp, assert_error, count_session as count, parts, send, set_cookies,
+    sha256, sign_in, signed, user,
+};
 
-fn security(pool: &PgPool) -> Security {
-    let mut config = SecurityConfig::new(ORIGIN).unwrap();
+fn session_limits(config: &mut SecurityConfig) {
     config.write_limit = Rule::per_minute(3);
     config.body_limit_bytes = 1024;
-    Security::new(pool.clone(), config)
 }
 
 /// Session routes plus probe routes standing in for feature endpoints behind each guard.
-fn app(security: &Security) -> Router {
+fn probes(security: &Security) -> Router {
     let pool = security.pool.clone();
-    let probes = Router::new()
+    Router::new()
         .route(
             "/probe/write",
             post(|AuthUser(current): AuthUser| async move {
@@ -49,49 +49,15 @@ fn app(security: &Security) -> Router {
         )
         .route("/probe/auth", get(|_: AuthUser| async { "ok" }))
         .route("/probe/verified", get(|_: VerifiedUser| async { "ok" }))
-        .route("/probe/operator", get(|_: OperatorUser| async { "ok" }));
-    middleware::apply(probes.merge(session::routes(security.clone())), security)
+        .route("/probe/operator", get(|_: OperatorUser| async { "ok" }))
+        .merge(session::routes(security.clone()))
 }
 
-async fn user(pool: &PgPool, email: &str, verified: bool, role: &str) -> Uuid {
-    sqlx::query_scalar(
-        "INSERT INTO users (normalized_email, display_name, verified_at, role)
-         VALUES ($1, 'Ana', CASE WHEN $2 THEN now() END, $3) RETURNING id",
-    )
-    .bind(email)
-    .bind(verified)
-    .bind(role)
-    .fetch_one(pool)
-    .await
-    .unwrap()
-}
-
-struct Signed {
-    cookie: String,
-    csrf: String,
-    hash: Vec<u8>,
-}
-
-async fn sign_in(security: &Security, user_id: Uuid) -> Signed {
-    let mut conn = security.pool.acquire().await.unwrap();
-    let started = start_session(&mut conn, &security.config, None, user_id)
-        .await
-        .unwrap();
-    signed(started.cookie.to_str().unwrap(), started.session.csrf_token)
-}
-
-fn signed(set_cookie: &str, csrf: String) -> Signed {
-    let cookie = set_cookie.split(';').next().unwrap().to_owned();
-    let secret = cookie.strip_prefix(&format!("{COOKIE}=")).unwrap();
-    let hash = sha256(secret);
-    Signed { cookie, csrf, hash }
-}
-
-/// Mirrors the store's hash: SHA-256 of the decoded 32-byte cookie secret.
-fn sha256(secret: &str) -> Vec<u8> {
-    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-    use sha2::{Digest, Sha256};
-    Sha256::digest(URL_SAFE_NO_PAD.decode(secret).unwrap()).to_vec()
+/// The session-limited harness with session and probe routes mounted.
+fn session_app(pool: &PgPool) -> (Security, Router) {
+    let harness = TestApp::new(pool, session_limits);
+    let app = harness.routes(probes(&harness.security));
+    (harness.security, app)
 }
 
 async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
@@ -106,121 +72,9 @@ async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
     .unwrap();
 }
 
-async fn count(pool: &PgPool, table: &str, hash: &[u8]) -> i64 {
-    let column = if table == "sessions" {
-        "id_hash"
-    } else {
-        "session_id"
-    };
-    sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-        "SELECT count(*) FROM {table} WHERE {column} = $1"
-    )))
-    .bind(hash)
-    .fetch_one(pool)
-    .await
-    .unwrap()
-}
-
-struct Call<'a> {
-    method: Method,
-    path: &'a str,
-    cookie: Option<&'a str>,
-    csrf: Option<&'a str>,
-    origin: Option<&'a str>,
-    content_type: Option<&'a str>,
-    body: &'a str,
-}
-
-impl<'a> Call<'a> {
-    fn get(path: &'a str) -> Self {
-        Self {
-            method: Method::GET,
-            path,
-            cookie: None,
-            csrf: None,
-            origin: None,
-            content_type: None,
-            body: "",
-        }
-    }
-
-    fn post(path: &'a str, body: &'a str) -> Self {
-        Self {
-            method: Method::POST,
-            origin: Some(ORIGIN),
-            content_type: Some("application/json"),
-            body,
-            ..Self::get(path)
-        }
-    }
-
-    fn signed(self, signed: &'a Signed) -> Self {
-        Self {
-            cookie: Some(&signed.cookie),
-            csrf: Some(&signed.csrf),
-            ..self
-        }
-    }
-}
-
-async fn send(app: &Router, call: Call<'_>) -> (StatusCode, HeaderMap, Value) {
-    let mut request = Request::builder().method(call.method).uri(call.path);
-    for (name, value) in [
-        (header::COOKIE.as_str(), call.cookie),
-        ("x-csrf-token", call.csrf),
-        (header::ORIGIN.as_str(), call.origin),
-        (header::CONTENT_TYPE.as_str(), call.content_type),
-    ] {
-        if let Some(value) = value {
-            request = request.header(name, value);
-        }
-    }
-    let request = request
-        .header(header::CONTENT_LENGTH, call.body.len())
-        .body(Body::from(call.body.to_owned()))
-        .unwrap();
-    parts(app.clone().oneshot(request).await.unwrap()).await
-}
-
-async fn parts(response: Response) -> (StatusCode, HeaderMap, Value) {
-    let status = response.status();
-    let headers = response.headers().clone();
-    let bytes = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
-    let body = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes)
-            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
-    };
-    (status, headers, body)
-}
-
-fn set_cookies(headers: &HeaderMap) -> Vec<&str> {
-    headers
-        .get_all(header::SET_COOKIE)
-        .iter()
-        .map(|value| value.to_str().unwrap())
-        .collect()
-}
-
-/// Asserts the C03 envelope, that the request ID matches the header, and that the body holds no
-/// user data.
-fn assert_error(status: StatusCode, headers: &HeaderMap, body: &Value, expected: u16, code: &str) {
-    assert_eq!(status.as_u16(), expected, "{body}");
-    assert_eq!(body["error"]["code"], code);
-    assert_eq!(
-        body["error"]["requestId"].as_str().unwrap(),
-        headers["x-request-id"].to_str().unwrap()
-    );
-    assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
-    assert!(!body.to_string().contains("example.test"));
-    assert!(body.get("user").is_none());
-}
-
 #[sqlx::test]
 async fn anonymous_bootstrap_issues_csrf_cookie_without_a_session(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (_, app) = session_app(&pool);
     let (status, headers, body) = send(&app, Call::get("/session")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
@@ -270,8 +124,7 @@ async fn anonymous_bootstrap_issues_csrf_cookie_without_a_session(pool: PgPool) 
 
 #[sqlx::test]
 async fn authenticated_session_returns_user_and_stores_only_a_hash(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, ana).await;
     let (status, _, body) = send(
@@ -307,8 +160,7 @@ async fn authenticated_session_returns_user_and_stores_only_a_hash(pool: PgPool)
 
 #[sqlx::test]
 async fn expired_revoked_or_disabled_sessions_return_401_and_lose_grants(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let expiries = [
         // Idle: last seen more than 7 days ago.
         "UPDATE sessions SET last_seen_at = now() - interval '7 days 1 second' WHERE id_hash = $1",
@@ -373,8 +225,7 @@ async fn expired_revoked_or_disabled_sessions_return_401_and_lose_grants(pool: P
 
 #[sqlx::test]
 async fn activity_slides_idle_expiry_at_most_once_per_interval(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let id = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, id).await;
     let age = || async {
@@ -401,8 +252,7 @@ async fn activity_slides_idle_expiry_at_most_once_per_interval(pool: PgPool) {
 
 #[sqlx::test]
 async fn mutations_without_valid_origin_csrf_or_json_are_rejected_without_writes(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, ana).await;
     let other = sign_in(
@@ -482,8 +332,7 @@ async fn mutations_without_valid_origin_csrf_or_json_are_rejected_without_writes
 
 #[sqlx::test]
 async fn logout_revokes_session_and_grants_and_cannot_be_reused(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let signed = sign_in(&security, ana).await;
     let kept = sign_in(&security, ana).await;
@@ -548,8 +397,7 @@ async fn logout_revokes_session_and_grants_and_cannot_be_reused(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_rejects_malformed_or_unknown_bodies_without_revoking(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let signed = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
@@ -572,7 +420,8 @@ async fn logout_rejects_malformed_or_unknown_bodies_without_revoking(pool: PgPoo
 
 #[sqlx::test]
 async fn rotation_and_user_revocation_remove_old_sessions_and_grants(pool: PgPool) {
-    let security = security(&pool);
+    let harness = TestApp::new(&pool, session_limits);
+    let security = harness.security.clone();
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let old = sign_in(&security, ana).await;
     grant(&pool, &old.hash, ana).await;
@@ -595,47 +444,50 @@ async fn rotation_and_user_revocation_remove_old_sessions_and_grants(pool: PgPoo
             ),
         )
         .with_state(security.clone());
-    let app = middleware::apply(probe, &security);
+    let app = harness.routes(probe);
     let rotate = |target: Uuid| {
-        Request::post(format!("/rotate/{target}"))
-            .header(header::COOKIE, &old.cookie)
-            .header("x-csrf-token", &old.csrf)
-            .header(header::ORIGIN, ORIGIN)
-            .body(Body::empty())
-            .unwrap()
+        let app = app.clone();
+        let old = &old;
+        async move {
+            let path = format!("/rotate/{target}");
+            let call = Call {
+                content_type: None,
+                ..Call::post(&path, "").signed(old)
+            };
+            send(&app, call).await
+        }
     };
 
     let pending = user(&pool, "pending@example.test", false, "member").await;
-    let (status, headers, body) = parts(app.clone().oneshot(rotate(pending)).await.unwrap()).await;
+    let (status, headers, body) = rotate(pending).await;
     assert_error(status, &headers, &body, 403, "EMAIL_UNVERIFIED");
     assert!(set_cookies(&headers).is_empty());
     assert_eq!(count(&pool, "sessions", &old.hash).await, 1);
     assert_eq!(count(&pool, "reveal_grants", &old.hash).await, 1);
 
-    let response = app.oneshot(rotate(ana)).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let current =
-        String::from_utf8(to_bytes(response.into_body(), 1024).await.unwrap().to_vec()).unwrap();
+    let (status, _, body) = rotate(ana).await;
+    assert_eq!(status, StatusCode::OK);
+    let current = body.as_str().unwrap();
     assert!(current.contains("; Max-Age=2592000"));
     assert_eq!(count(&pool, "sessions", &old.hash).await, 0);
     assert_eq!(count(&pool, "reveal_grants", &old.hash).await, 0);
-    let fresh = signed(&current, String::new());
+    let fresh = signed(current, String::new());
     assert_ne!(fresh.hash, old.hash);
     assert_eq!(count(&pool, "sessions", &fresh.hash).await, 1);
 
     let second = sign_in(&security, ana).await;
     grant(&pool, &second.hash, ana).await;
     assert_eq!(store::revoke_user(&pool, ana).await.unwrap(), 2);
-    let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM reveal_grants")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(remaining, 0);
+    assert_eq!(
+        common::count(&pool, "SELECT count(*) FROM reveal_grants").await,
+        0
+    );
 }
 
 #[sqlx::test]
 async fn reauthentication_rotates_the_secret_and_keeps_grants_and_expiry(pool: PgPool) {
-    let security = security(&pool);
+    let harness = TestApp::new(&pool, session_limits);
+    let security = harness.security.clone();
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let old = sign_in(&security, ana).await;
     grant(&pool, &old.hash, ana).await;
@@ -682,7 +534,7 @@ async fn reauthentication_rotates_the_secret_and_keeps_grants_and_expiry(pool: P
             }),
         )
         .with_state(security.clone());
-    let app = middleware::apply(probe, &security);
+    let app = harness.routes(probe);
     let (_, _, body) = send(&app, Call::get("/fresh").signed(&old)).await;
     assert_eq!(
         body,
@@ -717,7 +569,7 @@ async fn reauthentication_rotates_the_secret_and_keeps_grants_and_expiry(pool: P
 
 #[sqlx::test]
 async fn purge_removes_only_expired_sessions(pool: PgPool) {
-    let security = security(&pool);
+    let security = TestApp::new(&pool, session_limits).security;
     let ana = user(&pool, "ana@example.test", true, "member").await;
     let live = sign_in(&security, ana).await;
     let idle = sign_in(&security, ana).await;
@@ -739,8 +591,7 @@ async fn purge_removes_only_expired_sessions(pool: PgPool) {
 
 #[sqlx::test]
 async fn guards_require_verified_email_and_operator_role(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let member = sign_in(
         &security,
         user(&pool, "member@example.test", true, "member").await,
@@ -791,8 +642,7 @@ async fn guards_require_verified_email_and_operator_role(pool: PgPool) {
 
 #[sqlx::test]
 async fn authenticated_writes_are_rate_limited_per_user(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let ana = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
@@ -831,8 +681,7 @@ async fn authenticated_writes_are_rate_limited_per_user(pool: PgPool) {
 
 #[sqlx::test]
 async fn oversized_bodies_and_unknown_routes_use_the_envelope(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let signed = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,
@@ -845,7 +694,8 @@ async fn oversized_bodies_and_unknown_routes_use_the_envelope(pool: PgPool) {
     assert_eq!(body["error"]["message"], "Check the request format.");
     assert_eq!(count(&pool, "sessions", &signed.hash).await, 1);
 
-    // A body without Content-Length (as when chunked) is capped by the extractor limit.
+    // A body without Content-Length (as when chunked) is capped by the extractor limit. `send`
+    // always sets Content-Length, so this probe builds the request directly.
     let response = app
         .clone()
         .oneshot(
@@ -882,8 +732,7 @@ async fn oversized_bodies_and_unknown_routes_use_the_envelope(pool: PgPool) {
 #[sqlx::test]
 #[traced_test]
 async fn logs_never_contain_cookies_tokens_emails_or_query_strings(pool: PgPool) {
-    let security = security(&pool);
-    let app = app(&security);
+    let (security, app) = session_app(&pool);
     let signed = sign_in(
         &security,
         user(&pool, "ana@example.test", true, "member").await,

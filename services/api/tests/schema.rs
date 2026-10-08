@@ -4,6 +4,9 @@
 
 use sqlx::{AssertSqlSafe, PgPool, migrate::Migrator};
 
+mod common;
+use common::{assert_sqlstate as rejects, assert_sqlstate_any, count};
+
 static MIGRATOR: Migrator = sqlx::migrate!();
 
 const ANA: &str = "00000000-0000-4000-8000-00000000a0a1";
@@ -295,40 +298,9 @@ async fn public_tables(pool: &PgPool) -> Vec<String> {
     .unwrap()
 }
 
-async fn count(pool: &PgPool, sql: &str) -> i64 {
-    sqlx::query_scalar(AssertSqlSafe(sql.to_owned()))
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-/// Runs `sql` and asserts PostgreSQL rejects it with `code` (SQLSTATE).
-async fn rejects(pool: &PgPool, code: &str, sql: &str) {
-    let error = sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
-        .execute(pool)
-        .await
-        .expect_err(&format!("expected SQLSTATE {code} for: {sql}"));
-    let actual = error.as_database_error().and_then(|e| e.code());
-    assert_eq!(
-        actual.as_deref(),
-        Some(code),
-        "expected SQLSTATE {code}, got {actual:?} for: {sql}"
-    );
-}
-
-/// Runs a delete that an `ON DELETE RESTRICT` reference must block.
-async fn rejects_restrict(pool: &PgPool, sql: &str) {
-    let error = sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
-        .execute(pool)
-        .await
-        .expect_err(&format!("expected a restrict violation for: {sql}"));
-    let actual = error.as_database_error().and_then(|e| e.code());
-    // PostgreSQL 18 reports ON DELETE RESTRICT as restrict_violation (23001); 17 uses 23503.
-    assert!(
-        matches!(actual.as_deref(), Some("23001" | "23503")),
-        "expected a restrict violation, got {actual:?} for: {sql}"
-    );
-}
+/// SQLSTATEs for a delete that an `ON DELETE RESTRICT` reference must block. PostgreSQL 18
+/// reports restrict_violation (23001); 17 uses foreign_key_violation (23503).
+const RESTRICT: &[&str] = &["23001", "23503"];
 
 async fn exec(pool: &PgPool, sql: &str) {
     sqlx::raw_sql(AssertSqlSafe(sql.to_owned()))
@@ -786,8 +758,13 @@ async fn catalog_corrections_preserve_progress_and_revisions_only_increase(pool:
     );
 
     // Catalog rows with history cannot be deleted.
-    rejects_restrict(&pool, "DELETE FROM episodes WHERE tmdb_id = 910002").await;
-    rejects_restrict(&pool, "DELETE FROM shows").await;
+    assert_sqlstate_any(
+        &pool,
+        RESTRICT,
+        "DELETE FROM episodes WHERE tmdb_id = 910002",
+    )
+    .await;
+    assert_sqlstate_any(&pool, RESTRICT, "DELETE FROM shows").await;
 
     // Revisions move forward, including true→false transitions, never back.
     exec(

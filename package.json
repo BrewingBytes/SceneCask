@@ -13,7 +13,7 @@
     "dev": "node --env-file=.env scripts/dev.mjs",
     "dev:services": "docker compose up -d --wait",
     "dev:down": "docker compose down",
-    "lint": "yarn workspace @scenecask/web lint && yarn fmt:api --check && cargo clippy --manifest-path services/api/Cargo.toml --locked --all-targets -- -D warnings",
+    "lint": "yarn lint:duplication && yarn workspace @scenecask/web lint && yarn fmt:api --check && cargo clippy --manifest-path services/api/Cargo.toml --locked --all-targets -- -D warnings",
     "fmt:api": "cargo fmt --manifest-path services/api/Cargo.toml -- --config group_imports=StdExternalCrate",
     "typecheck": "yarn workspace @scenecask/web typecheck",
     "build": "yarn workspace @scenecask/web build && cargo build --manifest-path services/api/Cargo.toml --locked",
@@ -24,9 +24,11 @@
     "health:smoke": "node scripts/health-smoke.mjs",
     "test:design": "node apps/web/src/styles/generate-tokens.mjs --check && node --test apps/web/src/styles/generate-tokens.test.mjs apps/web/src/components/ui/basic/child-exit.test.mjs apps/web/src/components/ui/basic/gallery-workspace.test.mjs",
     "test:ui": "playwright test --config apps/web/src/components/ui/basic/playwright.config.ts",
-    "test:overlays": "playwright test --config apps/web/src/components/ui/overlays/playwright.config.ts"
+    "test:overlays": "playwright test --config apps/web/src/components/ui/overlays/playwright.config.ts",
+    "lint:duplication": "node scripts/duplication.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "jscpd": "4.0.5"
   }
 }

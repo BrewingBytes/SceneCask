@@ -20,6 +20,9 @@ use scenecask_api::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
+mod common;
+use common::{TestApp, TestUser, call, count};
+
 struct Fixture {
     catalog: RwLock<Catalog>,
     failed: AtomicBool,
@@ -111,12 +114,6 @@ impl TvProvider for Fixture {
         }
         Ok(self.catalog.read().unwrap().clone())
     }
-}
-async fn count(pool: &PgPool, sql: &str) -> i64 {
-    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-        .fetch_one(pool)
-        .await
-        .unwrap()
 }
 async fn stale(pool: &PgPool) {
     sqlx::query("UPDATE shows SET fetched_at = now() - interval '25 hours'")
@@ -462,28 +459,18 @@ async fn cache_validates_queries_expires_and_does_not_cache_failure() {
     assert!(request.is_err());
 }
 
-fn http_app(
-    pool: &PgPool,
-    provider: Arc<Fixture>,
-) -> (axum::Router, scenecask_api::middleware::Security) {
+fn catalog_routes(pool: &PgPool, provider: Arc<Fixture>) -> axum::Router {
     use axum::{
         Router,
         routing::{get, post},
     };
     use scenecask_api::{
-        middleware::{
-            self, Security, SecurityConfig,
-            rate_limit::{RateLimiter, Rule},
-        },
+        middleware::rate_limit::{RateLimiter, Rule},
         modules::catalog::{
             import::import_handler,
             provider::{SearchState, search_handler},
         },
     };
-    let security = Security::new(
-        pool.clone(),
-        SecurityConfig::new("https://scenecask.example").unwrap(),
-    );
     let search = Router::new()
         .route("/shows/search", get(search_handler::<Fixture>))
         .with_state(SearchState {
@@ -494,129 +481,36 @@ fn http_app(
     let import = Router::new()
         .route("/shows/import", post(import_handler::<Fixture>))
         .with_state(Arc::new(Importer::new(pool.clone(), provider)));
-    (middleware::apply(search.merge(import), &security), security)
+    search.merge(import)
 }
-async fn signed(
-    security: &scenecask_api::middleware::Security,
-    verified: bool,
-) -> (String, String) {
-    let id: Uuid = sqlx::query_scalar("INSERT INTO users (normalized_email, verified_at) VALUES ($1, CASE WHEN $2 THEN now() END) RETURNING id")
-        .bind(format!("{}@example.test", Uuid::new_v4())).bind(true).fetch_one(&security.pool).await.unwrap();
-    let mut conn = security.pool.acquire().await.unwrap();
-    let started =
-        scenecask_api::modules::auth::session::start_session(&mut conn, &security.config, None, id)
-            .await
-            .unwrap();
-    if !verified {
-        sqlx::query("UPDATE users SET verified_at = NULL WHERE id = $1")
-            .bind(id)
-            .execute(&security.pool)
-            .await
-            .unwrap();
-    }
-    (
-        started
-            .cookie
-            .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_owned(),
-        started.session.csrf_token,
-    )
-}
-async fn http_call(
-    app: &axum::Router,
-    path: &str,
-    session: Option<&(String, String)>,
-    body: Option<&str>,
-    csrf: bool,
-) -> (axum::http::StatusCode, serde_json::Value) {
-    use axum::{
-        body::{Body, to_bytes},
-        http::Request,
-    };
-    use tower::ServiceExt;
-    let mut request = Request::builder().uri(path);
-    if let Some((cookie, token)) = session {
-        request = request.header("cookie", cookie);
-        if csrf {
-            request = request.header("x-csrf-token", token);
-        }
-    }
-    if body.is_some() {
-        request = request
-            .method("POST")
-            .header("origin", "https://scenecask.example")
-            .header("content-type", "application/json");
-    }
-    let response = app
-        .clone()
-        .oneshot(
-            request
-                .body(Body::from(body.unwrap_or("").to_owned()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.headers()["cache-control"], "private, no-store");
-    let status = response.status();
-    let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
-    (status, serde_json::from_slice(&bytes).unwrap())
-}
-
 #[sqlx::test]
 async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redaction(pool: PgPool) {
     use axum::http::StatusCode;
     let provider = Fixture::new();
-    let (app, security) = http_app(&pool, Arc::clone(&provider));
+    let harness = TestApp::new(&pool, |_| {});
+    let app = harness.routes(catalog_routes(&pool, Arc::clone(&provider)));
+    for (path, body) in [
+        ("/shows/search?q=orchard", None),
+        ("/shows/import", Some(r#"{"providerId":123}"#)),
+    ] {
+        assert_eq!(
+            call(&app, path, None, body, false).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    let unverified = TestUser::create(&harness.security, false, "member").await;
+    for (path, body, csrf) in [
+        ("/shows/search?q=orchard", None, false),
+        ("/shows/import", Some(r#"{"providerId":123}"#), true),
+    ] {
+        assert_eq!(
+            call(&app, path, Some(&unverified), body, csrf).await.1["error"]["code"],
+            "EMAIL_UNVERIFIED"
+        );
+    }
+    let session = TestUser::create(&harness.security, true, "member").await;
     assert_eq!(
-        http_call(&app, "/shows/search?q=orchard", None, None, false)
-            .await
-            .0,
-        StatusCode::UNAUTHORIZED
-    );
-    assert_eq!(
-        http_call(
-            &app,
-            "/shows/import",
-            None,
-            Some(r#"{"providerId":123}"#),
-            false
-        )
-        .await
-        .0,
-        StatusCode::UNAUTHORIZED
-    );
-    let unverified = signed(&security, false).await;
-    assert_eq!(
-        http_call(
-            &app,
-            "/shows/search?q=orchard",
-            Some(&unverified),
-            None,
-            false
-        )
-        .await
-        .1["error"]["code"],
-        "EMAIL_UNVERIFIED"
-    );
-    assert_eq!(
-        http_call(
-            &app,
-            "/shows/import",
-            Some(&unverified),
-            Some(r#"{"providerId":123}"#),
-            true
-        )
-        .await
-        .1["error"]["code"],
-        "EMAIL_UNVERIFIED"
-    );
-    let session = signed(&security, true).await;
-    assert_eq!(
-        http_call(
+        call(
             &app,
             "/shows/import",
             Some(&session),
@@ -635,12 +529,12 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
         ("/shows/search?q=orchard&page=70000", "page"),
         ("/shows/search?q=orchard&page=501", "page"),
     ] {
-        let (status, error) = http_call(&app, path, Some(&session), None, false).await;
+        let (status, error) = call(&app, path, Some(&session), None, false).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{path}");
         assert!(error["error"]["fields"].get(field).is_some(), "{path}");
     }
     let (status, results) =
-        http_call(&app, "/shows/search?q=orchard", Some(&session), None, false).await;
+        call(&app, "/shows/search?q=orchard", Some(&session), None, false).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(results["items"][0]["providerId"], 123);
     assert_eq!(results["items"][0]["posterUrl"], serde_json::Value::Null);
@@ -648,12 +542,11 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
         r#"{"providerId":123,"unknown":"Protected overview"}"#,
         r#"{"providerId":0}"#,
     ] {
-        let (status, json) =
-            http_call(&app, "/shows/import", Some(&session), Some(body), true).await;
+        let (status, json) = call(&app, "/shows/import", Some(&session), Some(body), true).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert!(!json.to_string().contains("Protected"));
     }
-    let (status, result) = http_call(
+    let (status, result) = call(
         &app,
         "/shows/import",
         Some(&session),
@@ -667,7 +560,7 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
     assert!(!result.to_string().contains("Protected"));
     stale(&pool).await;
     provider.failed.store(true, Ordering::SeqCst);
-    let (status, reused) = http_call(
+    let (status, reused) = call(
         &app,
         "/shows/import",
         Some(&session),
@@ -677,7 +570,7 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(reused["showId"], result["showId"]);
-    let (status, error) = http_call(
+    let (status, error) = call(
         &app,
         "/shows/import",
         Some(&session),
@@ -697,24 +590,24 @@ async fn real_http_handlers_enforce_auth_verification_csrf_validation_and_redact
 async fn searches_are_rate_limited_even_when_results_are_cached(pool: PgPool) {
     use axum::http::StatusCode;
     let provider = Fixture::new();
-    let (app, security) = http_app(&pool, Arc::clone(&provider));
-    let session = signed(&security, true).await;
+    let harness = TestApp::new(&pool, |_| {});
+    let app = harness.routes(catalog_routes(&pool, Arc::clone(&provider)));
+    let session = TestUser::create(&harness.security, true, "member").await;
     for _ in 0..30 {
         assert_eq!(
-            http_call(&app, "/shows/search?q=orchard", Some(&session), None, false)
+            call(&app, "/shows/search?q=orchard", Some(&session), None, false)
                 .await
                 .0,
             StatusCode::OK
         );
     }
-    let (status, error) =
-        http_call(&app, "/shows/search?q=orchard", Some(&session), None, false).await;
+    let (status, error) = call(&app, "/shows/search?q=orchard", Some(&session), None, false).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(error["error"]["code"], "RATE_LIMITED");
     assert_eq!(provider.searches.load(Ordering::SeqCst), 1);
-    let other = signed(&security, true).await;
+    let other = TestUser::create(&harness.security, true, "member").await;
     assert_eq!(
-        http_call(&app, "/shows/search?q=orchard", Some(&other), None, false)
+        call(&app, "/shows/search?q=orchard", Some(&other), None, false)
             .await
             .0,
         StatusCode::OK

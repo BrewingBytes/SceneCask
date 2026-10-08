@@ -11,8 +11,12 @@ Feature owners work within their modules. Coordinate shared changes with their
 owner; do not revert unrelated work. Do not invent migrations or domain routes.
 Generated client code is never edited manually.
 
+Integration tests use `tests/common` helpers for app setup, signed requests, row
+counts and error assertions; add a missing helper there instead of copying one
+into a feature test file.
+
 Use Yarn and the pinned Rust toolchain. From a configured checkout run:
-- yarn lint (web lint, Rust format and clippy)
+- yarn lint (duplication check, web lint, Rust format and clippy)
 - yarn typecheck
 - yarn test (requires real PostgreSQL via DATABASE_URL)
 - yarn build

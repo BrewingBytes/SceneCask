@@ -1,10 +1,9 @@
-use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
-};
+use axum::http::StatusCode;
 use scenecask_api::{database_pool, router};
-use tower::ServiceExt;
 use tracing_test::traced_test;
+
+mod common;
+use common::{Call, send};
 
 #[tokio::test]
 async fn health_checks_real_postgres_and_redacts_failures() {
@@ -13,44 +12,17 @@ async fn health_checks_real_postgres_and_redacts_failures() {
     let pool = database_pool(&url).unwrap();
     let app = router(pool.clone());
     for (path, expected) in [("/health/live", "live"), ("/health/ready", "ready")] {
-        let response = app
-            .clone()
-            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["cache-control"], "no-store");
-        assert_eq!(
-            to_bytes(response.into_body(), 1024).await.unwrap(),
-            format!("{{\"status\":\"{expected}\"}}")
-        );
+        let (status, headers, body) = send(&app, Call::get(path)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers["cache-control"], "no-store");
+        assert_eq!(body.to_string(), format!("{{\"status\":\"{expected}\"}}"));
     }
     pool.close().await;
-    let response = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/health/ready")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(
-        to_bytes(response.into_body(), 1024).await.unwrap(),
-        "{\"status\":\"database_unavailable\"}"
-    );
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/health/live")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    let (status, _, body) = send(&app, Call::get("/health/ready")).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body.to_string(), "{\"status\":\"database_unavailable\"}");
+    let (status, _, _) = send(&app, Call::get("/health/live")).await;
+    assert_eq!(status, StatusCode::OK);
 }
 
 #[tokio::test]
@@ -63,14 +35,9 @@ async fn unreachable_database_does_not_prevent_liveness() {
         ("/health/live", StatusCode::OK),
         ("/health/ready", StatusCode::SERVICE_UNAVAILABLE),
     ] {
-        let response = app
-            .clone()
-            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), status);
-        let bytes = to_bytes(response.into_body(), 1024).await.unwrap();
-        assert!(!String::from_utf8_lossy(&bytes).contains("private"));
+        let (actual, _, body) = send(&app, Call::get(path)).await;
+        assert_eq!(actual, status);
+        assert!(!body.to_string().contains("private"));
     }
     assert!(logs_contain("readiness check failed"));
     assert!(logs_contain("reason=\"pool_timeout\""));
