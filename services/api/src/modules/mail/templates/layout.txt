@@ -1,0 +1,7 @@
+SceneCask
+
+{{content}}
+
+--
+You are receiving this email because of activity on your SceneCask account at {{origin}}.
+SceneCask is a TV tracker; we never ask for your password by email.
