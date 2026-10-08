@@ -15,6 +15,9 @@ use super::*;
 
 const MAX_BODY: usize = 4 * 1024 * 1024;
 const METADATA_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+/// Longest Retry-After waited inside one request; longer cooldowns end it as rate limited.
+const MAX_INLINE_WAIT: Duration = Duration::from_secs(2);
+const MAX_COOLDOWN_SECS: u64 = 24 * 60 * 60;
 
 pub const ATTRIBUTION: &str =
     "This product uses the TMDB API but is not endorsed or certified by TMDB.";
@@ -94,18 +97,27 @@ impl Tmdb {
                     return serde_json::from_slice(&body).map_err(|_| ProviderError::InvalidData);
                 }
                 Ok(response) => {
-                    if attempt == 2
-                        || !(response.status().as_u16() == 429
-                            || response.status().is_server_error())
-                    {
+                    let rate_limited = response.status().as_u16() == 429;
+                    if !(rate_limited || response.status().is_server_error()) {
                         return Err(ProviderError::Unavailable);
                     }
-                    let delay = match response.headers().get(RETRY_AFTER) {
-                        Some(value) => retry_delay(value)?,
-                        None => backoff(attempt),
-                    };
+                    let hint = response.headers().get(RETRY_AFTER).map(retry_after);
                     // Drop the body unread: it may contain protected content or credentials.
                     drop(response);
+                    let delay = match hint {
+                        Some(None) => return Err(ProviderError::Unavailable),
+                        Some(Some(delay)) => delay,
+                        None => backoff(attempt),
+                    };
+                    // Long provider cooldowns end the request; never retry earlier than
+                    // Retry-After. The refresh worker pauses for a reported cooldown.
+                    if attempt == 2 || delay > MAX_INLINE_WAIT {
+                        return Err(if rate_limited {
+                            ProviderError::RateLimited(delay)
+                        } else {
+                            ProviderError::Unavailable
+                        });
+                    }
                     tokio::time::sleep(delay).await;
                 }
                 Err(_) if attempt < 2 => tokio::time::sleep(backoff(attempt)).await,
@@ -164,22 +176,15 @@ fn backoff(attempt: u32) -> Duration {
     Duration::from_millis((100 << attempt) + u64::from(random[0] % 100))
 }
 
-fn retry_delay(value: &HeaderValue) -> Result<Duration, ProviderError> {
-    let text = value.to_str().map_err(|_| ProviderError::Unavailable)?;
-    let seconds = text
-        .parse::<u64>()
-        .ok()
-        .or_else(|| {
-            let date = chrono::DateTime::parse_from_rfc2822(text).ok()?.timestamp();
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
-            Some((date as i128 - now as i128).max(0) as u64)
-        })
-        .ok_or(ProviderError::Unavailable)?;
-    // Long provider cooldowns fail immediately; never retry earlier than Retry-After.
-    if seconds > 2 {
-        return Err(ProviderError::Unavailable);
-    }
-    Ok(Duration::from_secs(seconds))
+/// Numeric or HTTP-date Retry-After, capped at a day; `None` when unreadable.
+fn retry_after(value: &HeaderValue) -> Option<Duration> {
+    let text = value.to_str().ok()?;
+    let seconds = text.parse::<u64>().ok().or_else(|| {
+        let date = chrono::DateTime::parse_from_rfc2822(text).ok()?.timestamp();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
+        Some((date as i128 - now as i128).max(0) as u64)
+    })?;
+    Some(Duration::from_secs(seconds.min(MAX_COOLDOWN_SECS)))
 }
 
 struct Metadata {
@@ -582,18 +587,20 @@ mod tests {
     #[tokio::test]
     #[tracing_test::traced_test]
     async fn bounds_transport_failures_and_redacts_payloads() {
-        for (mode, expected) in [
-            ("429", 3),
-            ("500", 3),
-            ("timeout", 3),
-            ("cooldown", 1),
-            ("404", 1),
-            ("redirect", 1),
-            ("malformed", 1),
-            ("huge", 1),
+        let limited = |secs| ProviderError::RateLimited(Duration::from_secs(secs));
+        for (mode, expected, kind) in [
+            ("429", 3, limited(0)),
+            ("500", 3, ProviderError::Unavailable),
+            ("timeout", 3, ProviderError::Unavailable),
+            ("cooldown", 1, limited(10)),
+            ("404", 1, ProviderError::Unavailable),
+            ("redirect", 1, ProviderError::Unavailable),
+            ("malformed", 1, ProviderError::InvalidData),
+            ("huge", 1, ProviderError::InvalidData),
         ] {
             let (tmdb, state, task) = fixture(mode).await;
             let error = tmdb.get::<RawSearch>("search/tv", &[]).await.err().unwrap();
+            assert_eq!(error, kind, "mode: {mode}");
             let api: ApiError = error.into();
             assert_eq!(api.status(), StatusCode::BAD_GATEWAY);
             let response = api.into_response();
@@ -625,15 +632,22 @@ mod tests {
             assert!(image_path(Some(path)).is_none());
         }
         assert_eq!(
-            retry_delay(&HeaderValue::from_static("2")).unwrap(),
-            Duration::from_secs(2)
+            retry_after(&HeaderValue::from_static("2")),
+            Some(Duration::from_secs(2))
         );
-        assert!(retry_delay(&HeaderValue::from_static("3")).is_err());
         assert_eq!(
-            retry_delay(&HeaderValue::from_static("Wed, 21 Oct 2015 07:28:00 GMT")).unwrap(),
-            Duration::ZERO
+            retry_after(&HeaderValue::from_static("120")),
+            Some(Duration::from_secs(120))
         );
-        assert!(retry_delay(&HeaderValue::from_static("unknown")).is_err());
+        assert_eq!(
+            retry_after(&HeaderValue::from_static("99999999")),
+            Some(Duration::from_secs(MAX_COOLDOWN_SECS))
+        );
+        assert_eq!(
+            retry_after(&HeaderValue::from_static("Wed, 21 Oct 2015 07:28:00 GMT")),
+            Some(Duration::ZERO)
+        );
+        assert_eq!(retry_after(&HeaderValue::from_static("unknown")), None);
         assert!(Tmdb::new("").is_err());
     }
 }

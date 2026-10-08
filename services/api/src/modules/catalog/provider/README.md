@@ -36,10 +36,11 @@ deployment input.
   not cached. Configuration/TV genre cache: 24 hours. Caches are per API process.
 - Connect timeout 2 seconds; request timeout 5 seconds; at most three attempts,
   jittered backoff for connection failures/5xx. Numeric and HTTP-date Retry-After
-  are honored. A delay beyond 2 seconds fails immediately rather than retrying
-  early. 429/timeout/provider schema failures produce fixed 502
-  PROVIDER_UNAVAILABLE. The consumer can offer Retry. There is no raw provider
-  body or submitted value in an error.
+  are honored. A delay beyond 2 seconds ends the request rather than retrying
+  early; a 429 then reports `ProviderError::RateLimited(delay)` (capped at one day)
+  so the refresh worker can pause. 429/timeout/provider schema failures all map to
+  fixed 502 PROVIDER_UNAVAILABLE for HTTP consumers, which can offer Retry. There is
+  no raw provider body or submitted value in an error.
 - Provider response body at most 4 MiB; search operation budget 20 seconds; complete
   catalog fetch budget 30 seconds, season list at most 1,000. A timeout or incomplete
   season/episode count aborts before any write transaction starts.
@@ -66,6 +67,45 @@ deployment input.
 - Images use `/configuration`'s secure base and supported w500/original poster size.
   Missing or unsafe paths map to null; image links contain no credential. The
   importer response contains only `showId`, never episode metadata.
+
+## R12 metadata refresh
+
+`refresh::Refresher::new(pool, provider, SystemClock)` refreshes saved shows. R24
+starts it once per API process with `Arc::new(refresher).run(shutdown)`; several
+processes may run it concurrently. Each pass (every 60 seconds):
+
+- Schedules a `metadata_refresh` job (`jobs`, 0006, payload `{"showId"}`, no user)
+  for up to 100 saved shows not fetched within 24 hours, stalest first, unless the
+  show has a queued/running job or one created within 24 hours. Scheduling holds a
+  transaction advisory lock because `jobs` has no per-show uniqueness for this kind.
+- Claims up to 4 jobs with `FOR UPDATE SKIP LOCKED` and a 2-minute lease, and
+  refreshes them concurrently. A crashed worker's claim is reclaimed after its lease;
+  a claim that already used all 6 attempts is marked failed instead.
+- Fetches the validated snapshot outside any transaction, then applies it with the
+  importer's `persist` under the same provider lock, and marks the job ready in the
+  same transaction only while the claim is still held. A snapshot that collides
+  (identity owned by another show, number conflicts at commit) rolls back entirely.
+- Provider outage or invalid/incomplete snapshot: the job is requeued with jittered
+  exponential backoff (1 minute doubling to 1 hour, plus up to 25%); after 6 claims
+  it fails and the show is rescheduled after the next 24-hour interval.
+- Provider 429 with Retry-After: the job is requeued for the cooldown and the worker
+  claims nothing until it ends.
+- Finished jobs are pruned after 7 days.
+
+Episodes match by provider ID through renumbering; removed seasons/episodes are
+archived; progress, library and history rows are never written or deleted. The 0002
+triggers advance `catalog_revision` when membership, numbering, release data or
+archival change, so catch-up previews built earlier become `PREVIEW_STALE`; an
+unchanged snapshot keeps the revision. New episodes, dates and show status are
+picked up, and progress state is derived on read (R13), so a caught-up show with a
+newly released episode reads as in progress.
+
+`refresh::metadata_stale(fetched_at, now)` is the C05 `metadataStale` rule: true when
+the last successful fetch is older than 48 hours. R18 sets the Show DTO flag with it
+using the server clock; the saved catalog stays served either way. `Clock` is
+injectable for tests; production uses `SystemClock`. Logs contain only job IDs,
+attempt counts and fixed categories (`provider_unavailable`, `invalid_snapshot`,
+`rate_limited`, `database`).
 
 ## Attribution
 
