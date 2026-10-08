@@ -176,14 +176,22 @@ pub struct DiscussionSummary<P> {
     is_special: bool,
 }
 
-/// Discussion spoiler gate for `discussion_id` on `target`. `episodes` is the show's catalog
+/// A `discussions` row: the thread and the user hosting it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Discussion {
+    pub id: Uuid,
+    pub host_id: Uuid,
+}
+
+/// Discussion spoiler gate for `discussion` on `target`. `episodes` is the show's catalog
 /// joined with the viewer's own marks (never the host's), in any order. Every active regular
 /// episode ordered before the target, released or not, and the target itself must be marked.
-/// The member must belong to the same user as the session, otherwise the gate stays locked.
+/// The member must belong to the session's user and to the discussion's host, otherwise the
+/// gate stays locked.
 pub fn discussion_gate(
     member: &DiscussionMember,
     session: Session<'_>,
-    discussion_id: Uuid,
+    discussion: Discussion,
     target: &Episode<'_>,
     episodes: &[Episode<'_>],
     grants: &[Grant<'_>],
@@ -208,18 +216,19 @@ pub fn discussion_gate(
     missing.sort_by_key(|episode| (episode.season, episode.number, episode.id));
     missing.dedup_by_key(|episode| episode.id);
 
-    let access = if member.viewer_id() != session.user_id {
+    let access = if member.viewer_id() != session.user_id || member.host_id() != discussion.host_id
+    {
         Access::Locked
     } else if !special && missing.is_empty() {
         Access::Watched
-    } else if granted(grants, session, RevealScope::Discussion, discussion_id, now) {
+    } else if granted(grants, session, RevealScope::Discussion, discussion.id, now) {
         Access::Revealed
     } else {
         Access::Locked
     };
     DiscussionGate {
-        id: discussion_id,
-        is_host: member.is_host(),
+        id: discussion.id,
+        is_host: member.is_host() && member.host_id() == discussion.host_id,
         access,
         missing: missing
             .into_iter()
@@ -406,7 +415,10 @@ mod tests {
         discussion_gate(
             &member(),
             session(),
-            thread,
+            Discussion {
+                id: thread,
+                host_id: HOST,
+            },
             target,
             episodes,
             grants,
@@ -511,13 +523,17 @@ mod tests {
     #[test]
     fn privacy_revocation_supersedes_a_reveal_grant() {
         let grants = [grant(RevealScope::Discussion, THREAD_A)];
-        let episodes = [episode(1, 1, true)];
+        // Unwatched, so the grant alone unlocks the thread while privacy holds.
+        let episodes = [episode(1, 1, false)];
         let read = |relationship: Relationship| {
             discussion_member(Viewer::Member(VIEWER), HOST, &relationship).map(|member| {
                 discussion_gate(
                     &member,
                     session(),
-                    THREAD_A,
+                    Discussion {
+                        id: THREAD_A,
+                        host_id: HOST,
+                    },
                     &episodes[0],
                     &episodes,
                     &grants,
@@ -531,7 +547,7 @@ mod tests {
             incoming: FollowState::Approved,
             ..Relationship::default()
         };
-        assert_eq!(read(mutual), Some(Access::Watched));
+        assert_eq!(read(mutual), Some(Access::Revealed));
         for revoked in [
             Relationship {
                 outgoing: FollowState::None,
@@ -826,7 +842,7 @@ mod tests {
 
     /// Every predecessor/target mark combination (with released, future and undated E2) for a
     /// regular and a special target, against every grant variant, plus a member whose user does
-    /// not own the session.
+    /// not own the session or was issued for another host.
     #[test]
     fn discussion_truth_table() {
         let mut checked = 0;
@@ -899,13 +915,41 @@ mod tests {
                             let mismatched = discussion_gate(
                                 &stranger,
                                 session(),
-                                THREAD_A,
+                                Discussion {
+                                    id: THREAD_A,
+                                    host_id: HOST,
+                                },
                                 &target,
                                 &episodes,
                                 &grants,
                                 now(),
                             );
                             assert_eq!(mismatched.access(), Access::Locked, "{context}");
+
+                            // A member issued for another host never unlocks this thread, even
+                            // the viewer's own self-hosted membership.
+                            let own = discussion_member(
+                                Viewer::Member(VIEWER),
+                                VIEWER,
+                                &Relationship::default(),
+                            )
+                            .unwrap();
+                            let wrong_host = discussion_gate(
+                                &own,
+                                session(),
+                                Discussion {
+                                    id: THREAD_A,
+                                    host_id: HOST,
+                                },
+                                &target,
+                                &episodes,
+                                &grants,
+                                now(),
+                            );
+                            assert_eq!(wrong_host.access(), Access::Locked, "{context}");
+                            assert!(wrong_host.unlocked().is_err(), "{context}");
+                            let summary = serde_json::to_value(wrong_host.summary(())).unwrap();
+                            assert_eq!(summary["isHost"], false, "{context}");
                             checked += 1;
                         }
                     }
