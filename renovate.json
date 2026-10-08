@@ -3,6 +3,7 @@
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "timezone": "Europe/Bucharest",
   "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "1 day",
   "lockFileMaintenance": { "enabled": true },
   "customManagers": [
     {
