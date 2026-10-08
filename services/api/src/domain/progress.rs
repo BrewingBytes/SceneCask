@@ -168,26 +168,26 @@ fn saturating_u32(count: usize) -> u32 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use chrono::{NaiveDate, TimeZone};
 
     use super::*;
 
     const NOW: (i32, u32, u32) = (2026, 10, 8);
 
-    fn now() -> DateTime<Utc> {
+    pub(crate) fn now() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(NOW.0, NOW.1, NOW.2, 12, 0, 0).unwrap()
     }
 
-    fn released() -> Schedule<'static> {
+    pub(crate) fn released() -> Schedule<'static> {
         Schedule::Date(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())
     }
 
-    fn future() -> Schedule<'static> {
+    pub(crate) fn future() -> Schedule<'static> {
         Schedule::Date(NaiveDate::from_ymd_opt(2026, 11, 12).unwrap())
     }
 
-    fn episode(
+    pub(crate) fn episode(
         season: i32,
         number: i32,
         schedule: Schedule<'static>,
