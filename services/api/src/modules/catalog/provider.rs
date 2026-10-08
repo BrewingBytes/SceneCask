@@ -17,6 +17,8 @@ use crate::error::{ApiError, ErrorCode};
 pub enum ProviderError {
     Unavailable,
     InvalidData,
+    /// The provider asked callers to wait this long (429 Retry-After) before trying again.
+    RateLimited(Duration),
 }
 
 impl From<ProviderError> for ApiError {

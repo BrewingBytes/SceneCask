@@ -1,6 +1,7 @@
 //! Atomic imports preserve stable provider identity and never delete progress-bearing rows.
 use std::{sync::Arc, time::Duration};
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -49,21 +50,8 @@ impl<P: TvProvider> Importer<P> {
 
     async fn refresh(&self, provider_id: i64) -> Result<ImportResult, ApiError> {
         // Do not hold a database transaction while waiting on provider I/O.
-        let catalog =
-            tokio::time::timeout(Duration::from_secs(30), self.provider.catalog(provider_id))
-                .await
-                .map_err(|_| ProviderError::Unavailable)??;
-        catalog.validate(provider_id)?;
-        let mut tx = self.pool.begin().await?;
-        sqlx::query("SET LOCAL lock_timeout = '5s'")
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("SET LOCAL statement_timeout = '10s'")
-            .execute(&mut *tx)
-            .await?;
-        // Cross-process lock also works before a show row exists. Every importer uses this key.
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('catalog.import.' || $1::bigint::text, 0))")
-            .bind(provider_id).execute(&mut *tx).await?;
+        let catalog = fetch(&*self.provider, provider_id).await?;
+        let mut tx = begin_locked(&self.pool, provider_id).await?;
         let existing: Option<(Uuid, bool)> = sqlx::query_as(
             "SELECT id, complete_import AND fetched_at > now() - interval '24 hours' FROM shows WHERE tmdb_id = $1 FOR UPDATE")
             .bind(provider_id).fetch_optional(&mut *tx).await?;
@@ -76,10 +64,47 @@ impl<P: TvProvider> Importer<P> {
             _ => sqlx::query_scalar("INSERT INTO shows (tmdb_id, title, fetched_at) VALUES ($1, $2, now()) RETURNING id")
                 .bind(catalog.provider_id).bind(&catalog.title).fetch_one(&mut *tx).await?,
         };
-        persist(&mut tx, id, &catalog).await?;
+        let now = sqlx::query_scalar("SELECT now()")
+            .fetch_one(&mut *tx)
+            .await?;
+        persist(&mut tx, id, &catalog, now).await?;
         tx.commit().await.map_err(import_database_error)?;
         Ok(ImportResult { show_id: id })
     }
+}
+
+/// Fetches and validates a full snapshot within the catalog budget, before any transaction.
+pub(super) async fn fetch<P: TvProvider>(
+    provider: &P,
+    provider_id: i64,
+) -> Result<Catalog, ProviderError> {
+    let catalog = tokio::time::timeout(Duration::from_secs(30), provider.catalog(provider_id))
+        .await
+        .map_err(|_| ProviderError::Unavailable)??;
+    catalog.validate(provider_id)?;
+    Ok(catalog)
+}
+
+/// A bounded transaction holding the provider show's catalog lock. Every importer and refresher
+/// uses this key, and it also works before a show row exists.
+pub(super) async fn begin_locked(
+    pool: &PgPool,
+    provider_id: i64,
+) -> Result<Transaction<'static, Postgres>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("SET LOCAL lock_timeout = '5s'")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("SET LOCAL statement_timeout = '10s'")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('catalog.import.' || $1::bigint::text, 0))",
+    )
+    .bind(provider_id)
+    .execute(&mut *tx)
+    .await?;
+    Ok(tx)
 }
 
 /// The show's ID if it has a complete import; `recent_only` also requires a fetch within 24 hours.
@@ -98,7 +123,7 @@ async fn complete(
     .await?)
 }
 
-fn import_database_error(error: sqlx::Error) -> ApiError {
+pub(super) fn import_database_error(error: sqlx::Error) -> ApiError {
     // Provider identity/number collisions mean this snapshot cannot be imported. Never expose
     // database detail: it can contain protected titles and asset paths.
     if error.as_database_error().is_some_and(|e| {
@@ -112,10 +137,13 @@ fn import_database_error(error: sqlx::Error) -> ApiError {
     }
 }
 
-async fn persist(
+/// Applies a validated snapshot as of `now` (archival and fetch time). Collisions surface at
+/// commit through [`import_database_error`]; the caller's rollback keeps the last good catalog.
+pub(super) async fn persist(
     tx: &mut Transaction<'_, Postgres>,
     id: Uuid,
     catalog: &Catalog,
+    now: DateTime<Utc>,
 ) -> Result<(), ApiError> {
     sqlx::query("SET CONSTRAINTS seasons_active_show_number_key, episodes_active_season_number_key DEFERRED")
         .execute(&mut **tx).await?;
@@ -127,10 +155,10 @@ async fn persist(
         .iter()
         .flat_map(|s| s.episodes.iter().map(|e| e.provider_id))
         .collect();
-    sqlx::query("UPDATE episodes SET archived_at = now() WHERE show_id = $1 AND archived_at IS NULL AND NOT (tmdb_id = ANY($2))")
-        .bind(id).bind(&episode_ids).execute(&mut **tx).await?;
-    sqlx::query("UPDATE seasons SET archived_at = now() WHERE show_id = $1 AND archived_at IS NULL AND NOT (tmdb_id = ANY($2))")
-        .bind(id).bind(&season_ids).execute(&mut **tx).await?;
+    sqlx::query("UPDATE episodes SET archived_at = $3 WHERE show_id = $1 AND archived_at IS NULL AND NOT (tmdb_id = ANY($2))")
+        .bind(id).bind(&episode_ids).bind(now).execute(&mut **tx).await?;
+    sqlx::query("UPDATE seasons SET archived_at = $3 WHERE show_id = $1 AND archived_at IS NULL AND NOT (tmdb_id = ANY($2))")
+        .bind(id).bind(&season_ids).bind(now).execute(&mut **tx).await?;
     for season in &catalog.seasons {
         let season_id: Option<Uuid> = sqlx::query_scalar(
             "INSERT INTO seasons (tmdb_id, show_id, number) VALUES ($1, $2, $3)
@@ -180,9 +208,9 @@ async fn persist(
     // catalog_revision advances through the 0002 triggers only when seasons/episodes change, so
     // an unchanged refresh keeps catch-up previews valid.
     sqlx::query("UPDATE shows SET title = $2, first_air_year = $3, genres = $4, synopsis = $5, poster_path = $6,
-                 status = $7, fetched_at = now(), complete_import = true WHERE id = $1")
+                 status = $7, fetched_at = $8, complete_import = true WHERE id = $1")
         .bind(id).bind(&catalog.title).bind(catalog.year).bind(sqlx::types::Json(&catalog.genres)).bind(&catalog.synopsis)
-        .bind(&catalog.poster_path).bind(catalog.status.as_str()).execute(&mut **tx).await.map_err(import_database_error)?;
+        .bind(&catalog.poster_path).bind(catalog.status.as_str()).bind(now).execute(&mut **tx).await.map_err(import_database_error)?;
     Ok(())
 }
 
