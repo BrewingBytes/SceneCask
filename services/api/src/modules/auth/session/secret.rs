@@ -2,10 +2,11 @@
 //! session secret is stored; CSRF tokens are HMACs keyed by the cookie secret, so neither a
 //! database row nor a CSRF token reveals the cookie.
 
-use crate::error::ApiError;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
+
+use crate::error::ApiError;
 
 const LEN: usize = 32;
 

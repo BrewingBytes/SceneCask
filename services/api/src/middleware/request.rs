@@ -1,6 +1,5 @@
 //! Request IDs, private response headers and body-size limits.
 
-use crate::{error, error::ApiError, middleware::Security};
 use axum::{
     extract::{MatchedPath, Request, State},
     http::{HeaderName, HeaderValue, header},
@@ -9,6 +8,8 @@ use axum::{
 };
 use tracing::Instrument;
 use uuid::Uuid;
+
+use crate::{error, error::ApiError, middleware::Security};
 
 pub const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 

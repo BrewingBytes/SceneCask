@@ -1,18 +1,20 @@
 //! In-process fixed-window rate limiter (C03 configurable defaults). State is per API process:
 //! a multi-instance deployment multiplies the effective limit by the instance count.
 
-use crate::{error::ApiError, middleware::Security, modules::auth::session::RequestSession};
-use axum::{
-    extract::{Request, State},
-    middleware::Next,
-    response::{IntoResponse, Response},
-};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+use axum::{
+    extract::{Request, State},
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
 use tokio::time::Instant;
+
+use crate::{error::ApiError, middleware::Security, modules::auth::session::RequestSession};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rule {

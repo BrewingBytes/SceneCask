@@ -2,10 +2,11 @@
 //! `now() < expires_at` (absolute) and `now() < last_seen_at + idle`. Deleting a session cascades
 //! to its reveal grants and OAuth flows (0001/0007 foreign keys).
 
-use super::{Lifetimes, Role, SessionUser, secret::Secret};
-use crate::error::{ApiError, ErrorCode};
 use sqlx::{AssertSqlSafe, PgConnection, PgExecutor, PgPool, Row, postgres::PgRow};
 use uuid::Uuid;
+
+use super::{Lifetimes, Role, SessionUser, secret::Secret};
+use crate::error::{ApiError, ErrorCode};
 
 /// Columns read by [`user_from_row`]; `u` is the users table.
 const USER_COLUMNS: &str = "u.id, u.normalized_email, u.display_name, u.handle, u.visibility,

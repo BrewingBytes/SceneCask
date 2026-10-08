@@ -1,7 +1,6 @@
 //! Same-origin, content-type and session-paired CSRF checks for every unsafe method (C03/C04).
 //! A rejected request never reaches its handler, so no write occurs.
 
-use crate::{error::ApiError, middleware::Security, modules::auth::session::RequestSession};
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, HeaderName, header},
@@ -9,6 +8,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use subtle::ConstantTimeEq;
+
+use crate::{error::ApiError, middleware::Security, modules::auth::session::RequestSession};
 
 pub const CSRF_HEADER: HeaderName = HeaderName::from_static("x-csrf-token");
 
@@ -60,8 +61,9 @@ fn json_or_empty(headers: &HeaderMap) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::http::HeaderValue;
+
+    use super::*;
 
     fn headers(pairs: &[(HeaderName, &'static str)]) -> HeaderMap {
         let mut map = HeaderMap::new();

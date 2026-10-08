@@ -1,6 +1,7 @@
 //! SMTP boundary for future outbox delivery. No message bodies or transport errors are logged.
-use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use std::{future::Future, time::Duration};
+
+use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
 pub trait MailTransport {
     fn send(&self, message: Message) -> impl Future<Output = Result<(), &'static str>> + Send;

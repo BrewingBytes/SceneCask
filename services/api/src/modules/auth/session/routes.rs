@@ -1,5 +1,15 @@
 //! `GET /session` and `POST /auth/logout` (C04), relative to `/api/v1`.
 
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+};
+use serde::Serialize;
+use uuid::Uuid;
+
 use super::{
     RequestSession, SessionUser, cookie,
     cookie::Kind,
@@ -13,15 +23,6 @@ use crate::{
         json::{ApiJson, EmptyRequest},
     },
 };
-use axum::{
-    Json, Router,
-    extract::State,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{get, post},
-};
-use serde::Serialize;
-use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

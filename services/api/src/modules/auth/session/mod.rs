@@ -6,12 +6,8 @@ mod routes;
 pub mod secret;
 pub mod store;
 
-pub use routes::{SessionDto, UserDto, routes};
+use std::time::Duration;
 
-use crate::{
-    error::{ApiError, ErrorCode},
-    middleware::{Security, SecurityConfig},
-};
 use axum::{
     extract::{FromRequestParts, Request, State},
     http::{HeaderValue, header, request::Parts},
@@ -19,10 +15,15 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use cookie::Kind;
+pub use routes::{SessionDto, UserDto, routes};
 use secret::{CsrfPurpose, Secret};
 use sqlx::PgConnection;
-use std::time::Duration;
 use uuid::Uuid;
+
+use crate::{
+    error::{ApiError, ErrorCode},
+    middleware::{Security, SecurityConfig},
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Lifetimes {
