@@ -2,7 +2,10 @@
 // Each integration binary compiles this module independently and uses a different subset.
 #![allow(dead_code)]
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicI64, Ordering},
+};
 
 use axum::{
     Router,
@@ -256,6 +259,34 @@ impl TestUser {
     }
 }
 
+/// An app serving `routes` behind the C03 layers, with a verified member signed in.
+pub async fn member_app(
+    pool: &PgPool,
+    routes: impl FnOnce(&Security) -> Router,
+) -> (TestApp, Router, TestUser) {
+    let test = TestApp::new(pool, |_| {});
+    let member = TestUser::create(&test.security, true, "member").await;
+    let app = test.routes(routes(&test.security));
+    (test, app, member)
+}
+
+/// Asserts that `user`'s keyed JSON write is rejected 403 CSRF_FAILED without its CSRF token.
+pub async fn assert_csrf_required(
+    app: &Router,
+    user: &TestUser,
+    method: Method,
+    path: &str,
+    body: &str,
+) {
+    let key = Uuid::new_v4().to_string();
+    let mut call = Call::write(method, path, body)
+        .idempotent(&key)
+        .signed(&user.signed);
+    call.csrf = None;
+    let (status, headers, body) = send(app, call).await;
+    assert_error(status, &headers, &body, 403, "CSRF_FAILED");
+}
+
 pub async fn count(pool: &PgPool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql.to_owned()))
         .fetch_one(pool)
@@ -473,4 +504,64 @@ pub async fn disable(pool: &PgPool, user_id: Uuid) {
         .execute(pool)
         .await
         .unwrap();
+}
+
+static PROVIDER_IDS: AtomicI64 = AtomicI64::new(1);
+
+/// A complete show with regular and special episodes. `None` air dates are undated. Episode
+/// titles and stills use the protected sentinels that `assert_error` and the tests look for.
+pub async fn seed_show(
+    pool: &PgPool,
+    title: &str,
+    status: &str,
+    episodes: &[(i32, i32, Option<&str>)],
+) -> (Uuid, Vec<Uuid>) {
+    let next = || PROVIDER_IDS.fetch_add(1, Ordering::SeqCst);
+    let show: Uuid = sqlx::query_scalar(
+        "INSERT INTO shows (tmdb_id, title, status, poster_path, fetched_at, complete_import)
+         VALUES ($1, $2, $3, '/poster.jpg', now(), true) RETURNING id",
+    )
+    .bind(next())
+    .bind(title)
+    .bind(status)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let mut ids = Vec::new();
+    for &(season, number, air_date) in episodes {
+        let season_id: Uuid = sqlx::query_scalar(
+            "WITH existing AS (SELECT id FROM seasons WHERE show_id = $2 AND number = $3),
+                  created AS (INSERT INTO seasons (tmdb_id, show_id, number)
+                              SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM existing)
+                              RETURNING id)
+             SELECT id FROM existing UNION ALL SELECT id FROM created",
+        )
+        .bind(next())
+        .bind(show)
+        .bind(season)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        ids.push(
+            sqlx::query_scalar(
+                "INSERT INTO episodes (tmdb_id, show_id, season_id, number, title, overview, still_path, air_date)
+                 VALUES ($1, $2, $3, $4, 'Protected title', 'Protected overview',
+                         '/protected-episode.jpg', $5::date) RETURNING id",
+            )
+            .bind(next())
+            .bind(show)
+            .bind(season_id)
+            .bind(number)
+            .bind(air_date)
+            .fetch_one(pool)
+            .await
+            .unwrap(),
+        );
+    }
+    (show, ids)
+}
+
+/// A regular episode released long ago, for `seed_show`.
+pub fn released(season: i32, number: i32) -> (i32, i32, Option<&'static str>) {
+    (season, number, Some("2024-01-01"))
 }

@@ -5,3 +5,4 @@ pub mod auth;
 pub mod catalog;
 pub mod library;
 pub mod mail;
+pub mod tracking;

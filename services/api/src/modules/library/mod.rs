@@ -1,8 +1,9 @@
 //! R15 personal library (C05), relative to `/api/v1`: `GET /library`, `PUT /library/{showId}`
 //! and `PATCH /library/{showId}`. Integration (R24/R38) mounts [`routes`] behind the C03 security
 //! layers. [`actions`] and [`idempotency`] are the shared write bookkeeping that tracking
-//! mutations (R16) extend; [`repository::items`] and [`repository::saved_watching`] provide
-//! LibraryItem projections and the Home source (R18).
+//! mutations (R16) extend, and [`service`] exposes the entry lock, auto-add rule and undo inverse
+//! they reuse; [`repository::items`] and [`repository::saved_watching`] provide LibraryItem
+//! projections and the Home source (R18).
 
 pub mod actions;
 pub mod dto;

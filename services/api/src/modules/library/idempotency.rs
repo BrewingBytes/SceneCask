@@ -1,7 +1,7 @@
 //! C03 idempotency for progress, library, catch-up and history writes, shared with the tracking
 //! mutation service (R16). Each write runs in one transaction that first calls [`claim`], then
 //! performs its domain write and records the action, then calls [`Claim::store`], so the stored
-//! response commits atomically with the write it describes.
+//! response commits atomically with the write it describes. [`transact`] runs that sequence.
 
 use axum::{
     extract::FromRequestParts,
@@ -11,7 +11,7 @@ use chrono::Duration;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use sqlx::PgConnection;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ErrorCode};
@@ -127,6 +127,27 @@ impl Claim {
         .await?;
         Ok(response)
     }
+}
+
+/// Runs `write` in one transaction keyed by `key`: claims the key, writes, stores the response
+/// and commits. A replayed key returns the stored response without calling `write`; any error
+/// rolls back every write, including the idempotency record.
+pub async fn transact<T: Serialize>(
+    pool: &PgPool,
+    user_id: Uuid,
+    key: IdempotencyKey,
+    request_hash: Vec<u8>,
+    write: impl AsyncFnOnce(&mut PgConnection) -> Result<T, ApiError>,
+) -> Result<Value, ApiError> {
+    let mut tx = pool.begin().await?;
+    let claim = match claim(&mut tx, user_id, key, request_hash).await? {
+        Claimed::Replay(response) => return Ok(response),
+        Claimed::New(claim) => claim,
+    };
+    let result = write(&mut tx).await?;
+    let response = claim.store(&mut tx, &result).await?;
+    tx.commit().await?;
+    Ok(response)
 }
 
 #[cfg(test)]
