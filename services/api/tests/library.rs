@@ -2,8 +2,6 @@
 //! revisions, idempotency, action provenance, filter counts, search, keyset pages and history
 //! retention across removal. Catalog rows are seeded directly; no provider is involved.
 
-use std::sync::atomic::{AtomicI64, Ordering};
-
 use axum::{
     Router,
     http::{HeaderMap, Method, StatusCode},
@@ -15,62 +13,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 mod common;
-use common::{Call, TestApp, TestUser, assert_error, count, send};
-
-static PROVIDER_IDS: AtomicI64 = AtomicI64::new(1);
-
-/// A complete show with regular and special episodes. `None` air dates are undated. Episode
-/// titles and stills use the protected sentinels that `assert_error` and the tests look for.
-async fn seed_show(
-    pool: &PgPool,
-    title: &str,
-    status: &str,
-    episodes: &[(i32, i32, Option<&str>)],
-) -> (Uuid, Vec<Uuid>) {
-    let next = || PROVIDER_IDS.fetch_add(1, Ordering::SeqCst);
-    let show: Uuid = sqlx::query_scalar(
-        "INSERT INTO shows (tmdb_id, title, status, poster_path, fetched_at, complete_import)
-         VALUES ($1, $2, $3, '/poster.jpg', now(), true) RETURNING id",
-    )
-    .bind(next())
-    .bind(title)
-    .bind(status)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    let mut ids = Vec::new();
-    for &(season, number, air_date) in episodes {
-        let season_id: Uuid = sqlx::query_scalar(
-            "WITH existing AS (SELECT id FROM seasons WHERE show_id = $2 AND number = $3),
-                  created AS (INSERT INTO seasons (tmdb_id, show_id, number)
-                              SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM existing)
-                              RETURNING id)
-             SELECT id FROM existing UNION ALL SELECT id FROM created",
-        )
-        .bind(next())
-        .bind(show)
-        .bind(season)
-        .fetch_one(pool)
-        .await
-        .unwrap();
-        ids.push(
-            sqlx::query_scalar(
-                "INSERT INTO episodes (tmdb_id, show_id, season_id, number, title, overview, still_path, air_date)
-                 VALUES ($1, $2, $3, $4, 'Protected title', 'Protected overview',
-                         '/protected-episode.jpg', $5::date) RETURNING id",
-            )
-            .bind(next())
-            .bind(show)
-            .bind(season_id)
-            .bind(number)
-            .bind(air_date)
-            .fetch_one(pool)
-            .await
-            .unwrap(),
-        );
-    }
-    (show, ids)
-}
+use common::{
+    Call, TestApp, TestUser, assert_csrf_required, assert_error, count, member_app, released,
+    seed_show, send,
+};
 
 async fn watch(pool: &PgPool, user: Uuid, episode: Uuid) {
     sqlx::query("INSERT INTO episode_progress (user_id, episode_id, watched, revision) VALUES ($1, $2, true, 1)")
@@ -88,13 +34,8 @@ struct Fixture {
 }
 
 async fn fixture(pool: PgPool) -> Fixture {
-    let test = TestApp::new(&pool, |_| {});
-    let ana = TestUser::create(&test.security, true, "member").await;
-    Fixture {
-        app: test.routes(library::routes(test.security.clone())),
-        pool,
-        ana,
-    }
+    let (_, app, ana) = member_app(&pool, |security| library::routes(security.clone())).await;
+    Fixture { app, pool, ana }
 }
 
 impl Fixture {
@@ -156,10 +97,6 @@ impl Fixture {
         .unwrap();
         rows
     }
-}
-
-fn released(season: i32, number: i32) -> (i32, i32, Option<&'static str>) {
-    (season, number, Some("2024-01-01"))
 }
 
 #[sqlx::test]
@@ -777,12 +714,7 @@ async fn library_requires_a_verified_session_and_csrf(pool: PgPool) {
 
     let path = format!("/library/{show}");
     let request = json!({"saved": true, "expectedRevision": 0}).to_string();
-    let mut call = Call::write(Method::PUT, &path, &request)
-        .idempotent(&key)
-        .signed(&f.ana.signed);
-    call.csrf = None;
-    let (status, headers, body) = send(&f.app, call).await;
-    assert_error(status, &headers, &body, 403, "CSRF_FAILED");
+    assert_csrf_required(&f.app, &f.ana, Method::PUT, &path, &request).await;
     assert_eq!(
         count(&f.pool, "SELECT count(*) FROM library_entries").await,
         0

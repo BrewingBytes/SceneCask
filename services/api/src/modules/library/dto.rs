@@ -148,7 +148,7 @@ pub struct StatusRequest {
     pub expected_revision: i64,
 }
 
-pub(super) fn expected_revision(value: i64) -> Result<i64, ApiError> {
+pub(crate) fn expected_revision(value: i64) -> Result<i64, ApiError> {
     if value < 0 {
         return Err(ApiError::new(ErrorCode::ValidationError)
             .with_field("expectedRevision", "Use the revision you last loaded."));
