@@ -7,7 +7,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::{
@@ -815,6 +815,62 @@ async fn concurrent_links_and_signins_resolve_to_one_owner(pool: PgPool) {
     assert_eq!(locations, ["/home", "/onboarding/profile"]);
     assert!(a.session.is_some() && b.session.is_some());
     assert_eq!(count(&pool, "SELECT count(*) FROM users").await, 3);
+}
+
+/// Runs a sign-in callback for a new subject while another transaction holds an uncommitted
+/// identity row for `owner`, committing it half a second later.
+async fn signin_during_pending_link(
+    h: &Harness,
+    owner: Uuid,
+    subject: &str,
+    identity_lock: bool,
+) -> Landing {
+    let flow = h.start("intent=signin", None).await;
+    let mut claims = h.claims(&flow, subject);
+    claims["email"] = json!(format!("{subject}@example.test"));
+    let mut tx = h.security.pool.begin().await.unwrap();
+    if identity_lock {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1 || chr(10) || $2, 0))")
+            .bind(&h.issuer)
+            .bind(subject)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+    }
+    sqlx::query("INSERT INTO external_identities (user_id, issuer, subject) VALUES ($1, $2, $3)")
+        .bind(owner)
+        .bind(&h.issuer)
+        .bind(subject)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let commit = async {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        tx.commit().await.unwrap();
+    };
+    let (landing, ()) = tokio::join!(h.finish(&flow, &claims, None), commit);
+    landing
+}
+
+#[sqlx::test]
+async fn signin_racing_a_link_never_leaves_an_account_without_identity(pool: PgPool) {
+    let h = harness(&pool).await;
+    let first = user(&pool, "first@example.test", true, "member").await;
+
+    // A link holds the identity lock: the sign-in waits, then signs into the linked account.
+    let landing = signin_during_pending_link(&h, first, "google-sub-race-1", true).await;
+    assert_eq!(landing.location, "/home");
+    assert!(landing.session.is_some());
+    assert_eq!(h.owner("google-sub-race-1").await, Some(first));
+    assert_eq!(count(&pool, "SELECT count(*) FROM users").await, 1);
+
+    // Should the identity be taken after the owner check anyway, the new account rolls back.
+    let second = user(&pool, "second@example.test", true, "member").await;
+    let landing = signin_during_pending_link(&h, second, "google-sub-race-2", false).await;
+    assert_eq!(landing.location, "/auth/signin?error=identity_in_use");
+    assert!(landing.session.is_none());
+    assert_eq!(h.owner("google-sub-race-2").await, Some(second));
+    assert_eq!(count(&pool, "SELECT count(*) FROM users").await, 2);
 }
 
 #[sqlx::test]

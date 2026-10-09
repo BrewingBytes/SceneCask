@@ -436,15 +436,22 @@ async fn new_account(
         .as_deref()
         .map(str::trim)
         .filter(|name| (1..=80).contains(&name.chars().count()));
-    Ok(store::create_account(
-        conn,
-        email,
-        display_name,
-        &identity.issuer,
-        &identity.subject,
+    Ok(
+        match store::create_account(
+            conn,
+            email,
+            display_name,
+            &identity.issuer,
+            &identity.subject,
+        )
+        .await?
+        {
+            store::Created::Account(user_id) => Ok(user_id),
+            store::Created::EmailTaken => Err(Failure::LinkRequired),
+            // The caller drops its transaction uncommitted, so the new account is rolled back.
+            store::Created::IdentityTaken => Err(Failure::IdentityInUse),
+        },
     )
-    .await?
-    .ok_or(Failure::LinkRequired))
 }
 
 /// Redirects a failed callback. Sign-in (and unknown flows) go to the sign-in page; link and

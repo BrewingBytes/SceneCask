@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use crate::modules::auth::credentials::NORMALIZED;
 
-/// Serializes callbacks for one identity until the transaction ends, so concurrent sign-ins of a
-/// new subject create one account.
+/// Serializes callbacks for one identity until the transaction ends, so concurrent sign-ins and
+/// links of a new subject create or link it once. Taken before any account lock.
 pub(super) async fn lock_identity(
     conn: &mut PgConnection,
     issuer: &str,
@@ -34,16 +34,24 @@ pub(super) async fn owner(
         .await
 }
 
-/// Creates a verified, private account (0001 defaults) owning the identity, or `None` when any
-/// account already uses the email: that requires explicit linking, never a merge. `email` is
-/// trimmed; PostgreSQL casefolds it like registration does.
+pub(super) enum Created {
+    Account(Uuid),
+    /// Any account already uses the email: that requires explicit linking, never a merge.
+    EmailTaken,
+    /// Another account owns the identity by now. The caller must roll back, or the new account
+    /// would remain without any sign-in method.
+    IdentityTaken,
+}
+
+/// Creates a verified, private account (0001 defaults) owning the identity. `email` is trimmed;
+/// PostgreSQL casefolds it like registration does.
 pub(super) async fn create_account(
     conn: &mut PgConnection,
     email: &str,
     display_name: Option<&str>,
     issuer: &str,
     subject: &str,
-) -> Result<Option<Uuid>, sqlx::Error> {
+) -> Result<Created, sqlx::Error> {
     let created: Option<Uuid> = sqlx::query_scalar(AssertSqlSafe(format!(
         "INSERT INTO users (normalized_email, display_name, verified_at)
          VALUES ({NORMALIZED}, $2, now())
@@ -53,13 +61,18 @@ pub(super) async fn create_account(
     .bind(display_name)
     .fetch_optional(&mut *conn)
     .await?;
-    if let Some(user_id) = created {
-        insert(conn, user_id, issuer, subject).await?;
-    }
-    Ok(created)
+    let Some(user_id) = created else {
+        return Ok(Created::EmailTaken);
+    };
+    Ok(if insert(conn, user_id, issuer, subject).await? {
+        Created::Account(user_id)
+    } else {
+        Created::IdentityTaken
+    })
 }
 
-/// Locks the account row, which linking, unlinking and Google reauth all take first.
+/// Locks the account row, which linking, unlinking and Google reauth all take (linking right
+/// after [`lock_identity`]).
 pub(crate) async fn lock_account(
     conn: &mut PgConnection,
     user_id: Uuid,
@@ -79,14 +92,16 @@ pub(super) enum Link {
     InUse,
 }
 
-/// Links the identity to `user_id` under [`lock_account`], so a link and an unlink of one account
-/// never interleave.
+/// Links the identity to `user_id` under [`lock_identity`] and [`lock_account`], so it never
+/// interleaves with a sign-in creating an account for the same identity, or with an unlink of
+/// the same account.
 pub(super) async fn link(
     conn: &mut PgConnection,
     user_id: Uuid,
     issuer: &str,
     subject: &str,
 ) -> Result<Link, sqlx::Error> {
+    lock_identity(conn, issuer, subject).await?;
     lock_account(conn, user_id).await?;
     if insert(conn, user_id, issuer, subject).await? {
         return Ok(Link::Linked);
