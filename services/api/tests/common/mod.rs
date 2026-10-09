@@ -99,6 +99,7 @@ pub struct Call<'a> {
     pub csrf: Option<&'a str>,
     pub origin: Option<&'a str>,
     pub content_type: Option<&'a str>,
+    pub idempotency_key: Option<&'a str>,
     pub body: &'a str,
 }
 
@@ -111,6 +112,7 @@ impl<'a> Call<'a> {
             csrf: None,
             origin: None,
             content_type: None,
+            idempotency_key: None,
             body: "",
         }
     }
@@ -122,6 +124,21 @@ impl<'a> Call<'a> {
             content_type: Some("application/json"),
             body,
             ..Self::get(path)
+        }
+    }
+
+    /// A JSON mutation with `method` (PUT, PATCH, DELETE), shaped like `post`.
+    pub fn write(method: Method, path: &'a str, body: &'a str) -> Self {
+        Self {
+            method,
+            ..Self::post(path, body)
+        }
+    }
+
+    pub fn idempotent(self, key: &'a str) -> Self {
+        Self {
+            idempotency_key: Some(key),
+            ..self
         }
     }
 
@@ -141,6 +158,7 @@ pub async fn send(app: &Router, call: Call<'_>) -> (StatusCode, HeaderMap, Value
         ("x-csrf-token", call.csrf),
         (header::ORIGIN.as_str(), call.origin),
         (header::CONTENT_TYPE.as_str(), call.content_type),
+        ("idempotency-key", call.idempotency_key),
     ] {
         if let Some(value) = value {
             request = request.header(name, value);
