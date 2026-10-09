@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
-/** Test emitted JavaScript, including the same .js specifiers consumed by the web app. */
+/** Test emitted JavaScript, including the same specifiers the web app bundles. */
 export async function loadClient() {
   const output = await mkdtemp(fileURLToPath(new URL("../.runtime-test-", import.meta.url)));
   try {

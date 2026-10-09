@@ -1,6 +1,6 @@
 import createClient, { type ClientOptions } from "openapi-fetch";
 import type { paths } from "./generated/schema.js";
-import { csrfRequiredOperations } from "./generated/security.js";
+import { csrfRequiredOperations } from "#generated/security";
 
 export type { paths, components, operations } from "./generated/schema.js";
 
