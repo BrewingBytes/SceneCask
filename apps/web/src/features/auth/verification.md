@@ -24,7 +24,9 @@ branch. Changes stay in `apps/web/src/features/auth/**`, `apps/web/src/app/auth/
 
 - **New email user → real verification → Discover.** Sign-up posts `{email,password}`
   with the browser's Origin. The verify screen names the address and has no control that
-  stands in for the link. Resend posts once, then cools down for 60s. Opening
+  stands in for the link. Resend starts cooling for 60s, because sign-up just queued an email and
+  the API skips a resend inside its cooldown. After the cooldown it posts once, then cools down
+  again. Opening
   `/auth/verify#token=…` (in the same tab, which is a fragment-only navigation) posts
   `{token}` once and replaces the page with `/onboarding/profile`. Saving the profile sends
   `PATCH /me {displayName,handle}` with the rotated session CSRF token and lands on
@@ -53,12 +55,14 @@ branch. Changes stay in `apps/web/src/features/auth/**`, `apps/web/src/app/auth/
   get product copy. Repeated submits send one request.
 - Verify: an expired or replayed token shows recovery and the token leaves the address bar. A
   network failure offers Retry with the in-memory token.
-- `returnTo` accepts application paths and drops fragments. Protocol-relative, backslash,
-  encoded, whitespace, control-character, auth-page, look-alike (`/homepage`) and over-long
+- `returnTo` accepts application paths and drops fragments, and keeps the safe escapes that
+  Discover's `?q=` carries (`/discover?q=grey%27s+anatomy`), as the API does. Protocol-relative,
+  backslash, escapes decoding to separators or controls, non-ASCII, whitespace, control-character, auth-page, look-alike (`/homepage`) and over-long
   values fall back to `/home`. This is checked as a pure function and through sign-in.
 - `link_required`: an explanation that accounts aren't merged, no Google button, and
   sign-in with the existing method.
-- Reset: an enumeration-safe "If there’s an account for …" message, a mismatched
+- Reset: an enumeration-safe "If there’s an account for …" message, Resend cooling for the
+  API's 60s cooldown, a mismatched
   confirmation is caught locally, and success says every session was signed out.
 - Onboarding: malformed handles are caught locally, `HANDLE_TAKEN` is an inline error on
   Handle, Skip goes to `/discover`, an existing handle redirects to `/discover`, signed-out

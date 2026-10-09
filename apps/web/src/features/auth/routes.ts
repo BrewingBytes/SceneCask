@@ -22,11 +22,25 @@ const RETURN_ROUTES = [
 ];
 const MAX_RETURN_TO = 512;
 
+/** Every `%` starts a two-digit escape that is not a control, space, `/`, `\`, `%` or DEL. */
+function percentEscapesSafe(value: string) {
+  return value
+    .split("%")
+    .slice(1)
+    .every((rest) => {
+      if (!/^[0-9a-f]{2}/i.test(rest)) return false;
+      const decoded = parseInt(rest.slice(0, 2), 16);
+      return decoded > 0x20 && decoded !== 0x7f && !"/\\%".includes(String.fromCharCode(decoded));
+    });
+}
+
 /** A same-origin application path from untrusted input, or undefined. Fragments are dropped. */
 export function safeReturnTo(value: string | string[] | null | undefined): string | undefined {
   if (typeof value !== "string" || value.length > MAX_RETURN_TO) return undefined;
-  // Encoded, escaped, spaced or protocol-relative forms are refused rather than interpreted.
-  if (!value.startsWith("/") || value.startsWith("//") || /[\\%\s\p{Cc}]/u.test(value)) return undefined;
+  // Printable ASCII only. Escapes that decode to separators or controls, backslashes and
+  // protocol-relative forms are refused rather than interpreted.
+  if (!value.startsWith("/") || value.startsWith("//") || /[^\x21-\x7e]|\\/.test(value)) return undefined;
+  if (!percentEscapesSafe(value)) return undefined;
   const url = new URL(value, "https://scenecask.invalid");
   if (url.origin !== "https://scenecask.invalid") return undefined;
   const allowed = RETURN_ROUTES.some((route) => url.pathname === route || url.pathname.startsWith(`${route}/`));

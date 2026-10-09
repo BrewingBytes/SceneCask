@@ -8,6 +8,7 @@ import { failureCopy } from "./copy";
 import { EmailField } from "./fields";
 import { ResendForm } from "./resend-form";
 import { useAuthForm } from "./use-auth-form";
+import { RESEND_COOLDOWN_SECONDS } from "./use-cooldown";
 import { emailError } from "./validation";
 
 /**
@@ -43,7 +44,12 @@ export function ResetRequest() {
           </>
         }
       >
-        <ResendForm email={sentTo} send={(address) => api.requestReset(address)} label="Resend link" />
+        <ResendForm
+          email={sentTo}
+          send={(address) => api.requestReset(address)}
+          label="Resend link"
+          initialCooldown={RESEND_COOLDOWN_SECONDS}
+        />
         <p className="sc-auth-switch">
           <Button variant="quiet" onClick={() => setSentTo(null)}>
             Use a different email

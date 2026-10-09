@@ -27,8 +27,8 @@ in memory. No credential, token or session value is written to storage or the UR
   `link_required` gets a dedicated explanation: sign in the existing way, then link from
   Settings. Accounts are never merged.
 - **`returnTo`** is checked by `safeReturnTo`, which mirrors the API's Google allowlist. That
-  means application paths only and never auth pages, with encoded, escaped or
-  protocol-relative forms refused.
+  means application paths only and never auth pages. Escapes that decode to a control, space,
+  `/`, `\`, `%` or DEL, non-ASCII, backslashes and protocol-relative forms are refused.
 - Copy comes from `copy.ts` and `validation.ts`, never from server messages. Only the
   *names* of rejected fields are read from validation errors.
 - Auth pages set `referrer: no-referrer` and load no third-party resources (the Google mark is

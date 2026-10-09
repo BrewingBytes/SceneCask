@@ -9,6 +9,7 @@ import { useFragmentToken } from "./fragment-token";
 import { pendingEmail, type PendingEmail } from "./pending-email";
 import { ResendForm } from "./resend-form";
 import { AFTER_ONBOARDING, ONBOARDING } from "./routes";
+import { RESEND_COOLDOWN_SECONDS } from "./use-cooldown";
 
 type Phase =
   | { name: "start" }
@@ -113,7 +114,13 @@ export function VerifyEmail() {
             )
           }
         >
-          <ResendForm email={pending?.email} send={resend} label={pending ? "Resend link" : "Send a new link"} />
+          <ResendForm
+            email={pending?.email}
+            send={resend}
+            label={pending ? "Resend link" : "Send a new link"}
+            // Sign-up just queued the first email; a 403 sign-in queued none.
+            initialCooldown={pending?.via === "signup" ? RESEND_COOLDOWN_SECONDS : undefined}
+          />
           <Links />
         </AuthFrame>
       );

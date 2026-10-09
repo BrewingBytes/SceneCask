@@ -1,10 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 
-/** C04 resend cooldown (60s) or a 429's Retry-After: seconds left, and a starter. */
-export function useCooldown() {
-  const [until, setUntil] = useState(0);
-  const [now, setNow] = useState(0);
+/**
+ * C04 resend cooldown (60s) or a 429's Retry-After: seconds left, and a starter. Pass
+ * `initialSeconds` when an email was just queued, so the first resend waits out the API's cooldown.
+ */
+export function useCooldown(initialSeconds = 0) {
+  const [mounted] = useState(() => (initialSeconds > 0 ? Date.now() : 0));
+  const [until, setUntil] = useState(mounted + initialSeconds * 1000);
+  const [now, setNow] = useState(mounted);
 
   useEffect(() => {
     if (until <= now) return;

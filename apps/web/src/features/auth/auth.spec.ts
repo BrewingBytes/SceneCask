@@ -142,6 +142,7 @@ test.beforeEach(async ({ page }) => {
 
 test("a new email user goes from sign-up through the real link to onboarding and Discover", async ({ page }) => {
   const api = await mockApi(page);
+  await page.clock.install();
   await page.goto("/auth/signup");
   await field(page, "Email").fill("ana@example.test");
   await password(page).fill(PASSWORD);
@@ -157,9 +158,14 @@ test("a new email user goes from sign-up through the real link to onboarding and
   expect(api.of("register")[0].origin).toBe(ORIGIN);
   expect(api.of("session")[0].url.pathname).toBe("/api/v1/session");
 
+  // Sign-up just queued an email, and the API skips a resend inside its cooldown.
+  const cooling = page.getByRole("button", { name: /^Send again in \d+s$/ });
+  await expect(cooling).toHaveAttribute("aria-disabled", "true");
+  await cooling.click({ force: true });
+  expect(api.of("resend")).toHaveLength(0);
+  await page.clock.fastForward(61_000);
   await page.getByRole("button", { name: "Resend link" }).click();
   await expect(status(page, "If that address can receive one, a new link is on its way.")).toBeVisible();
-  const cooling = page.getByRole("button", { name: /^Send again in \d+s$/ });
   await expect(cooling).toHaveAttribute("aria-disabled", "true");
   await cooling.click({ force: true });
   expect(api.of("resend")).toHaveLength(1);
@@ -262,6 +268,9 @@ test("returnTo accepts only application paths", () => {
   expect(safeReturnTo("/shows/10000000-0000-4000-8000-000000000001?season=2#e3")).toBe(
     "/shows/10000000-0000-4000-8000-000000000001?season=2",
   );
+  // Discover's ?q= is serialized with URLSearchParams, so searches carry safe escapes.
+  expect(safeReturnTo("/discover?q=grey%27s+anatomy")).toBe("/discover?q=grey%27s+anatomy");
+  expect(safeReturnTo("/discover?q=hollow%2Borchard")).toBe("/discover?q=hollow%2Borchard");
   for (const hostile of [
     undefined,
     ["/home"],
@@ -272,6 +281,15 @@ test("returnTo accepts only application paths", () => {
     "/homepage",
     "/auth/signin",
     "/home%0d%0a",
+    "/%2e%2e/auth",
+    "/home%20",
+    "/home%2f..%2fauth",
+    "/home%5c",
+    "/home%25",
+    "/home%7f",
+    "/home%",
+    "/home%zz",
+    "/hôme",
     "/home x",
     "/home\t",
     `/home?${"a".repeat(600)}`,
@@ -393,6 +411,11 @@ test("password reset: the request is enumeration-safe and the link sets a new pa
   await expect(heading(page, "Check your inbox")).toBeVisible();
   await expect(page.getByText("If there’s an account for someone@example.test, a reset link is on its way.")).toBeVisible();
   expect(api.of("resetRequest").map((call) => call.body)).toEqual([{ email: "someone@example.test" }]);
+  // The API skips another reset email inside its cooldown, so Resend waits it out.
+  const cooling = page.getByRole("button", { name: /^Send again in \d+s$/ });
+  await expect(cooling).toHaveAttribute("aria-disabled", "true");
+  await cooling.click({ force: true });
+  expect(api.of("resetRequest")).toHaveLength(1);
   await page.getByRole("button", { name: "Use a different email" }).click();
   await expect(heading(page, "Reset your password")).toBeFocused();
 

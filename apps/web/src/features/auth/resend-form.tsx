@@ -14,16 +14,21 @@ export interface ResendFormProps {
   email?: string;
   send: (email: string) => Promise<AuthResult<unknown>>;
   label: string;
+  /**
+   * Seconds to wait before the first send. The API silently skips a resend within its cooldown
+   * (C04), so a screen shown right after an email was queued starts cooling.
+   */
+  initialCooldown?: number;
 }
 
 /**
  * Sends another verification or reset email. The confirmation is the same whether or not the
  * address has an account (C04), and the button waits out the 60-second cooldown or Retry-After.
  */
-export function ResendForm({ email: known, send, label }: ResendFormProps) {
+export function ResendForm({ email: known, send, label, initialCooldown }: ResendFormProps) {
   const [email, setEmail] = useState(known ?? "");
   const [sent, setSent] = useState(false);
-  const [cooldown, startCooldown] = useCooldown();
+  const [cooldown, startCooldown] = useCooldown(initialCooldown);
   const { form, errors, showErrors, clearError, problem, setProblem, busy, run } = useAuthForm<"email">();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
