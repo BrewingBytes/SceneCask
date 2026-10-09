@@ -1,6 +1,7 @@
 //! Google OpenID Connect through the maintained `openidconnect` crate: fixed-issuer discovery and
 //! JWKS, the authorization URL, the PKCE code exchange and ID-token validation (signature,
-//! algorithm, issuer, audience, expiry and nonce). Provider errors can carry response bodies,
+//! algorithm, issuer, audience, expiry and nonce, plus `auth_time` for a fresh login). Provider
+//! errors can carry response bodies,
 //! codes and URLs, so they are reduced to [`ProviderError`] and never logged or returned.
 
 use std::{
@@ -10,12 +11,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::{TimeDelta, Utc};
 use openidconnect::{
     AsyncHttpClient, AuthenticationFlow, AuthorizationCode, ClaimsVerificationError, ClientId,
     ClientSecret, CsrfToken, EndpointMaybeSet, EndpointNotSet, EndpointSet, HttpRequest,
     HttpResponse, IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
     RequestTokenError, Scope, TokenResponse,
-    core::{CoreClient, CoreProviderMetadata, CoreResponseType},
+    core::{CoreAuthPrompt, CoreClient, CoreProviderMetadata, CoreResponseType},
     http,
     url::Url,
 };
@@ -32,6 +34,10 @@ const METADATA_TTL: Duration = Duration::from_secs(60 * 60);
 /// A token signed by an unknown key refetches the JWKS at most this often.
 const MIN_REFRESH: Duration = Duration::from_secs(60);
 const MAX_BODY: usize = 1024 * 1024;
+/// A fresh login must have happened at Google at most this long before the callback.
+const MAX_AUTH_AGE: TimeDelta = TimeDelta::minutes(5);
+/// Tolerated clock difference for an `auth_time` slightly in the future.
+const CLOCK_SKEW: TimeDelta = TimeDelta::minutes(1);
 
 /// Google OAuth client credentials. `Debug` omits the secret.
 #[derive(Clone)]
@@ -140,15 +146,17 @@ impl Google {
     }
 
     /// The Google authorization URL for this flow's state, nonce and PKCE challenge, requesting
-    /// only `openid email profile`.
+    /// only `openid email profile`. `fresh_login` asks Google to authenticate the user again
+    /// (`max_age=0`, `prompt=login`) instead of reusing its existing browser session.
     pub(super) async fn authorize_url(
         &self,
         state: String,
         nonce: String,
         challenge: PkceCodeChallenge,
+        fresh_login: bool,
     ) -> Result<Url, ProviderError> {
         let client = self.client(false).await?;
-        let (url, _, _) = client
+        let mut request = client
             .authorize_url(
                 AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
                 move || CsrfToken::new(state),
@@ -156,18 +164,26 @@ impl Google {
             )
             .add_scope(Scope::new("email".to_owned()))
             .add_scope(Scope::new("profile".to_owned()))
-            .set_pkce_challenge(challenge)
-            .url();
+            .set_pkce_challenge(challenge);
+        if fresh_login {
+            request = request
+                .set_max_age(Duration::ZERO)
+                .add_prompt(CoreAuthPrompt::Login);
+        }
+        let (url, _, _) = request.url();
         Ok(url)
     }
 
     /// Exchanges `code` with the flow's PKCE verifier and validates the ID token, including that
-    /// its nonce is the flow's nonce secret, whose hash is `nonce_hash`.
+    /// its nonce is the flow's nonce secret, whose hash is `nonce_hash`. With `fresh_login` the
+    /// token must also carry an `auth_time` within [`MAX_AUTH_AGE`]: `prompt=login` travels
+    /// through the browser and could be stripped, so only the signed claim proves a new login.
     pub(super) async fn exchange(
         &self,
         code: String,
         verifier: String,
         nonce_hash: &[u8],
+        fresh_login: bool,
     ) -> Result<VerifiedIdentity, ProviderError> {
         let client = self.client(false).await?;
         let response = client
@@ -188,8 +204,19 @@ impl Google {
                 Some(nonce) if bool::from(nonce.hash().ct_eq(nonce_hash)) => Ok(()),
                 _ => Err("nonce mismatch".to_owned()),
             };
+            let recent = move |auth_time: Option<chrono::DateTime<Utc>>| {
+                let now = Utc::now();
+                match auth_time {
+                    _ if !fresh_login => Ok(()),
+                    Some(at) if at <= now + CLOCK_SKEW && now - at <= MAX_AUTH_AGE => Ok(()),
+                    _ => Err("stale authentication".to_owned()),
+                }
+            };
             id_token
-                .claims(&client.id_token_verifier(), nonce_matches)
+                .claims(
+                    &client.id_token_verifier().set_auth_time_verifier_fn(recent),
+                    nonce_matches,
+                )
                 .map(|claims| VerifiedIdentity {
                     issuer: claims.issuer().as_str().to_owned(),
                     subject: claims.subject().as_str().to_owned(),

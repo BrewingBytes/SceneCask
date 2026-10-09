@@ -11,7 +11,8 @@
 //!   linking from the signed-in account, never a merge.
 //! - `link`: adds the identity to the session that started the flow (fresh within
 //!   [`REAUTH_WINDOW`] at start).
-//! - `reauth`: marks that session freshly reauthenticated if the identity is its own.
+//! - `reauth`: marks that session freshly reauthenticated if the identity is its own and Google
+//!   authenticated the user again for this flow (`auth_time`), not from an existing Google session.
 //!
 //! The callback always answers 303 to an application route, with `?error=<code>` on failure, and
 //! changes no account, identity or session unless it succeeds. Google tokens are never stored.
@@ -139,7 +140,12 @@ async fn start(
         verifier: verifier.into_secret(),
     };
     let url = google
-        .authorize_url(new.state.encode(), new.nonce.encode(), challenge)
+        .authorize_url(
+            new.state.encode(),
+            new.nonce.encode(),
+            challenge,
+            intent == Intent::Reauth,
+        )
         .await
         .map_err(|error| ApiError::unavailable(error.category()))?;
     flow::insert(
@@ -191,6 +197,17 @@ enum Failure {
 }
 
 impl Failure {
+    /// The failure for an authorization `error` from Google: only `access_denied` is the user
+    /// declining; Google's own outages are `unavailable` and anything else (misconfiguration,
+    /// unexpected values) is `failed`.
+    fn from_provider(error: &str) -> Self {
+        match error {
+            "access_denied" => Self::Canceled,
+            "temporarily_unavailable" | "server_error" => Self::Unavailable,
+            _ => Self::Failed,
+        }
+    }
+
     fn code(self) -> &'static str {
         match self {
             Self::Canceled => "canceled",
@@ -243,7 +260,13 @@ async fn callback(
         state: &state,
         flow: &flow,
     };
-    match callback.complete(query.code, query.error.is_some()).await? {
+    match callback
+        .complete(
+            query.code,
+            query.error.as_deref().map(Failure::from_provider),
+        )
+        .await?
+    {
         Ok(done) => {
             let clear = cookie::clear(Kind::GoogleFlow, mode);
             redirect(
@@ -267,7 +290,8 @@ struct Callback<'a> {
 type Outcome = Result<Result<Done, Failure>, ApiError>;
 
 impl Callback<'_> {
-    async fn complete(&self, code: Option<String>, canceled: bool) -> Outcome {
+    /// `provider_error` is the failure Google reported instead of a code, if any.
+    async fn complete(&self, code: Option<String>, provider_error: Option<Failure>) -> Outcome {
         if !self.flow.consumed_now {
             return Ok(Err(Failure::Expired));
         }
@@ -277,8 +301,8 @@ impl Callback<'_> {
         if !bound {
             return Ok(Err(Failure::Failed));
         }
-        if canceled {
-            return Ok(Err(Failure::Canceled));
+        if let Some(failure) = provider_error {
+            return Ok(Err(failure));
         }
         let Some(code) = code.filter(|code| !code.is_empty()) else {
             return Ok(Err(Failure::Failed));
@@ -296,7 +320,12 @@ impl Callback<'_> {
         };
         let identity = match self
             .google
-            .exchange(code, verifier, &self.flow.nonce_hash)
+            .exchange(
+                code,
+                verifier,
+                &self.flow.nonce_hash,
+                self.flow.intent == Intent::Reauth,
+            )
             .await
         {
             Ok(identity) => identity,

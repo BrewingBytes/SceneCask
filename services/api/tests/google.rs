@@ -41,8 +41,8 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    COOKIE, Call, ORIGIN, Signed, TestApp, assert_error, count, send, set_cookies, sha256, sign_in,
-    signed, user,
+    COOKIE, Call, ORIGIN, Signed, TestApp, add_password, assert_error, count, send, set_cookies,
+    sha256, sign_in, signed, stale_reauth, user,
 };
 
 const CLIENT_ID: &str = "scenecask-test-client";
@@ -242,6 +242,16 @@ impl Harness {
         assert_eq!(params["redirect_uri"], CALLBACK);
         assert_eq!(params["scope"], "openid email profile");
         assert_eq!(params["code_challenge_method"], "S256");
+        // Only reauth forces a new Google login instead of reusing Google's browser session.
+        let reauth = query.contains("intent=reauth");
+        assert_eq!(
+            params.get("max_age").map(String::as_str),
+            reauth.then_some("0")
+        );
+        assert_eq!(
+            params.get("prompt").map(String::as_str),
+            reauth.then_some("login")
+        );
         assert!(!location.as_str().contains(CLIENT_SECRET));
         let binding = set_cookies(&headers)
             .into_iter()
@@ -279,6 +289,7 @@ impl Harness {
             "email_verified": true,
             "name": "Ana Reyes",
             "nonce": flow.nonce,
+            "auth_time": now(),
             "iat": now(),
             "exp": now() + 300,
         })
@@ -392,27 +403,6 @@ impl Harness {
 struct Landing {
     location: String,
     session: Option<String>,
-}
-
-/// Makes every session of `user_id` older than the 5-minute reauthentication window.
-async fn stale(pool: &PgPool, user_id: Uuid) {
-    sqlx::query(
-        "UPDATE sessions SET reauthenticated_at = now() - interval '6 minutes' WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .execute(pool)
-    .await
-    .unwrap();
-}
-
-async fn add_password(pool: &PgPool, user_id: Uuid) {
-    sqlx::query(
-        "INSERT INTO password_credentials (user_id, argon2_hash) VALUES ($1, '$argon2id$v=19$x')",
-    )
-    .bind(user_id)
-    .execute(pool)
-    .await
-    .unwrap();
 }
 
 #[sqlx::test]
@@ -675,6 +665,22 @@ async fn flows_are_single_use_expire_and_cancel_without_session(pool: PgPool) {
     assert_eq!(landing.location, "/auth/signin?error=expired");
     assert_eq!(h.owner("google-sub-6").await, None);
     assert_eq!(h.snapshot().await, before);
+
+    // Other Google errors are not a cancellation.
+    for (error, code) in [
+        ("temporarily_unavailable", "unavailable"),
+        ("server_error", "unavailable"),
+        ("invalid_request", "failed"),
+        ("unauthorized_client", "failed"),
+    ] {
+        let flow = h.start("intent=signin", None).await;
+        let landing = h
+            .callback(&format!("error={error}&state={}", flow.state), &flow, None)
+            .await;
+        assert_eq!(landing.location, format!("/auth/signin?error={code}"));
+        assert!(landing.session.is_none());
+    }
+    assert_eq!(h.snapshot().await, before);
 }
 
 #[sqlx::test]
@@ -707,10 +713,10 @@ async fn start_validates_intent_return_to_and_session(pool: PgPool) {
     let password_session = sign_in(&h.security, password_user).await;
     let (status, headers, body) = h.start_raw("intent=reauth", Some(&password_session)).await;
     assert_error(status, &headers, &body, 409, "IDENTITY_LINK_REQUIRED");
-    stale(&pool, password_user).await;
+    stale_reauth(&pool, password_user).await;
     let (status, headers, body) = h.start_raw("intent=link", Some(&password_session)).await;
     assert_error(status, &headers, &body, 401, "AUTH_REQUIRED");
-    stale(&pool, google_user).await;
+    stale_reauth(&pool, google_user).await;
     h.start(
         "intent=reauth&returnTo=/settings/data",
         Some(&google_session),
@@ -815,7 +821,7 @@ async fn concurrent_links_and_signins_resolve_to_one_owner(pool: PgPool) {
 async fn google_reauth_rotates_only_a_matching_session(pool: PgPool) {
     let h = harness(&pool).await;
     let (user_id, signed) = h.google_account("google-sub-12", EMAIL).await;
-    stale(&pool, user_id).await;
+    stale_reauth(&pool, user_id).await;
     let (status, headers, body) = h.unlink(&signed).await;
     assert_error(status, &headers, &body, 401, "AUTH_REQUIRED");
 
@@ -836,6 +842,29 @@ async fn google_reauth_rotates_only_a_matching_session(pool: PgPool) {
     .await
     .unwrap();
     assert!(!fresh);
+
+    // The right Google account, but from an existing Google session rather than a new login.
+    for auth_time in [
+        Value::Null,
+        (now() - 6 * 60).into(),
+        (now() + 5 * 60).into(),
+    ] {
+        let flow = h
+            .start("intent=reauth&returnTo=/settings", Some(&signed))
+            .await;
+        let mut claims = h.claims(&flow, "google-sub-12");
+        match auth_time {
+            Value::Null => drop(claims.as_object_mut().unwrap().remove("auth_time")),
+            auth_time => claims["auth_time"] = auth_time,
+        }
+        let landing = h.finish(&flow, &claims, Some(&signed)).await;
+        assert_eq!(landing.location, "/settings?error=failed");
+        assert!(landing.session.is_none());
+    }
+    assert_eq!(
+        common::count_session(&pool, "sessions", &signed.hash).await,
+        1
+    );
 
     let flow = h
         .start("intent=reauth&returnTo=/settings", Some(&signed))
