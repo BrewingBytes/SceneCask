@@ -14,6 +14,8 @@ pub enum Kind {
     Session,
     /// Anonymous CSRF bootstrap secret; not an authenticated session.
     AnonymousCsrf,
+    /// Google sign-in state, binding a callback to the browser that started the flow.
+    GoogleFlow,
 }
 
 pub fn name(kind: Kind, mode: CookieMode) -> &'static str {
@@ -22,6 +24,8 @@ pub fn name(kind: Kind, mode: CookieMode) -> &'static str {
         (Kind::Session, CookieMode::LocalhostDevelopment) => "scenecask",
         (Kind::AnonymousCsrf, CookieMode::Secure) => "__Host-scenecask-csrf",
         (Kind::AnonymousCsrf, CookieMode::LocalhostDevelopment) => "scenecask-csrf",
+        (Kind::GoogleFlow, CookieMode::Secure) => "__Host-scenecask-google",
+        (Kind::GoogleFlow, CookieMode::LocalhostDevelopment) => "scenecask-google",
     }
 }
 
