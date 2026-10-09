@@ -263,6 +263,26 @@ pub async fn count(pool: &PgPool, sql: &str) -> i64 {
         .unwrap()
 }
 
+/// Waits until `task` finishes or another backend is blocked on a row or table lock, so a test
+/// holding a transaction open can commit once the request under test is waiting on it.
+pub async fn until_blocked<T>(pool: &PgPool, task: &tokio::task::JoinHandle<T>) {
+    for _ in 0..500 {
+        if task.is_finished()
+            || count(
+                pool,
+                "SELECT count(*) FROM pg_stat_activity
+                 WHERE datname = current_database() AND wait_event_type = 'Lock'",
+            )
+            .await
+                > 0
+        {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("request neither finished nor blocked on a lock");
+}
+
 /// Runs `sql` and asserts PostgreSQL rejects it with `code` (SQLSTATE).
 pub async fn assert_sqlstate(pool: &PgPool, code: &str, sql: &str) {
     assert_sqlstate_any(pool, &[code], sql).await;

@@ -105,6 +105,9 @@ async fn login(
         return Err(ApiError::new(ErrorCode::EmailUnverified));
     }
     let mut tx = security.pool.begin().await?;
+    if !store::lock_credential(&mut tx, account.id, &account.argon2_hash).await? {
+        return Err(invalid_credentials());
+    }
     let started = start_session(&mut tx, &security.config, session.current(), account.id).await?;
     tx.commit().await?;
     Ok((
@@ -185,10 +188,14 @@ async fn reauth(
     }
     limit_attempt(&security, "reauth", ip, &current.user.id.to_string())?;
     let stored = store::password_hash(&security.pool, current.user.id).await?;
-    if !verify_password(request.password, stored).await? {
+    if !verify_password(request.password, stored.clone()).await? {
         return Err(invalid_credentials());
     }
+    let stored = stored.ok_or_else(invalid_credentials)?;
     let mut tx = security.pool.begin().await?;
+    if !store::lock_credential(&mut tx, current.user.id, &stored).await? {
+        return Err(invalid_credentials());
+    }
     let started = reauthenticate(&mut tx, &security.config, &current).await?;
     tx.commit().await?;
     Ok((

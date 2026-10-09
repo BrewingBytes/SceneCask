@@ -28,7 +28,7 @@ mod common;
 use common::{
     COOKIE, Call, Signed, TestApp, age_tokens, assert_error, assert_generic, count, count_session,
     deliver, disable, grant, link_token, make_due, password_hash, send, set_cookies, sign_in,
-    signed, stored_text, user,
+    signed, stored_text, until_blocked, user,
 };
 
 const EMAIL: &str = "ana@example.test";
@@ -419,6 +419,56 @@ async fn concurrent_resets_with_one_token_succeed_once(pool: PgPool) {
     };
     assert_eq!(login(&app, EMAIL, winner).await.0, StatusCode::OK);
     assert_eq!(sessions(&pool, id).await, 1);
+}
+
+/// Runs `attempt`, a request that checks the old password, while a reset of `user_id` is in
+/// progress as `store::reset` applies it: the new password is written, and only once `attempt`
+/// finishes or waits on that write are all sessions revoked and the reset committed.
+async fn racing_a_reset(
+    pool: &PgPool,
+    user_id: Uuid,
+    attempt: impl Future<Output = (StatusCode, HeaderMap, Value)> + Send + 'static,
+) {
+    let mut reset = pool.begin().await.unwrap();
+    sqlx::query("UPDATE password_credentials SET argon2_hash = $2 WHERE user_id = $1")
+        .bind(user_id)
+        .bind(argon2(NEW_PASSWORD))
+        .execute(&mut *reset)
+        .await
+        .unwrap();
+    // The old password still verifies against the committed hash.
+    let attempt = tokio::spawn(attempt);
+    until_blocked(pool, &attempt).await;
+    sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *reset)
+        .await
+        .unwrap();
+    reset.commit().await.unwrap();
+
+    let (status, headers, body) = attempt.await.unwrap();
+    assert_error(status, &headers, &body, 401, "INVALID_CREDENTIALS");
+    assert_eq!(sessions(pool, user_id).await, 0);
+}
+
+#[sqlx::test]
+async fn a_login_checked_against_the_old_password_never_outlives_a_reset(pool: PgPool) {
+    let (_, app) = app(&pool);
+    let id = account(&pool, EMAIL, Some(PASSWORD), true).await;
+    racing_a_reset(&pool, id, async move { login(&app, EMAIL, PASSWORD).await }).await;
+}
+
+#[sqlx::test]
+async fn a_reauth_checked_against_the_old_password_never_outlives_a_reset(pool: PgPool) {
+    let (security, app) = app(&pool);
+    let id = account(&pool, EMAIL, Some(PASSWORD), true).await;
+    let current = sign_in(&security, id).await;
+    racing_a_reset(
+        &pool,
+        id,
+        async move { reauth(&app, &current, PASSWORD).await },
+    )
+    .await;
 }
 
 #[sqlx::test]

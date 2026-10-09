@@ -55,6 +55,26 @@ pub(super) async fn password_hash(
     .await
 }
 
+/// Locks the account's password credential if it still has the verified `argon2_hash`. Call within
+/// the transaction that creates or rotates a session, so a password check never outlives a reset:
+/// a reset that committed since the hash was read makes this `false`, and one still running waits
+/// for the caller's commit and then revokes the new session with the others.
+pub(super) async fn lock_credential(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+    argon2_hash: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT EXISTS (
+             SELECT 1 FROM password_credentials WHERE user_id = $1 AND argon2_hash = $2
+             FOR SHARE)",
+    )
+    .bind(user_id)
+    .bind(argon2_hash)
+    .fetch_one(conn)
+    .await
+}
+
 /// Queues a reset email for the enabled account of `email` outside its cooldown, invalidating
 /// its earlier reset links; otherwise does nothing. Concurrent requests serialize on the row lock
 /// and queue one email.
