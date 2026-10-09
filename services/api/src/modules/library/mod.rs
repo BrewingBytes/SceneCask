@@ -73,17 +73,7 @@ async fn list(
             ApiError::new(ErrorCode::ValidationError).with_field("q", "Use up to 100 characters.")
         );
     }
-    let limit = match params.limit.as_deref() {
-        None => DEFAULT_LIMIT,
-        Some(text) => text
-            .parse()
-            .ok()
-            .filter(|limit| (1..=MAX_LIMIT).contains(limit))
-            .ok_or_else(|| {
-                ApiError::new(ErrorCode::ValidationError)
-                    .with_field("limit", "Use a limit from 1 to 50.")
-            })?,
-    };
+    let limit = page_limit(params.limit.as_deref(), DEFAULT_LIMIT)?;
     let after = params.cursor.as_deref().map(decode_cursor).transpose()?;
 
     let user_id = current.user.id;
@@ -162,33 +152,61 @@ async fn set_status(
     Ok(Json(service::apply(&security.pool, mutation).await?))
 }
 
+/// A `limit` query parameter: `default` when absent, otherwise 1 to the C03 maximum of 50.
+pub(crate) fn page_limit(value: Option<&str>, default: i64) -> Result<i64, ApiError> {
+    let Some(text) = value else {
+        return Ok(default);
+    };
+    text.parse()
+        .ok()
+        .filter(|limit| (1..=MAX_LIMIT).contains(limit))
+        .ok_or_else(|| {
+            ApiError::new(ErrorCode::ValidationError)
+                .with_field("limit", "Use a limit from 1 to 50.")
+        })
+}
+
+/// An opaque cursor carrying `text`.
+pub(crate) fn encode_opaque(text: &str) -> String {
+    URL_SAFE_NO_PAD.encode(text)
+}
+
+/// The value `parse` reads from a cursor made by [`encode_opaque`]; 400 for anything this server
+/// did not issue.
+pub(crate) fn decode_opaque<T>(
+    cursor: &str,
+    parse: impl FnOnce(&str) -> Option<T>,
+) -> Result<T, ApiError> {
+    let decode = || {
+        if cursor.len() > MAX_CURSOR_LEN {
+            return None;
+        }
+        parse(&String::from_utf8(URL_SAFE_NO_PAD.decode(cursor).ok()?).ok()?)
+    };
+    decode().ok_or_else(ApiError::malformed)
+}
+
 /// A show ID that is not a UUID cannot name a show: 404, like an unknown one.
 fn path_show_id(value: &str) -> Result<Uuid, ApiError> {
     Uuid::try_parse(value).map_err(|_| ApiError::not_found())
 }
 
 fn encode_cursor(position: &Position) -> String {
-    URL_SAFE_NO_PAD.encode(format!(
+    encode_opaque(&format!(
         "{}.{}",
         position.saved_at.timestamp_micros(),
         position.show_id.simple()
     ))
 }
 
-/// 400 for anything this server did not issue.
 fn decode_cursor(cursor: &str) -> Result<Position, ApiError> {
-    let decode = || {
-        if cursor.len() > MAX_CURSOR_LEN {
-            return None;
-        }
-        let text = String::from_utf8(URL_SAFE_NO_PAD.decode(cursor).ok()?).ok()?;
+    decode_opaque(cursor, |text| {
         let (micros, id) = text.split_once('.')?;
         Some(Position {
             saved_at: DateTime::from_timestamp_micros(micros.parse().ok()?)?,
             show_id: Uuid::try_parse(id).ok()?,
         })
-    };
-    decode().ok_or_else(ApiError::malformed)
+    })
 }
 
 #[cfg(test)]

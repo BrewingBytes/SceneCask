@@ -177,11 +177,21 @@ pub struct MutationResult {
     pub episodes: Vec<EpisodeChange>,
 }
 
-/// TMDB secure image base and poster size (catalog provider README: w500). Stored paths carry no
-/// credential, and paths outside the provider's shape map to `None`.
+/// TMDB secure image base with the poster (catalog provider README: w500) and episode still
+/// sizes. Stored paths carry no credential, and paths outside the provider's shape map to `None`.
 const POSTER_BASE: &str = "https://image.tmdb.org/t/p/w500";
+const STILL_BASE: &str = "https://image.tmdb.org/t/p/w300";
 
-pub(super) fn poster_url(path: Option<&str>) -> Option<String> {
+pub(crate) fn poster_url(path: Option<&str>) -> Option<String> {
+    image_url(POSTER_BASE, path)
+}
+
+/// Spoiler-protected: callers must wrap the result in the episode's protected details.
+pub(crate) fn still_url(path: Option<&str>) -> Option<String> {
+    image_url(STILL_BASE, path)
+}
+
+fn image_url(base: &str, path: Option<&str>) -> Option<String> {
     let rest = path?.strip_prefix('/')?;
     let safe = !rest.is_empty()
         && rest.len() < 255
@@ -189,7 +199,7 @@ pub(super) fn poster_url(path: Option<&str>) -> Option<String> {
         && rest
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b));
-    safe.then(|| format!("{POSTER_BASE}/{rest}"))
+    safe.then(|| format!("{base}/{rest}"))
 }
 
 #[cfg(test)]
