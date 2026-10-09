@@ -99,6 +99,24 @@ impl Fixture {
         body
     }
 
+    /// Starts Ana's write in the background, for tests that hold a lock the write must wait on.
+    fn spawn(
+        &self,
+        method: Method,
+        path: String,
+        body: Value,
+    ) -> tokio::task::JoinHandle<Response> {
+        let app = self.app.clone();
+        let (cookie, csrf) = (self.ana.signed.cookie.clone(), self.ana.signed.csrf.clone());
+        tokio::spawn(async move {
+            let (body, k) = (body.to_string(), key());
+            let mut call = Call::write(method, &path, &body).idempotent(&k);
+            call.cookie = Some(&cookie);
+            call.csrf = Some(&csrf);
+            send(&app, call).await
+        })
+    }
+
     async fn progress(&self, episode: Uuid) -> (bool, i64) {
         sqlx::query_as(
             "SELECT watched, revision FROM episode_progress WHERE episode_id = $1 AND user_id = $2",
@@ -699,17 +717,8 @@ async fn undo_waiting_on_a_later_write_skips_what_it_committed(pool: PgPool) {
         .execute(&mut *tx)
         .await
         .unwrap();
-    let app = f.app.clone();
-    let action = marked["actionId"].as_str().unwrap().to_owned();
-    let (cookie, csrf) = (f.ana.signed.cookie.clone(), f.ana.signed.csrf.clone());
-    let task = tokio::spawn(async move {
-        let path = format!("/actions/{action}/undo");
-        let k = key();
-        let mut call = Call::post(&path, "{}").idempotent(&k);
-        call.cookie = Some(&cookie);
-        call.csrf = Some(&csrf);
-        send(&app, call).await
-    });
+    let path = format!("/actions/{}/undo", marked["actionId"].as_str().unwrap());
+    let task = f.spawn(Method::POST, path, json!({}));
     until_blocked(&f.pool, &task).await;
     sqlx::query(
         "UPDATE episode_progress SET watched = true, revision = revision + 1 WHERE episode_id = $1",
@@ -727,6 +736,37 @@ async fn undo_waiting_on_a_later_write_skips_what_it_committed(pool: PgPool) {
         (&json!(0), &json!(1))
     );
     assert_eq!(f.progress(eps[0]).await, (true, 2));
+}
+
+#[sqlx::test]
+async fn first_mark_upgrades_an_entry_a_concurrent_first_save_inserted(pool: PgPool) {
+    let f = fixture(pool).await;
+    let (show, eps) = seed_show(&f.pool, "Hollow Orchard", "returning", &[released(1, 1)]).await;
+
+    // A first library save has inserted the entry but not committed when the mark starts.
+    let mut tx = f.pool.begin().await.unwrap();
+    sqlx::query(
+        "INSERT INTO library_entries (user_id, show_id, saved, status, saved_at, revision)
+         VALUES ($1, $2, true, 'plan_to_watch', now(), 1)",
+    )
+    .bind(f.ana.id)
+    .bind(show)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    let path = format!("/progress/episodes/{}", eps[0]);
+    let body = json!({"watched": true, "expectedRevision": 0});
+    let task = f.spawn(Method::PUT, path, body);
+    until_blocked(&f.pool, &task).await;
+    tx.commit().await.unwrap();
+
+    let (status, _, marked) = task.await.unwrap();
+    assert_eq!(status, StatusCode::OK, "{marked}");
+    assert_eq!(
+        (&marked["library"]["status"], &marked["library"]["revision"]),
+        (&json!("watching"), &json!(2))
+    );
+    assert_eq!(f.progress(eps[0]).await, (true, 1));
 }
 
 #[sqlx::test]

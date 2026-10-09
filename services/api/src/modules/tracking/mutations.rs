@@ -112,8 +112,8 @@ async fn set_episode_in(
         return result(conn, user_id, show_id, now, None, vec![unchanged], 0).await;
     }
 
-    let mut changes = match &entry {
-        Some(entry) => entry.store(conn, entry.before.watched(now)).await?,
+    let mut changes = match entry {
+        Some(entry) => auto_add(conn, user_id, show_id, entry, now).await?,
         None => Vec::new(),
     };
     changes.push(Change {
@@ -138,6 +138,25 @@ async fn set_episode_in(
     .await?;
     bump_tracking(conn, user_id, show_id, tracking_revision).await?;
     result(conn, user_id, show_id, now, action, episodes, 1).await
+}
+
+/// Saves the show for a true mark and upgrades Plan to watch. An absent entry cannot be locked, so
+/// a concurrent first library save can insert it first; the mark then locks and upgrades that
+/// row instead of failing, because its expected revision names the episode, not the entry.
+async fn auto_add(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+    show_id: Uuid,
+    entry: LockedEntry,
+    now: DateTime<Utc>,
+) -> Result<Vec<Change>, ApiError> {
+    match entry.store(conn, entry.before.watched(now)).await {
+        Err(error) if error.code() == ErrorCode::RevisionConflict && entry.revision == 0 => {
+            let entry = LockedEntry::lock(conn, user_id, show_id).await?;
+            entry.store(conn, entry.before.watched(now)).await
+        }
+        stored => stored,
+    }
 }
 
 /// Sets every watched episode of the show false, specials and archived episodes included, and
