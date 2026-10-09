@@ -1,0 +1,131 @@
+/* Account screens have no bottom navigation, so they need no room reserved for it. */
+.sc-auth .sc-main {
+  padding-bottom: calc(var(--sc-space-8) + env(safe-area-inset-bottom));
+}
+.sc-auth-column {
+  display: grid;
+  gap: var(--sc-space-4);
+  max-width: var(--sc-layout-form-width);
+  margin: 0 auto;
+}
+.sc-auth-column h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sc-auth-column h1:focus {
+  outline: none;
+}
+.sc-auth-lede {
+  margin: 0;
+  color: var(--sc-color-ink-secondary);
+  font-family: var(--sc-font-reading);
+  font-size: var(--sc-type-reading-size-0);
+  line-height: var(--sc-type-reading-line);
+  overflow-wrap: anywhere;
+}
+/* Newsreader ships one weight; addresses in the lede use the UI face instead of faux bold. */
+.sc-auth-lede strong {
+  font-family: var(--sc-font-ui);
+  font-size: 0.9em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.sc-auth-form {
+  display: grid;
+  gap: var(--sc-space-3);
+}
+.sc-auth-form > .sc-button-primary,
+.sc-auth-google,
+.sc-auth-wide {
+  width: 100%;
+  min-height: 52px;
+}
+.sc-auth-column a.sc-button {
+  text-decoration: none;
+}
+.sc-auth-google-mark {
+  flex: none;
+}
+.sc-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-3);
+  margin: 0;
+  color: var(--sc-color-ink-muted);
+  font-size: var(--sc-type-label-size);
+}
+.sc-auth-divider::before,
+.sc-auth-divider::after {
+  content: "";
+  flex: 1;
+  border-top: var(--sc-border-hairline);
+}
+.sc-auth-alert h2 {
+  margin: 0 0 var(--sc-space-1);
+  font-size: var(--sc-type-section-size);
+}
+.sc-auth-alert p {
+  margin: 0;
+  line-height: 1.5;
+}
+.sc-auth-alert .sc-actions {
+  margin-top: var(--sc-space-4);
+}
+.sc-auth-notice {
+  margin: 0;
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border: var(--sc-border-hairline);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-paper-raised);
+  font-weight: var(--sc-type-label-weight);
+}
+.sc-auth-status {
+  margin: 0;
+  color: var(--sc-color-ink-muted);
+  font-size: var(--sc-type-label-size);
+}
+.sc-auth-status:empty {
+  display: none;
+}
+.sc-auth-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: var(--sc-layout-touch-target-min);
+  color: var(--sc-color-accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sc-auth-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--sc-space-3);
+  margin: 0;
+  padding-top: var(--sc-space-2);
+  border-top: var(--sc-border-hairline);
+  color: var(--sc-color-ink-secondary);
+}
+.sc-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-3);
+}
+.sc-auth-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-3);
+  min-width: 0;
+}
+.sc-auth-preview p {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sc-auth-preview span {
+  color: var(--sc-color-ink-muted);
+  font-family: var(--sc-font-code);
+  font-size: var(--sc-type-label-size);
+}
