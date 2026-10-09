@@ -18,7 +18,7 @@ use scenecask_api::{
     mail::MailTransport,
     middleware::{self, Security, SecurityConfig},
     modules::{
-        auth::{AuthMail, session::start_session},
+        auth::{AuthMail, password::REAUTH_WINDOW, session::start_session},
         mail::Worker,
     },
 };
@@ -491,6 +491,29 @@ pub async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
          VALUES ($1, $2, 'episode_details', gen_random_uuid(), now() + interval '1 hour')",
     )
     .bind(hash)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// Makes every session of `user_id` older than the reauthentication window, with a minute's margin.
+pub async fn stale_reauth(pool: &PgPool, user_id: Uuid) {
+    sqlx::query(
+        "UPDATE sessions SET reauthenticated_at = now() - make_interval(secs => $2) WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind((REAUTH_WINDOW.as_secs() + 60) as f64)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// Gives `user_id` a password sign-in method whose hash no password matches.
+pub async fn add_password(pool: &PgPool, user_id: Uuid) {
+    sqlx::query(
+        "INSERT INTO password_credentials (user_id, argon2_hash) VALUES ($1, '$argon2id$x')",
+    )
     .bind(user_id)
     .execute(pool)
     .await

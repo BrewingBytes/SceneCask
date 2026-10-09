@@ -28,7 +28,7 @@ mod common;
 use common::{
     COOKIE, Call, Signed, TestApp, age_tokens, assert_error, assert_generic, count, count_session,
     deliver, disable, grant, link_token, make_due, password_hash, send, set_cookies, sign_in,
-    signed, stored_text, until_blocked, user,
+    signed, stale_reauth, stored_text, until_blocked, user,
 };
 
 const EMAIL: &str = "ana@example.test";
@@ -609,13 +609,7 @@ async fn reauth_rotates_the_session_and_marks_it_fresh(pool: PgPool) {
     let id = account(&pool, EMAIL, Some(PASSWORD), true).await;
     let old = sign_in(&security, id).await;
     grant(&pool, &old.hash, id).await;
-    sqlx::query(
-        "UPDATE sessions SET reauthenticated_at = now() - interval '6 minutes' WHERE user_id = $1",
-    )
-    .bind(id)
-    .execute(&pool)
-    .await
-    .unwrap();
+    stale_reauth(&pool, id).await;
     assert_eq!(
         probe(&app, "/probe/fresh", &old.cookie).await.1,
         Value::Bool(false)

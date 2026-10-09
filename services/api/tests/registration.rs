@@ -28,8 +28,8 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    COOKIE, Call, Down, ORIGIN, Recorder, TestApp, TestUser, age_tokens, assert_error,
-    assert_generic, check_email, count, decoded, deliver, disable, link_token,
+    COOKIE, Call, Down, ORIGIN, Recorder, TestApp, TestUser, add_password, age_tokens,
+    assert_error, assert_generic, check_email, count, decoded, deliver, disable, link_token,
     mail_worker as worker, make_due, password_hash, send, set_cookies, sha256, signed, stored_text,
     user, user_id,
 };
@@ -300,13 +300,7 @@ async fn resend_invalidates_the_old_link_and_honours_the_cooldown(pool: PgPool) 
 async fn existing_accounts_are_enumeration_safe_and_unchanged(pool: PgPool) {
     let (_, app) = app(&pool);
     let verified = user(&pool, "bo@example.test", true, "member").await;
-    sqlx::query(
-        "INSERT INTO password_credentials (user_id, argon2_hash) VALUES ($1, '$argon2id$x')",
-    )
-    .bind(verified)
-    .execute(&pool)
-    .await
-    .unwrap();
+    add_password(&pool, verified).await;
     let disabled = user(&pool, "cy@example.test", false, "member").await;
     disable(&pool, disabled).await;
 

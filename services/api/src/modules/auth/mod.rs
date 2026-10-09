@@ -2,6 +2,8 @@
 
 mod credentials;
 pub mod email_token;
+pub mod google;
+pub mod identities;
 mod mail;
 pub mod password;
 pub mod registration;
