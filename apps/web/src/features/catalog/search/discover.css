@@ -1,0 +1,113 @@
+.sc-discover h1 {
+  margin: 0;
+}
+.sc-discover-form {
+  margin-top: var(--sc-space-4);
+}
+.sc-discover-form .sc-input {
+  min-height: 56px;
+  padding-inline: var(--sc-space-3);
+  border-radius: var(--sc-radius-md);
+  font-size: 17px;
+}
+.sc-discover-hint {
+  min-height: 20px;
+  margin: var(--sc-space-1) 0 var(--sc-space-3);
+  color: var(--sc-color-ink-muted);
+  font-size: var(--sc-type-label-size);
+}
+.sc-search-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(480px, 100%), 1fr));
+  gap: 0 var(--sc-space-7);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-search-result {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  padding: var(--sc-space-3) 0;
+  border-bottom: var(--sc-border-hairline);
+}
+.sc-search-poster {
+  flex: none;
+  width: 60px;
+}
+.sc-search-open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sc-space-0);
+  min-width: 0;
+  min-height: var(--sc-layout-touch-target-min);
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* The whole row opens the show; the Add button sits above this hit area. */
+.sc-search-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.sc-search-open:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-search-open[aria-disabled="true"] {
+  cursor: progress;
+}
+.sc-search-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sc-search-year,
+.sc-search-meta {
+  color: var(--sc-color-ink-muted);
+  font-weight: var(--sc-type-body-ui-weight);
+}
+.sc-search-meta {
+  font-size: var(--sc-type-label-size);
+}
+.sc-search-add {
+  position: relative;
+  z-index: 1;
+  flex: none;
+}
+.sc-search-skeleton-text {
+  display: grid;
+  flex: 1;
+  gap: var(--sc-space-1);
+}
+.sc-discover-more {
+  margin-top: var(--sc-space-5);
+}
+.sc-discover .sc-error,
+.sc-discover .sc-empty {
+  margin-top: var(--sc-space-3);
+}
+/* Only the narrowest phones move Add below the title; 390px keeps one row per result. */
+@media (max-width: 359px) {
+  .sc-search-result {
+    flex-wrap: wrap;
+  }
+  .sc-search-poster {
+    width: 48px;
+  }
+  .sc-search-open {
+    flex-basis: calc(100% - 48px - var(--sc-space-3));
+  }
+  .sc-search-add {
+    margin-left: calc(48px + var(--sc-space-3));
+  }
+}
