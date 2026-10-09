@@ -14,7 +14,7 @@ use uuid::Uuid;
 mod common;
 use common::{
     Call, TestUser, assert_csrf_required, assert_error, count, member_app, released, seed_show,
-    send, until_blocked,
+    send, tracking_state, until_blocked,
 };
 
 type Response = (StatusCode, HeaderMap, Value);
@@ -128,22 +128,8 @@ impl Fixture {
         .unwrap()
     }
 
-    /// Every row a tracking write may touch, to prove rejected writes and replays change nothing.
     async fn state(&self) -> Value {
-        sqlx::query_scalar(
-            "SELECT jsonb_build_object(
-                 'progress', (SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY user_id, episode_id), '[]') FROM episode_progress p),
-                 'entries', (SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY user_id, show_id), '[]') FROM library_entries e),
-                 'tracking', (SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY user_id, show_id), '[]') FROM tracking_show_state t),
-                 'actions', (SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY id), '[]') FROM mutation_actions a),
-                 'changes', (SELECT count(*) FROM mutation_changes),
-                 'activity', (SELECT count(*) FROM activity_events),
-                 'keys', (SELECT count(*) FROM idempotency_records),
-                 'catalog', (SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM episodes e))",
-        )
-        .fetch_one(&self.pool)
-        .await
-        .unwrap()
+        tracking_state(&self.pool).await
     }
 
     /// Ana puts a saved show On hold.

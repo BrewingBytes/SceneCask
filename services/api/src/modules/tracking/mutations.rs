@@ -295,7 +295,7 @@ pub(super) async fn write_progress(
     Ok(episodes)
 }
 
-async fn result(
+pub(super) async fn result(
     conn: &mut PgConnection,
     user_id: Uuid,
     show_id: Uuid,
