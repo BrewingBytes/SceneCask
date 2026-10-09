@@ -1,7 +1,7 @@
 "use client";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { useToastQueue } from "../../../components/ui/overlays";
-import { newIdempotencyKey, outcomeUnknown, type ApiResult, type DiscoverApi, type SaveRequest, type SearchShow } from "./api";
+import { keyedUndo, newIdempotencyKey, outcomeUnknown, type ApiResult, type DiscoverApi, type SaveRequest, type SearchShow } from "./api";
 import { failureCopy } from "./copy";
 
 export type ToastControls = Pick<ReturnType<typeof useToastQueue>, "show" | "update" | "dismiss">;
@@ -36,7 +36,7 @@ function createLibraryActions(
 ) {
   const imported = new Map<number, string>();
   const pendingSaves = new Map<number, PendingSave>();
-  const undoKeys = new Map<string, string>();
+  const runUndo = keyedUndo(api.undo);
   const running = new Set<number>();
 
   const setRow = (providerId: number, patch: RowState) =>
@@ -79,12 +79,9 @@ function createLibraryActions(
   }
 
   async function undo(show: SearchShow, actionId: string, toastId: string) {
-    const key = undoKeys.get(actionId) ?? newIdempotencyKey();
-    undoKeys.set(actionId, key);
     toasts.update(toastId, { busy: "undo" });
-    const result = await api.undo(actionId, key);
+    const result = await runUndo(actionId);
     if (result.ok) {
-      undoKeys.delete(actionId);
       setRow(show.providerId, { inLibrary: result.data.library.saved });
       toasts.show({
         id: toastId,
@@ -95,7 +92,6 @@ function createLibraryActions(
       });
       return;
     }
-    if (!outcomeUnknown(result.failure)) undoKeys.delete(actionId);
     const expired = result.failure.kind === "expired";
     toasts.show({
       id: toastId,

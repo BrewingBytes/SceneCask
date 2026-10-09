@@ -63,9 +63,17 @@ function classify(response: Response, error: unknown): Failure {
 }
 
 type Call<T> = () => Promise<{ data?: T; error?: unknown; response: Response }>;
+type Client = ReturnType<typeof createSceneCaskClient>;
 
-/** Browser adapter over the generated client. Create one per viewer; it caches only the CSRF token. */
-export function createDiscoverApi() {
+/**
+ * Shared browser transport over the generated client: classifies failures into safe categories
+ * and bootstraps (and refetches after rotation) the session CSRF token before mutations. Feature
+ * adapters (Discover, tracking) wrap their endpoints with `request`. Create one per viewer.
+ */
+export function createApiTransport(): {
+  client: Client;
+  request: <T>(run: Call<T>, signal?: AbortSignal, mutation?: boolean) => Promise<ApiResult<T>>;
+} {
   let csrfToken: string | undefined;
   const client = createSceneCaskClient({ getCsrfToken: () => csrfToken });
 
@@ -86,6 +94,13 @@ export function createDiscoverApi() {
       return { ok: false, failure: { kind: signal?.aborted ? "aborted" : "network" } };
     }
   }
+
+  return { client, request };
+}
+
+/** Browser adapter over the generated client. Create one per viewer; it caches only the CSRF token. */
+export function createDiscoverApi() {
+  const { client, request } = createApiTransport();
 
   return {
     search: (q: string, page: number, signal: AbortSignal) =>
@@ -118,4 +133,19 @@ export function createDiscoverApi() {
 
 export function newIdempotencyKey() {
   return crypto.randomUUID();
+}
+
+/**
+ * Undo with one Idempotency-Key per action until its outcome is known: a retried Undo after a
+ * network failure reuses the key, so it can never be applied twice.
+ */
+export function keyedUndo<T>(undo: (actionId: string, key: string) => Promise<ApiResult<T>>) {
+  const keys = new Map<string, string>();
+  return async (actionId: string) => {
+    const key = keys.get(actionId) ?? newIdempotencyKey();
+    keys.set(actionId, key);
+    const result = await undo(actionId, key);
+    if (result.ok || !outcomeUnknown(result.failure)) keys.delete(actionId);
+    return result;
+  };
 }

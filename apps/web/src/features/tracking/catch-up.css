@@ -1,0 +1,109 @@
+.sc-chip:focus-visible,
+.sc-catchup-option:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-catchup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-3);
+}
+.sc-catchup-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 48px;
+  padding: var(--sc-space-1) var(--sc-space-3);
+  border: 1.5px solid var(--sc-color-line-strong);
+  border-radius: var(--sc-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sc-catchup-option span {
+  color: var(--sc-color-ink-muted);
+  font-size: var(--sc-type-label-size);
+  font-weight: 400;
+}
+.sc-catchup-option[aria-pressed="true"] {
+  border-color: var(--sc-color-ink);
+  background: var(--sc-color-ink);
+  color: var(--sc-color-paper);
+}
+.sc-catchup-option[aria-pressed="true"] span {
+  color: inherit;
+}
+.sc-catchup-label {
+  margin: 0 0 var(--sc-space-1);
+  font-weight: 700;
+}
+.sc-catchup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-1);
+  margin-bottom: var(--sc-space-1);
+}
+.sc-chip {
+  min-width: var(--sc-layout-touch-target-min);
+  min-height: var(--sc-layout-touch-target-min);
+  padding: 0 var(--sc-space-2);
+  border: 1.5px solid var(--sc-color-line-strong);
+  border-radius: var(--sc-radius-pill);
+  background: transparent;
+  color: var(--sc-color-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sc-chip-episode[data-watched] {
+  background: var(--sc-color-paper-2);
+}
+.sc-chip[aria-pressed="true"] {
+  border-color: var(--sc-color-ink);
+  background: var(--sc-color-ink);
+  color: var(--sc-color-paper);
+}
+.sc-catchup-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-space-1);
+  padding: var(--sc-space-2) var(--sc-space-3);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-paper-2);
+  font-size: var(--sc-type-label-size);
+}
+.sc-catchup-summary p {
+  margin: 0;
+}
+.sc-catchup-count {
+  font-size: var(--sc-type-body-ui-size);
+  font-weight: 700;
+}
+.sc-catchup-excluded {
+  margin: 0;
+  padding-left: var(--sc-space-4);
+}
+.sc-catchup-note {
+  color: var(--sc-color-ink-muted);
+}
+.sc-catchup-stale,
+.sc-catchup-error:not(:empty),
+.sc-catchup-inline {
+  padding: var(--sc-space-2);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-error-surface);
+  color: var(--sc-color-error);
+  font-weight: 600;
+}
+.sc-catchup-error {
+  margin: 0;
+}
+.sc-catchup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sc-space-1);
+}
