@@ -70,6 +70,11 @@ and a default-header type adapter. We retain explicit header requirements here;
 [openapi-fetch's auth middleware guidance](https://openapi-ts.dev/openapi-fetch/middleware-auth)
 describes its transport as unopinionated about authentication.
 
+Runtime imports of generated modules use the package's `#generated/*` import map rather
+than a `.js` specifier: Next.js's Turbopack does not map `./security.js` to its `.ts`
+source, while NodeNext type checking and the emitted-JavaScript tests resolve both.
+Type-only `.js` imports are erased and unaffected.
+
 Run `yarn api:check` from the repository root. Its twenty automated tests cover complete
 endpoint ownership, every schema/request/success/error example, forbidden spoiler
 fields, tombstones, mutation validation, security/pagination/caching declarations,

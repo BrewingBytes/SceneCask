@@ -6,6 +6,9 @@
     ".": "./src/index.ts",
     "./schema": "./src/generated/schema.ts"
   },
+  "imports": {
+    "#generated/*": "./src/generated/*.ts"
+  },
   "scripts": {
     "api:generate": "node scripts/generate.mjs",
     "api:check": "yarn lint && yarn test && yarn typecheck && node scripts/generate.mjs --check",
