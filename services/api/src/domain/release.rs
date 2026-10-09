@@ -55,6 +55,25 @@ pub struct Release<'a> {
 }
 
 impl<'a> Schedule<'a> {
+    /// The schedule stored for an episode: `air_date`, `release_timezone` and the start instant
+    /// PostgreSQL resolved from them. A zone whose start was not resolved falls back to the
+    /// date-only rule.
+    pub fn from_catalog(
+        air_date: Option<NaiveDate>,
+        zone: Option<&'a str>,
+        starts_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        match (air_date, zone, starts_at) {
+            (None, _, _) => Self::Undated,
+            (Some(date), Some(zone), Some(starts_at)) => Self::Zoned {
+                date,
+                zone,
+                starts_at,
+            },
+            (Some(date), _, _) => Self::Date(date),
+        }
+    }
+
     /// The instant the episode becomes released, or `None` when undated.
     pub fn starts_at(self) -> Option<DateTime<Utc>> {
         match self {

@@ -270,6 +270,28 @@ pub async fn member_app(
     (test, app, member)
 }
 
+/// A `member_app` with its pool, for feature tests that seed rows and add their own helpers in
+/// an `impl MemberFixture` block.
+pub struct MemberFixture {
+    pub app: Router,
+    pub pool: PgPool,
+    pub test: TestApp,
+    pub ana: TestUser,
+}
+
+pub async fn member_fixture(
+    pool: PgPool,
+    routes: impl FnOnce(&Security) -> Router,
+) -> MemberFixture {
+    let (test, app, ana) = member_app(&pool, routes).await;
+    MemberFixture {
+        app,
+        pool,
+        test,
+        ana,
+    }
+}
+
 /// Asserts that `user`'s keyed JSON write is rejected 403 CSRF_FAILED without its CSRF token.
 pub async fn assert_csrf_required(
     app: &Router,

@@ -38,19 +38,11 @@ struct EpisodeRow {
 
 impl EpisodeRow {
     fn schedule(&self) -> Schedule<'_> {
-        match (
+        Schedule::from_catalog(
             self.air_date,
             self.release_timezone.as_deref(),
             self.starts_at,
-        ) {
-            (None, _, _) => Schedule::Undated,
-            (Some(date), Some(zone), Some(starts_at)) => Schedule::Zoned {
-                date,
-                zone,
-                starts_at,
-            },
-            (Some(date), _, _) => Schedule::Date(date),
-        }
+        )
     }
 }
 
