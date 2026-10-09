@@ -82,13 +82,11 @@ impl MemberFixture {
         assert_eq!(status, StatusCode::OK, "{body}");
     }
 
-    async fn save(&self, show: Uuid, status: &str) {
+    async fn save(&self, user: &TestUser, show: Uuid, status: &str) {
         let key = Uuid::new_v4().to_string();
         let body = json!({"saved": true, "status": status, "expectedRevision": 0});
         let path = format!("/library/{show}");
-        let (code, _, body) = self
-            .write(&self.ana, Method::PUT, &path, Some(&key), body)
-            .await;
+        let (code, _, body) = self.write(user, Method::PUT, &path, Some(&key), body).await;
         assert_eq!(code, StatusCode::OK, "{body}");
     }
 
@@ -547,7 +545,8 @@ async fn show_dto_is_series_level_and_viewer_scoped(pool: PgPool) {
 }
 
 /// Acceptance criterion 3: Home sections come only from saved Watching shows, and an
-/// on-hold-only library is not reported as empty.
+/// on-hold-only library is not reported as empty. Neither is a library holding only planned or
+/// dropped shows.
 #[sqlx::test]
 async fn home_separates_choose_a_show_from_empty_library(pool: PgPool) {
     let f = fixture(pool).await;
@@ -557,13 +556,22 @@ async fn home_separates_choose_a_show_from_empty_library(pool: PgPool) {
     );
 
     let (paused, _) = seed_show(&f.pool, "Paused", "returning", &[released(1, 1)]).await;
-    let (planned, _) = seed_show(&f.pool, "Planned", "returning", &[released(1, 1)]).await;
-    f.save(paused, "on_hold").await;
-    f.save(planned, "on_hold").await;
+    let (shelved, _) = seed_show(&f.pool, "Shelved", "returning", &[released(1, 1)]).await;
+    f.save(&f.ana, paused, "on_hold").await;
+    f.save(&f.ana, shelved, "on_hold").await;
     assert_eq!(
         f.get("/home").await,
         json!({"upNext": [], "caughtUp": [], "libraryEmpty": false})
     );
+    for status in ["plan_to_watch", "dropped"] {
+        let user = f.user().await;
+        f.save(&user, paused, status).await;
+        assert_eq!(
+            f.get_as(&user, "/home").await.2,
+            json!({"upNext": [], "caughtUp": [], "libraryEmpty": false}),
+            "{status}"
+        );
+    }
 
     let (older, older_eps) = seed_show(
         &f.pool,
