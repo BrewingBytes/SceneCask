@@ -2,17 +2,24 @@
 // Each integration binary compiles this module independently and uses a different subset.
 #![allow(dead_code)]
 
+use std::sync::{Arc, Mutex};
+
 use axum::{
     Router,
     body::{Body, to_bytes},
     http::{HeaderMap, Method, Request, StatusCode, header},
     response::Response,
 };
+use lettre::Message;
 use scenecask_api::{
+    mail::MailTransport,
     middleware::{self, Security, SecurityConfig},
-    modules::auth::session::start_session,
+    modules::{
+        auth::{AuthMail, session::start_session},
+        mail::Worker,
+    },
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -297,4 +304,153 @@ pub async fn call(
     // JSON endpoints must never silently fall back to text.
     assert!(body.is_object());
     (status, body)
+}
+
+/// `{message:"Check your email."}`, the enumeration-safe body of email-sending auth requests.
+pub fn check_email() -> Value {
+    json!({ "message": "Check your email." })
+}
+
+/// Asserts the generic, enumeration-safe 202.
+pub fn assert_generic(response: (StatusCode, Value)) {
+    assert_eq!(response, (StatusCode::ACCEPTED, check_email()));
+}
+
+/// Records each sent message as its formatted RFC 5322 text.
+#[derive(Clone, Default)]
+pub struct Recorder(Arc<Mutex<Vec<String>>>);
+
+impl Recorder {
+    pub fn sent(&self) -> Vec<String> {
+        self.0.lock().unwrap().clone()
+    }
+}
+
+impl MailTransport for Recorder {
+    async fn send(&self, message: Message) -> Result<(), &'static str> {
+        let formatted = String::from_utf8(message.formatted()).unwrap();
+        self.0.lock().unwrap().push(formatted);
+        Ok(())
+    }
+}
+
+/// An SMTP outage.
+pub struct Down;
+
+impl MailTransport for Down {
+    async fn send(&self, _: Message) -> Result<(), &'static str> {
+        Err("email delivery unavailable")
+    }
+}
+
+/// An outbox worker composing account emails over `transport`.
+pub fn mail_worker<T: MailTransport + Sync>(pool: &PgPool, transport: T) -> Worker<T, AuthMail> {
+    let composer = AuthMail::new(
+        pool.clone(),
+        ORIGIN.to_owned(),
+        "SceneCask <no-reply@scenecask.test>".parse().unwrap(),
+    );
+    Worker::new(pool.clone(), transport, composer)
+}
+
+/// Sends every due message through a fresh recorder and returns the recorded messages.
+pub async fn deliver(pool: &PgPool) -> Vec<String> {
+    let recorder = Recorder::default();
+    mail_worker(pool, recorder.clone())
+        .run_once()
+        .await
+        .unwrap();
+    recorder.sent()
+}
+
+/// Undoes the quoted-printable soft line breaks and `=3D` escapes lettre uses for long lines.
+pub fn decoded(message: &str) -> String {
+    message.replace("=\r\n", "").replace("=3D", "=")
+}
+
+/// The token from an emailed link to `path` (`…<path>#token=<43 base64url chars>`).
+pub fn link_token(message: &str, path: &str) -> String {
+    let message = decoded(message);
+    let marker = format!("{ORIGIN}{path}#token=");
+    let start = message.find(&marker).expect("emailed link") + marker.len();
+    let token: String = message[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    assert_eq!(token.len(), 43, "token must be a full 256-bit secret");
+    token
+}
+
+pub async fn user_id(pool: &PgPool, email: &str) -> Uuid {
+    sqlx::query_scalar("SELECT id FROM users WHERE normalized_email = $1")
+        .bind(email)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+pub async fn password_hash(pool: &PgPool, user_id: Uuid) -> String {
+    sqlx::query_scalar("SELECT argon2_hash FROM password_credentials WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Every stored auth/outbox value as text, to prove no plaintext secret was persisted.
+pub async fn stored_text(pool: &PgPool) -> String {
+    sqlx::query_scalar(
+        "SELECT concat_ws(' ',
+             (SELECT string_agg(row_to_json(u)::text, ' ') FROM users u),
+             (SELECT string_agg(row_to_json(p)::text, ' ') FROM password_credentials p),
+             (SELECT string_agg(row_to_json(t)::text, ' ') FROM auth_tokens t),
+             (SELECT string_agg(row_to_json(o)::text, ' ') FROM outbox o))",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// Moves this user's emailed tokens `seconds` into the past.
+pub async fn age_tokens(pool: &PgPool, user_id: Uuid, seconds: i64) {
+    sqlx::query(
+        "UPDATE auth_tokens SET created_at = created_at - make_interval(secs => $2),
+                                expires_at = expires_at - make_interval(secs => $2)
+         WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .bind(seconds as f64)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// Makes every undelivered outbox message due now, skipping retry backoff.
+pub async fn make_due(pool: &PgPool) {
+    sqlx::query("UPDATE outbox SET available_at = now() WHERE delivered_at IS NULL")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+/// A one-hour episode reveal grant on session `hash`.
+pub async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
+    sqlx::query(
+        "INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+         VALUES ($1, $2, 'episode_details', gen_random_uuid(), now() + interval '1 hour')",
+    )
+    .bind(hash)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// Disables an account, as an operator or account deletion would.
+pub async fn disable(pool: &PgPool, user_id: Uuid) {
+    sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .unwrap();
 }

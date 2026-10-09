@@ -25,6 +25,12 @@ pub const VERIFY_EMAIL: Template = Template {
     text: include_str!("templates/verify_email.txt"),
 };
 
+pub const PASSWORD_RESET_EMAIL: Template = Template {
+    subject: "Reset your SceneCask password",
+    html: include_str!("templates/password_reset.html"),
+    text: include_str!("templates/password_reset.txt"),
+};
+
 /// A rendered email, ready to address.
 #[derive(Debug)]
 pub struct Rendered {
@@ -146,6 +152,21 @@ mod tests {
         );
         assert!(rendered.html.contains(&format!("href=\"{link}\"")));
         assert!(!rendered.text.contains('<'));
+    }
+
+    #[test]
+    fn password_reset_email_states_its_lifetime() {
+        let link = "https://scenecask.example/auth/reset/confirm#token=abc_-123";
+        let rendered = PASSWORD_RESET_EMAIL
+            .render(ORIGIN, &[("link", link)])
+            .unwrap();
+        for part in [&rendered.html, &rendered.text] {
+            assert!(part.contains(link));
+            assert!(part.contains("expires in 30 minutes"));
+            assert!(part.contains("signs you out everywhere"));
+            assert!(!part.contains("{{"));
+        }
+        assert_eq!(rendered.subject, "Reset your SceneCask password");
     }
 
     #[test]

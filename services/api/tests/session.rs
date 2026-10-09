@@ -23,8 +23,8 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    COOKIE, Call, ORIGIN, TestApp, assert_error, count_session as count, parts, send, set_cookies,
-    sha256, sign_in, signed, user,
+    COOKIE, Call, ORIGIN, TestApp, assert_error, count_session as count, disable, grant, parts,
+    send, set_cookies, sha256, sign_in, signed, user,
 };
 
 fn session_limits(config: &mut SecurityConfig) {
@@ -58,18 +58,6 @@ fn session_app(pool: &PgPool) -> (Security, Router) {
     let harness = TestApp::new(pool, session_limits);
     let app = harness.routes(probes(&harness.security));
     (harness.security, app)
-}
-
-async fn grant(pool: &PgPool, hash: &[u8], user_id: Uuid) {
-    sqlx::query(
-        "INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
-         VALUES ($1, $2, 'episode_details', gen_random_uuid(), now() + interval '1 hour')",
-    )
-    .bind(hash)
-    .bind(user_id)
-    .execute(pool)
-    .await
-    .unwrap();
 }
 
 #[sqlx::test]
@@ -213,11 +201,7 @@ async fn expired_revoked_or_disabled_sessions_return_401_and_lose_grants(pool: P
     assert_eq!(status, StatusCode::OK);
 
     // Disabling the account ends its sessions.
-    sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
-        .bind(id)
-        .execute(&pool)
-        .await
-        .unwrap();
+    disable(&pool, id).await;
     let (status, headers, body) = send(&app, Call::get("/probe/auth").signed(&signed)).await;
     assert_error(status, &headers, &body, 401, "AUTH_REQUIRED");
     assert_eq!(count(&pool, "sessions", &signed.hash).await, 0);
