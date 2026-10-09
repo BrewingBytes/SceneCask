@@ -80,6 +80,12 @@ export function toEpisodeView(episode: Episode): EpisodeView {
   return { id, season, number, release, watched, revision, access: episode.detailsAccess, details: episode.details };
 }
 
+/** True when `fresh` predates `known`: tracking revision first, then library revision. */
+function olderThan(fresh: Show, known: Show) {
+  if (fresh.trackingRevision !== known.trackingRevision) return fresh.trackingRevision < known.trackingRevision;
+  return (fresh.library?.revision ?? -1) < (known.library?.revision ?? -1);
+}
+
 /** Watched state as the viewer should see it, including in-flight optimistic changes. */
 export function isWatched(overlay: Overlay, episode: EpisodeView) {
   return overlay.episodes[episode.id] ?? (overlay.allUnwatched ? false : episode.watched);
@@ -149,6 +155,9 @@ export function createTrackingClient(api: TrackingApi, showId: string, toasts: T
     const run = ++generation;
     const result = await api.getShow(showId);
     if (run !== generation) return;
+    const known = current();
+    // A read served before a write that has since been applied must not roll that write back.
+    if (result.ok && known && olderThan(result.data, known)) return;
     emit({ show: result.ok ? { status: "ready", show: result.data } : { status: "error", failure: result.failure } });
   }
   async function loadSeason(season: number, force = false) {
@@ -157,7 +166,16 @@ export function createTrackingClient(api: TrackingApi, showId: string, toasts: T
     if (!existing || existing.status === "error") emit({ seasons: { ...state.seasons, [season]: { status: "loading", episodes: [] } } });
     const result = await api.listSeason(showId, season);
     const seasons = { ...state.seasons };
-    if (result.ok) seasons[season] = { status: "ready", episodes: result.data.map(toEpisodeView) };
+    if (result.ok) {
+      // Keep rows a concurrent write already moved past this read's revision.
+      const known = new Map((state.seasons[season]?.episodes ?? []).map((episode) => [episode.id, episode]));
+      const episodes = result.data.map((episode) => {
+        const fresh = toEpisodeView(episode);
+        const kept = known.get(fresh.id);
+        return kept && kept.revision > fresh.revision ? kept : fresh;
+      });
+      seasons[season] = { status: "ready", episodes };
+    }
     else if (!force) seasons[season] = { status: "error", episodes: [], failure: result.failure };
     emit({ seasons });
   }
@@ -277,7 +295,7 @@ export function createTrackingClient(api: TrackingApi, showId: string, toasts: T
         announce(
           result,
           `tracking-episode-${episode.id}`,
-          watched ? `Marked ${code} watched${wasSaved || episode.season === 0 ? "." : " and added the show to your library."}` : `Marked ${code} unwatched.`,
+          watched ? `Marked ${code} watched${wasSaved ? "." : " and added the show to your library."}` : `Marked ${code} unwatched.`,
           watched ? `${code} is unwatched again.` : `${code} is watched again.`,
           watched ? `${code} was already watched.` : `${code} was already unwatched.`,
         ),

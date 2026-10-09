@@ -507,6 +507,50 @@ test("a revision conflict rolls back to the authoritative state", async ({ page 
   await expect(episodes(page, "Season 1").getByText(`${SECRET} S1 E2`)).toBeVisible();
 });
 
+test("a refresh read served before a later write never rolls that write back", async ({ page }) => {
+  const fake = new FakeApi([], { saved: true, status: "watching", revision: 1 });
+  await openShow(page, fake);
+  await toggle(page, "S1 E1").click();
+  const marked = toast(page, "Marked S1 E1 watched.");
+  await expect(marked).toBeVisible();
+
+  // Undo's authoritative refresh is answered with state captured at request time, but late.
+  // Both reads (show and Season 1) capture their state before the next write is sent.
+  let started!: () => void;
+  let pending = 2;
+  const refreshing = new Promise<void>((resolve) => (started = () => --pending === 0 && resolve()));
+  await page.route(`**/api/v1/shows/${SHOW}**`, async (route, request) => {
+    if (request.method() !== "GET") return route.fallback();
+    const url = new URL(request.url());
+    const body = url.pathname.endsWith("/episodes")
+      ? { items: EPISODES.filter((episode) => episode.season === Number(url.searchParams.get("season"))).map((episode) => fake.episodeDto(episode)), nextCursor: null }
+      : fake.showDto();
+    started();
+    await later(800);
+    return json(route, body);
+  });
+  await marked.getByRole("button", { name: "Undo" }).click();
+  await refreshing;
+  await toggle(page, "S1 E2").click();
+  await expect(toast(page, "Marked S1 E2 watched.")).toBeVisible();
+  expect(fake.watched(episodeId(1, 2))).toBe(true);
+
+  await expect(toast(page, "S1 E1 is unwatched again.")).toBeVisible();
+  await expect(toggle(page, "S1 E1")).toHaveAttribute("aria-pressed", "false");
+  await later(900);
+  await expect(toggle(page, "S1 E2")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("1 of 8 episodes watched")).toBeVisible();
+});
+
+test("marking a special on an unsaved show says it was added to the library", async ({ page }) => {
+  const fake = new FakeApi();
+  await openShow(page, fake);
+  await page.getByRole("tab", { name: "Specials" }).click();
+  await toggle(page, "Special 1").click();
+  await expect(toast(page, "Marked Special 1 watched and added the show to your library.")).toBeVisible();
+  expect(fake.library?.saved).toBe(true);
+});
+
 test("seasons, specials and statuses work by keyboard; the season is kept in the URL", async ({ page }) => {
   const fake = new FakeApi([[1, 1]], { saved: true, status: "watching", revision: 1 });
   await openShow(page, fake);

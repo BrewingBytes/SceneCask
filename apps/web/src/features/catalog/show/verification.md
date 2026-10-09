@@ -9,7 +9,7 @@ branch. Changes stay in `features/catalog/show/**`, `features/tracking/**` and
 
 | Command | Result |
 | --- | --- |
-| `CI=1 yarn playwright test --config apps/web/src/features/catalog/show/playwright.config.ts` | Pass: 15 Chromium tests, 3 consecutive runs |
+| `CI=1 yarn playwright test --config apps/web/src/features/catalog/show/playwright.config.ts` | Pass: 17 Chromium tests |
 | Same suite with idempotency-key reuse removed | The concurrent/unknown-outcome test fails |
 | Same suite with a stale preview silently resubmitted | The stale catch-up test fails |
 | `CI=1 yarn playwright test --config apps/web/src/features/catalog/search/playwright.config.ts` | Pass: 20 tests (Discover after the transport extraction) |
@@ -40,7 +40,9 @@ Acceptance criteria:
   dialog open with product copy and changes nothing.
 - **Optimistic races.** S1 E1 (503 after 600ms) and S1 E2 marked concurrently: E2 stays
   watched, E1 rolls back alone, a repeat click while busy is ignored, and Retry resends
-  the same key and body. A 409 refetches and shows the other device's mark.
+  the same key and body. A 409 refetches and shows the other device's mark. An Undo
+  refresh answered late (state captured before a following S1 E2 mark) keeps E2 watched
+  and the newer progress count. Marking a special on an unsaved show says it was added.
 - Add sheet "Haven’t started yet" sends `{saved:true,status:"plan_to_watch",expectedRevision:0}`
   and no preview. The row menu opens the sheet previewed through that episode; Escape
   returns focus to the row menu with no writes. Season tabs work by arrow/End keys, the
