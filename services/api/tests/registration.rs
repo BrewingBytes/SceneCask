@@ -15,10 +15,10 @@ use scenecask_api::{
     middleware::Security,
     modules::{
         auth::{
-            registration::{self, VERIFY_KIND, VerificationMail},
+            registration::{self, VERIFY_KIND},
             session::VerifiedUser,
         },
-        mail::{Pass, Worker, outbox},
+        mail::{Pass, outbox},
     },
 };
 use serde_json::{Value, json};
@@ -28,8 +28,10 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    COOKIE, Call, ORIGIN, TestApp, TestUser, assert_error, count, send, set_cookies, sha256,
-    signed, user,
+    COOKIE, Call, Down, ORIGIN, Recorder, TestApp, TestUser, age_tokens, assert_error,
+    assert_generic, check_email, count, decoded, deliver, disable, link_token,
+    mail_worker as worker, make_due, password_hash, send, set_cookies, sha256, signed, stored_text,
+    user, user_id,
 };
 
 const EMAIL: &str = "ana@example.test";
@@ -64,125 +66,9 @@ async fn verify(app: &Router, token: &str) -> (StatusCode, axum::http::HeaderMap
     send(app, Call::post("/auth/verify", &body)).await
 }
 
-fn check_email() -> Value {
-    json!({ "message": "Check your email." })
-}
-
-/// Asserts the generic, enumeration-safe 202.
-fn assert_generic(response: (StatusCode, Value)) {
-    assert_eq!(response, (StatusCode::ACCEPTED, check_email()));
-}
-
-/// Records each sent message as its formatted RFC 5322 text.
-#[derive(Clone, Default)]
-struct Recorder(Arc<Mutex<Vec<String>>>);
-
-impl Recorder {
-    fn sent(&self) -> Vec<String> {
-        self.0.lock().unwrap().clone()
-    }
-}
-
-impl MailTransport for Recorder {
-    async fn send(&self, message: Message) -> Result<(), &'static str> {
-        let formatted = String::from_utf8(message.formatted()).unwrap();
-        self.0.lock().unwrap().push(formatted);
-        Ok(())
-    }
-}
-
-/// An SMTP outage.
-struct Down;
-
-impl MailTransport for Down {
-    async fn send(&self, _: Message) -> Result<(), &'static str> {
-        Err("email delivery unavailable")
-    }
-}
-
-fn worker<T: MailTransport + Sync>(pool: &PgPool, transport: T) -> Worker<T, VerificationMail> {
-    let composer = VerificationMail::new(
-        pool.clone(),
-        ORIGIN.to_owned(),
-        "SceneCask <no-reply@scenecask.test>".parse().unwrap(),
-    );
-    Worker::new(pool.clone(), transport, composer)
-}
-
-/// Sends every due message through a fresh recorder and returns the recorded messages.
-async fn deliver(pool: &PgPool) -> Vec<String> {
-    let recorder = Recorder::default();
-    worker(pool, recorder.clone()).run_once().await.unwrap();
-    recorder.sent()
-}
-
-/// Undoes the quoted-printable soft line breaks and `=3D` escapes lettre uses for long lines.
-fn decoded(message: &str) -> String {
-    message.replace("=\r\n", "").replace("=3D", "=")
-}
-
 /// The token from the verification link (`…/auth/verify#token=<43 base64url chars>`).
 fn token_in(message: &str) -> String {
-    let message = decoded(message);
-    let marker = format!("{ORIGIN}/auth/verify#token=");
-    let start = message.find(&marker).expect("verification link") + marker.len();
-    let token: String = message[start..]
-        .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .collect();
-    assert_eq!(token.len(), 43, "token must be a full 256-bit secret");
-    token
-}
-
-async fn user_id(pool: &PgPool, email: &str) -> Uuid {
-    sqlx::query_scalar("SELECT id FROM users WHERE normalized_email = $1")
-        .bind(email)
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-async fn password_hash(pool: &PgPool, user_id: Uuid) -> String {
-    sqlx::query_scalar("SELECT argon2_hash FROM password_credentials WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-/// Every stored auth/outbox value as text, to prove no plaintext secret was persisted.
-async fn stored_text(pool: &PgPool) -> String {
-    sqlx::query_scalar(
-        "SELECT concat_ws(' ',
-             (SELECT string_agg(row_to_json(u)::text, ' ') FROM users u),
-             (SELECT string_agg(row_to_json(p)::text, ' ') FROM password_credentials p),
-             (SELECT string_agg(row_to_json(t)::text, ' ') FROM auth_tokens t),
-             (SELECT string_agg(row_to_json(o)::text, ' ') FROM outbox o))",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap()
-}
-
-/// Moves this user's verification tokens `seconds` into the past.
-async fn age_tokens(pool: &PgPool, user_id: Uuid, seconds: i64) {
-    sqlx::query(
-        "UPDATE auth_tokens SET created_at = created_at - make_interval(secs => $2),
-                                expires_at = expires_at - make_interval(secs => $2)
-         WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .bind(seconds as f64)
-    .execute(pool)
-    .await
-    .unwrap();
-}
-
-async fn make_due(pool: &PgPool) {
-    sqlx::query("UPDATE outbox SET available_at = now() WHERE delivered_at IS NULL")
-        .execute(pool)
-        .await
-        .unwrap();
+    link_token(message, "/auth/verify")
 }
 
 #[sqlx::test]
@@ -422,11 +308,7 @@ async fn existing_accounts_are_enumeration_safe_and_unchanged(pool: PgPool) {
     .await
     .unwrap();
     let disabled = user(&pool, "cy@example.test", false, "member").await;
-    sqlx::query("UPDATE users SET disabled_at = now() WHERE id = $1")
-        .bind(disabled)
-        .execute(&pool)
-        .await
-        .unwrap();
+    disable(&pool, disabled).await;
 
     let new = register(&app, EMAIL, PASSWORD).await;
     for email in [

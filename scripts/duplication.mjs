@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 // Ratchet: lower these when a change removes clones. The percentage threshold in .jscpd.json
 // loosens as the codebase grows, so absolute counts gate new copy-paste.
-const baseline = { clones: 10, duplicatedLines: 91 };
+const baseline = { clones: 9, duplicatedLines: 85 };
 
 const output = mkdtempSync(join(tmpdir(), "jscpd-"));
 try {
