@@ -122,16 +122,12 @@ async fn save(
     ApiJson(request): ApiJson<SaveRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let show_id = path_show_id(&show_id)?;
+    // Removal ignores a valid status: it keeps the manual one (C05).
     let status = request
         .status
         .as_deref()
         .map(Status::from_request)
         .transpose()?;
-    if !request.saved && status.is_some() {
-        // Removing keeps the manual status; changing it belongs to a saved show.
-        return Err(ApiError::new(ErrorCode::ValidationError)
-            .with_field("status", "Save the show to choose a status."));
-    }
     let mutation = Mutation {
         user_id: current.user.id,
         show_id,

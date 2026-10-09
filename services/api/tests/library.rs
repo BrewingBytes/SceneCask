@@ -313,7 +313,7 @@ async fn stale_revision_and_manual_completed_change_nothing(pool: PgPool) {
         assert!(body["error"]["fields"]["status"].is_string());
     }
     for body in [
-        json!({"saved": false, "status": "watching", "expectedRevision": 1}),
+        json!({"saved": false, "status": "completed", "expectedRevision": 1}),
         json!({"saved": true, "expectedRevision": -1}),
         json!({"saved": true, "expectedRevision": 1, "role": "operator"}),
         json!({"expectedRevision": 1}),
@@ -348,8 +348,12 @@ async fn removed_then_readded_show_restores_progress_and_status(pool: PgPool) {
     watch(&f.pool, f.ana.id, episodes[0]).await;
     watch(&f.pool, f.ana.id, episodes[2]).await;
 
+    // Removal ignores a submitted status and keeps the manual one.
     let (status, _, removed) = f
-        .put(show, json!({"saved": false, "expectedRevision": 1}))
+        .put(
+            show,
+            json!({"saved": false, "status": "watching", "expectedRevision": 1}),
+        )
         .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(removed["changed"], 1);
