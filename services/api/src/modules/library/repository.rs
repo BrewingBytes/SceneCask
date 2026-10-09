@@ -12,7 +12,6 @@ use crate::domain::{
     release::Schedule,
 };
 
-#[derive(sqlx::FromRow)]
 struct ShowRow {
     id: Uuid,
     title: String,
@@ -25,7 +24,6 @@ struct ShowRow {
     revision: Option<i64>,
 }
 
-#[derive(sqlx::FromRow)]
 struct EpisodeRow {
     show_id: Uuid,
     id: Uuid,
@@ -76,7 +74,19 @@ pub async fn items(
     if show_ids.is_empty() {
         return Ok(Vec::new());
     }
-    let shows: Vec<ShowRow> = sqlx::query_as(
+    // Tuples rather than derived rows: the API builds without sqlx's macros feature.
+    type ShowTuple = (
+        Uuid,
+        String,
+        Option<i16>,
+        Option<String>,
+        String,
+        bool,
+        Option<bool>,
+        Option<String>,
+        Option<i64>,
+    );
+    let shows: Vec<ShowTuple> = sqlx::query_as(
         "SELECT s.id, s.title, s.first_air_year, s.poster_path, s.status, s.complete_import,
                 le.saved, le.status AS entry_status, le.revision
          FROM shows s
@@ -89,7 +99,18 @@ pub async fn items(
     .await?;
     // An episode of an archived season is archived with it; check both so a stale row can never
     // re-enter active progress.
-    let rows: Vec<EpisodeRow> = sqlx::query_as(
+    type EpisodeTuple = (
+        Uuid,
+        Uuid,
+        i32,
+        i32,
+        Option<NaiveDate>,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        bool,
+        bool,
+    );
+    let rows: Vec<EpisodeTuple> = sqlx::query_as(
         "SELECT e.show_id, e.id, se.number AS season, e.number, e.air_date, e.release_timezone,
                 e.air_date::timestamp AT TIME ZONE e.release_timezone AS starts_at,
                 (e.archived_at IS NOT NULL OR se.archived_at IS NOT NULL) AS archived,
@@ -103,12 +124,63 @@ pub async fn items(
     .bind(show_ids)
     .fetch_all(&mut *conn)
     .await?;
+    let rows: Vec<EpisodeRow> = rows
+        .into_iter()
+        .map(
+            |(
+                show_id,
+                id,
+                season,
+                number,
+                air_date,
+                release_timezone,
+                starts_at,
+                archived,
+                watched,
+            )| {
+                EpisodeRow {
+                    show_id,
+                    id,
+                    season,
+                    number,
+                    air_date,
+                    release_timezone,
+                    starts_at,
+                    archived,
+                    watched,
+                }
+            },
+        )
+        .collect();
     let mut episodes: HashMap<Uuid, Vec<&EpisodeRow>> = HashMap::new();
     for row in &rows {
         episodes.entry(row.show_id).or_default().push(row);
     }
     let mut by_id: HashMap<Uuid, LibraryItem> = shows
         .into_iter()
+        .map(
+            |(
+                id,
+                title,
+                first_air_year,
+                poster_path,
+                status,
+                complete_import,
+                saved,
+                entry_status,
+                revision,
+            )| ShowRow {
+                id,
+                title,
+                first_air_year,
+                poster_path,
+                status,
+                complete_import,
+                saved,
+                entry_status,
+                revision,
+            },
+        )
         .map(|show| {
             let catalog: Vec<progress::Episode> = episodes
                 .get(&show.id)
