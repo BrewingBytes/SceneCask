@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, EmptyState, ErrorState, Skeleton, TextField } from "../../../components/ui/basic";
 import { ToastViewport, useToastQueue } from "../../../components/ui/overlays";
@@ -40,7 +40,9 @@ function hint(view: SearchView) {
 /** D02 Discover: TV search, disambiguation, open-by-import and Add to Plan to watch. */
 export function DiscoverSearch({ initialQuery = "", recommendations }: DiscoverSearchProps) {
   const [api] = useState(createDiscoverApi);
-  const [query, setQuery] = useState(initialQuery);
+  // Back/Forward can remount from a cached render whose props predate replaceState; the live URL wins.
+  const params = useSearchParams();
+  const [query, setQuery] = useState(() => params.get("q") ?? initialQuery);
   const view = useShowSearch(api, query);
   const router = useRouter();
   const navigate = useCallback((href: string) => router.push(href), [router]);

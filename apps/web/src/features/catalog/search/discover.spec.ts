@@ -218,6 +218,18 @@ test("selecting a result imports it and navigates by application ID", async ({ p
   expect(log.imports).toEqual([{ providerId: 2024 }]);
 });
 
+test("Back from an opened result restores the query and its results", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/discover");
+  await searchFor(page, "hollow orchard");
+  await expect(page).toHaveURL(/\/discover\?q=hollow\+orchard$/);
+  await page.getByRole("button", { name: "Open Hollow Orchard (2024), TV, Drama, Mystery" }).click();
+  await expect(page).toHaveURL(`/shows/${SHOW_2024}`);
+  await page.goBack();
+  await expect(search(page)).toHaveValue("hollow orchard");
+  await expect(results(page).getByRole("listitem")).toHaveCount(2);
+});
+
 test("search failure keeps the query and Retry recovers", async ({ page }) => {
   let fail = true;
   await mockApi(page, {
