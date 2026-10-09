@@ -316,6 +316,24 @@ pub async fn count(pool: &PgPool, sql: &str) -> i64 {
         .unwrap()
 }
 
+/// Every row a tracking write may touch, to prove rejected writes and replays change nothing.
+pub async fn tracking_state(pool: &PgPool) -> Value {
+    sqlx::query_scalar(
+        "SELECT jsonb_build_object(
+             'progress', (SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY user_id, episode_id), '[]') FROM episode_progress p),
+             'entries', (SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY user_id, show_id), '[]') FROM library_entries e),
+             'tracking', (SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY user_id, show_id), '[]') FROM tracking_show_state t),
+             'actions', (SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY id), '[]') FROM mutation_actions a),
+             'changes', (SELECT count(*) FROM mutation_changes),
+             'activity', (SELECT count(*) FROM activity_events),
+             'keys', (SELECT count(*) FROM idempotency_records),
+             'catalog', (SELECT jsonb_agg(to_jsonb(e) ORDER BY id) FROM episodes e))",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
 /// Waits until `task` finishes or another backend is blocked on a row or table lock, so a test
 /// holding a transaction open can commit once the request under test is waiting on it.
 pub async fn until_blocked<T>(pool: &PgPool, task: &tokio::task::JoinHandle<T>) {

@@ -3,6 +3,7 @@
 //! [`routes`] behind the C03 security layers. Every write requires an `Idempotency-Key` and shares
 //! the library action recorder, so Undo reverses library and episode changes alike.
 
+pub mod catchup;
 pub mod home;
 pub mod mutations;
 pub mod undo;
