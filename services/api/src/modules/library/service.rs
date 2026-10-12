@@ -13,7 +13,10 @@ use super::{
     idempotency::{self, IdempotencyKey},
     repository,
 };
-use crate::error::{ApiError, ErrorCode};
+use crate::{
+    error::{ApiError, ErrorCode},
+    modules::tracking::events,
+};
 
 /// A validated library write.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,6 +91,7 @@ async fn write(conn: &mut PgConnection, mutation: &Mutation) -> Result<MutationR
         Write::SetStatus(_) => "library_status",
     };
     let action = actions::record(conn, user_id, show_id, kind, &changes).await?;
+    events::library_added(conn, user_id, show_id, action, &changes).await?;
     Ok(MutationResult {
         action_id: action.map(|action| action.id),
         undo_until: action.map(|action| action.undo_until_rfc3339()),

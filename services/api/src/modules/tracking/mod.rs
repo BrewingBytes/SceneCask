@@ -4,6 +4,7 @@
 //! the library action recorder, so Undo reverses library and episode changes alike.
 
 pub mod catchup;
+pub mod events;
 pub mod home;
 pub mod mutations;
 pub mod undo;

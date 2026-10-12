@@ -16,8 +16,8 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    Call, MemberFixture, TestUser, assert_error, checked, count, disable, member_fixture, released,
-    seed_show, send,
+    Call, MemberFixture, TestUser, assert_error, checked, count, disable, member_fixture, profile,
+    released, seed_show, send,
 };
 
 async fn fixture(pool: PgPool) -> MemberFixture {
@@ -27,17 +27,6 @@ async fn fixture(pool: PgPool) -> MemberFixture {
     .await;
     profile(&f.pool, f.ana.id, "ana_r", "Ana Rusu", "private").await;
     f
-}
-
-async fn profile(pool: &PgPool, id: Uuid, handle: &str, name: &str, visibility: &str) {
-    sqlx::query("UPDATE users SET handle = $2, display_name = $3, visibility = $4 WHERE id = $1")
-        .bind(id)
-        .bind(handle)
-        .bind(name)
-        .bind(visibility)
-        .execute(pool)
-        .await
-        .unwrap();
 }
 
 async fn block(pool: &PgPool, blocker: Uuid, blocked: Uuid) {
@@ -74,12 +63,6 @@ async fn save_show(pool: &PgPool, user: Uuid, title: &str) -> Uuid {
 }
 
 impl MemberFixture {
-    async fn member(&self, handle: &str, visibility: &str) -> TestUser {
-        let user = TestUser::create(&self.test.security, true, "member").await;
-        profile(&self.pool, user.id, handle, "Bo Ilie", visibility).await;
-        user
-    }
-
     async fn get(&self, user: &TestUser, path: &str) -> (StatusCode, Value) {
         checked(&self.app, Call::get(path).signed(&user.signed)).await
     }

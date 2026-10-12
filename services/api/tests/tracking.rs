@@ -153,32 +153,10 @@ fn key() -> String {
 
 const FUTURE: Option<&str> = Some("2999-01-01");
 
-/// Inserts an activity event the social projection would write for `action`.
-async fn activity(pool: &PgPool, actor: Uuid, show: Uuid, episode: Option<Uuid>, action: &Value) {
-    let action: Uuid = action.as_str().unwrap().parse().unwrap();
-    let kind = if episode.is_some() {
-        "episode_watched"
-    } else {
-        "library_added"
-    };
-    sqlx::query(
-        "INSERT INTO activity_events (actor_id, kind, show_id, episode_id, action_id)
-         VALUES ($1, $2, $3, $4, $5)",
-    )
-    .bind(actor)
-    .bind(kind)
-    .bind(show)
-    .bind(episode)
-    .bind(action)
-    .execute(pool)
-    .await
-    .unwrap();
-}
-
 #[sqlx::test]
 async fn future_mark_persists_keeps_release_and_undo_reverses_only_its_fields(pool: PgPool) {
     let f = fixture(pool).await;
-    let (show, eps) = seed_show(
+    let (_, eps) = seed_show(
         &f.pool,
         "Hollow Orchard",
         "returning",
@@ -242,8 +220,6 @@ async fn future_mark_persists_keeps_release_and_undo_reverses_only_its_fields(po
     assert_eq!(e2["trackingRevision"], 2);
 
     // Undo of the future mark reverses only that action's fields: E2 stays watched.
-    activity(&f.pool, f.ana.id, show, Some(eps[2]), &future["actionId"]).await;
-    activity(&f.pool, f.ana.id, show, Some(eps[1]), &e2["actionId"]).await;
     let undone = f.undo(&future["actionId"]).await;
     assert_eq!(
         (&undone["actionId"], &undone["reverted"], &undone["skipped"]),
@@ -591,7 +567,6 @@ async fn undo_is_owner_only_repeatable_and_expires(pool: PgPool) {
     let (show, eps) = seed_show(&f.pool, "Hollow Orchard", "returning", &[released(1, 1)]).await;
     let ben = f.other_user().await;
     let marked = f.mark(eps[0], true, 0).await;
-    activity(&f.pool, f.ana.id, show, None, &marked["actionId"]).await;
 
     // Another user's independent progress and their attempt to undo Ana's action.
     let (status, _, bens) = f.mark_as(&ben, &key(), eps[0], true, 0).await;
@@ -612,9 +587,14 @@ async fn undo_is_owner_only_repeatable_and_expires(pool: PgPool) {
         (&first["reverted"], &first["skipped"]),
         (&json!(2), &json!(0))
     );
+    let anas = format!(
+        "SELECT count(*) FROM activity_events WHERE actor_id = '{}'",
+        f.ana.id
+    );
     assert_eq!(
-        count(&f.pool, "SELECT count(*) FROM activity_events").await,
-        0
+        count(&f.pool, &anas).await,
+        0,
+        "the reversed mark's activity is removed"
     );
     let after = f.state().await;
     for k in [k, key()] {
