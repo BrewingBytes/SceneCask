@@ -13,6 +13,7 @@ use axum::{
     http::{HeaderMap, Method, Request, StatusCode, header},
     response::Response,
 };
+use chrono::{DateTime, TimeDelta, Utc};
 use lettre::Message;
 use scenecask_api::{
     app::{self, MetadataProvider, Services},
@@ -20,6 +21,7 @@ use scenecask_api::{
     middleware::{self, Security, SecurityConfig},
     modules::{
         auth::{AuthMail, password::REAUTH_WINDOW, session::start_session},
+        catalog::refresh::Clock,
         mail::Worker,
     },
 };
@@ -650,4 +652,22 @@ pub async fn seed_show(
 /// A regular episode released long ago, for `seed_show`.
 pub fn released(season: i32, number: i32) -> (i32, i32, Option<&'static str>) {
     (season, number, Some("2024-01-01"))
+}
+
+/// A worker clock that moves only when a test advances it.
+pub struct ManualClock(Mutex<DateTime<Utc>>);
+impl ManualClock {
+    pub fn new(at: DateTime<Utc>) -> Self {
+        Self(Mutex::new(at))
+    }
+    pub fn advance(&self, by: TimeDelta) -> DateTime<Utc> {
+        let mut now = self.0.lock().unwrap();
+        *now += by;
+        *now
+    }
+}
+impl Clock for ManualClock {
+    fn now(&self) -> DateTime<Utc> {
+        *self.0.lock().unwrap()
+    }
 }
