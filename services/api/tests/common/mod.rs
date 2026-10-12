@@ -317,6 +317,27 @@ pub async fn member_fixture(
     }
 }
 
+/// Gives `id` a handle, display name and visibility, for social tests.
+pub async fn profile(pool: &PgPool, id: Uuid, handle: &str, name: &str, visibility: &str) {
+    sqlx::query("UPDATE users SET handle = $2, display_name = $3, visibility = $4 WHERE id = $1")
+        .bind(id)
+        .bind(handle)
+        .bind(name)
+        .bind(visibility)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+impl MemberFixture {
+    /// Another verified member named Bo Ilie with `handle` and `visibility`.
+    pub async fn member(&self, handle: &str, visibility: &str) -> TestUser {
+        let user = TestUser::create(&self.test.security, true, "member").await;
+        profile(&self.pool, user.id, handle, "Bo Ilie", visibility).await;
+        user
+    }
+}
+
 /// Asserts that `user`'s keyed JSON write is rejected 403 CSRF_FAILED without its CSRF token.
 pub async fn assert_csrf_required(
     app: &Router,

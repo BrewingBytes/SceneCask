@@ -23,6 +23,7 @@ use sqlx::{PgConnection, PgPool, types::Json as SqlJson};
 use uuid::Uuid;
 
 use super::{
+    events,
     mutations::{bump_tracking, lock_tracking, result, write_progress},
     path_id,
 };
@@ -307,9 +308,9 @@ async fn commit_in(
     show_id: Uuid,
     preview_id: Uuid,
 ) -> Result<MutationResult, ApiError> {
-    type PreviewTuple = (SqlJson<Vec<Uuid>>, SqlJson<Revisions>, i64, bool);
+    type PreviewTuple = (Uuid, SqlJson<Vec<Uuid>>, SqlJson<Revisions>, i64, bool);
     let preview: Option<PreviewTuple> = sqlx::query_as(
-        "SELECT episode_ids, revisions, catalog_revision, expires_at > now()
+        "SELECT endpoint_episode_id, episode_ids, revisions, catalog_revision, expires_at > now()
          FROM catchup_previews WHERE id = $1 AND user_id = $2 AND show_id = $3",
     )
     .bind(preview_id)
@@ -317,7 +318,7 @@ async fn commit_in(
     .bind(show_id)
     .fetch_optional(&mut *conn)
     .await?;
-    let (SqlJson(ids), SqlJson(bound), catalog_revision, open) =
+    let (endpoint, SqlJson(ids), SqlJson(bound), catalog_revision, open) =
         preview.ok_or_else(ApiError::not_found)?;
     if !open {
         return Err(ApiError::new(ErrorCode::ActionExpired));
@@ -376,6 +377,8 @@ async fn commit_in(
         after_revision: revisions.get(&id).copied().unwrap_or(0) + 1,
     }));
     let action = actions::record(conn, user_id, show_id, "catch_up", &changes).await?;
+    // One event at most: the endpoint, and only when this catch-up marked it.
+    events::episode_watched(conn, user_id, show_id, endpoint, action, &changes).await?;
     let writes: Vec<(Uuid, bool)> = ids.iter().map(|&id| (id, true)).collect();
     let episodes = write_progress(conn, user_id, &writes, action.map(|a| a.id)).await?;
     bump_tracking(conn, user_id, show_id, tracking).await?;

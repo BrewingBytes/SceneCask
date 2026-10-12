@@ -9,6 +9,7 @@ use serde_json::json;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
+use super::events;
 use crate::{
     error::{ApiError, ErrorCode},
     modules::library::{
@@ -129,6 +130,7 @@ async fn set_episode_in(
         "episode_unwatched"
     };
     let action = actions::record(conn, user_id, show_id, kind, &changes).await?;
+    events::episode_watched(conn, user_id, show_id, episode_id, action, &changes).await?;
     let episodes = write_progress(
         conn,
         user_id,
