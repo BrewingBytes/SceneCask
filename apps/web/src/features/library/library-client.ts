@@ -163,8 +163,9 @@ export function createLibraryClient(api: LibraryApi, toasts: ToastControls, init
   function setQuery(next: Partial<LibraryQuery>) {
     const previous = query;
     query = { ...query, ...next };
-    clearTimeout(debounce);
+    // An unchanged query must not cancel the search an earlier keystroke scheduled.
     if (sameQuery(previous, query)) return emit();
+    clearTimeout(debounce);
     if (previous.status !== query.status) return void load();
     emit();
     debounce = setTimeout(() => void load(), LIBRARY_SEARCH_DEBOUNCE_MS);

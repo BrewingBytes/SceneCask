@@ -207,6 +207,18 @@ test("status filter and title search use the API, stay in the URL and survive re
   await expect(row(page, "Hollow Orchard")).toBeVisible();
 });
 
+test("an unchanged query does not cancel a pending search", async ({ page }) => {
+  const fake = new FakeApi();
+  await openLibrary(page, fake);
+  // A trailing space and a click on the active filter arrive before the debounce settles.
+  await search(page).fill("hollow");
+  await search(page).fill("hollow ");
+  await filter(page, "All").click();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(row(page, "Hollow Orchard")).toBeVisible();
+  expect(fake.reads().at(-1)?.query).toEqual({ q: "hollow" });
+});
+
 test("an empty library offers Discover", async ({ page }) => {
   const fake = new FakeApi([]);
   await openLibrary(page, fake);
