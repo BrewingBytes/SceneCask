@@ -358,7 +358,100 @@ fn backoff(attempts: i32) -> TimeDelta {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
+
+    struct FixedClock(DateTime<Utc>);
+    impl Clock for FixedClock {
+        fn now(&self) -> DateTime<Utc> {
+            self.0
+        }
+    }
+
+    /// One queued export for a fresh account, and two workers over one store: `stale` at `t0`
+    /// and `current` just after `stale`'s lease would end.
+    async fn overlap(pool: PgPool) -> (Uuid, Exporter<FixedClock>, Exporter<FixedClock>, PathBuf) {
+        let user: Uuid =
+            sqlx::query_scalar("INSERT INTO users (normalized_email) VALUES ($1) RETURNING id")
+                .bind(format!("{}@example.test", Uuid::new_v4().simple()))
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let job: Uuid = sqlx::query_scalar(
+            "INSERT INTO jobs (user_id, kind) VALUES ($1, 'export') RETURNING id",
+        )
+        .bind(user)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let root = std::env::temp_dir().join(format!("scenecask-fence-{}", Uuid::new_v4()));
+        let store = ExportStore::open(&root).unwrap();
+        let t0 = Utc::now();
+        let stale = Exporter::new(pool.clone(), store.clone(), FixedClock(t0));
+        let current = Exporter::new(pool, store, FixedClock(t0 + LEASE + TimeDelta::seconds(1)));
+        (job, stale, current, root)
+    }
+
+    async fn row(pool: &PgPool, job: Uuid) -> (String, i32, Option<String>) {
+        sqlx::query_as("SELECT state, attempts, result_path FROM jobs WHERE id = $1")
+            .bind(job)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[sqlx::test]
+    async fn a_claim_that_lost_its_lease_cannot_record_its_artifact(pool: PgPool) {
+        let (job, stale, current, root) = overlap(pool.clone()).await;
+        let claimed = stale.claim(stale.clock.now()).await.unwrap().unwrap();
+        assert_eq!((claimed.id, claimed.attempts), (job, 1));
+        let took_over = current.claim(current.clock.now()).await.unwrap().unwrap();
+        assert_eq!(took_over.attempts, 2);
+        let files = || -> Vec<String> {
+            std::fs::read_dir(&root)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+                .collect()
+        };
+
+        // The superseded claim finishes while the current one still runs: it writes its own file,
+        // fails the fenced update and removes that file, recording nothing.
+        assert!(matches!(
+            stale.process(claimed).await.unwrap(),
+            Outcome::LeaseLost
+        ));
+        assert_eq!(row(&pool, job).await, ("running".into(), 2, None));
+        assert!(files().is_empty());
+
+        assert!(matches!(
+            current.process(took_over).await.unwrap(),
+            Outcome::Exported
+        ));
+        let recorded = ExportStore::file_name(job, 2);
+        assert_eq!(
+            row(&pool, job).await,
+            ("ready".into(), 2, Some(recorded.clone()))
+        );
+        assert_eq!(files(), [recorded]);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[sqlx::test]
+    async fn a_claim_that_lost_its_lease_cannot_settle_a_failure(pool: PgPool) {
+        let (job, stale, current, root) = overlap(pool.clone()).await;
+        let claimed = stale.claim(stale.clock.now()).await.unwrap().unwrap();
+        let took_over = current.claim(current.clock.now()).await.unwrap().unwrap();
+        assert_eq!(took_over.attempts, 2);
+        for failure in [Failure::Storage, Failure::AccountUnavailable] {
+            assert!(matches!(
+                stale.settle_failure(claimed, failure).await.unwrap(),
+                Outcome::LeaseLost
+            ));
+            assert_eq!(row(&pool, job).await, ("running".into(), 2, None));
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn backoff_doubles_and_caps() {
