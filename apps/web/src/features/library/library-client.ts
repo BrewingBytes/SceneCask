@@ -67,6 +67,8 @@ export function createLibraryClient(api: LibraryApi, toasts: ToastControls, init
   const patches = new Map<number, Patch>();
   const keys = createIdempotencyKeys();
   const busy = new Set<string>();
+  /** In-flight recovery reads; the row stays busy and Retry waits until they settle. */
+  const recovering = new Map<string, Promise<void>>();
   const undo = createToastUndo(api.undo, toasts, (result) => {
     accept(result.library);
     emit();
@@ -197,8 +199,10 @@ export function createLibraryClient(api: LibraryApi, toasts: ToastControls, init
     emit();
     const result = await mutation.run(keys.keyFor(scope, mutation.body));
     keys.settle(scope, result);
-    busy.delete(showId);
     patches.delete(id);
+    // A known rejection means the row may be out of date: fetch that row alone.
+    const recoverable = !result.ok && !outcomeUnknown(result.failure) && result.failure.kind !== "auth" && result.failure.kind !== "rate_limited";
+    if (!recoverable) busy.delete(showId);
     if (result.ok) {
       accept(result.data.library);
       emit();
@@ -209,14 +213,21 @@ export function createLibraryClient(api: LibraryApi, toasts: ToastControls, init
       return;
     }
     emit();
-    // A known rejection means the row may be out of date: fetch that row alone.
-    if (!outcomeUnknown(result.failure) && result.failure.kind !== "auth" && result.failure.kind !== "rate_limited") void recover(showId);
     toasts.show({
       id: `library-error-${showId}`,
       tone: "error",
       message: `${mutation.failure} ${trackingFailureCopy(result.failure)}`,
-      onRetry: mutation.retry,
+      // Retry builds its body from the recovered revision, never the one just rejected.
+      onRetry: () => void (recovering.get(showId) ?? Promise.resolve()).then(mutation.retry),
     });
+    if (!recoverable) return;
+    const recovered = recover(showId).finally(() => {
+      recovering.delete(showId);
+      busy.delete(showId);
+      emit();
+    });
+    recovering.set(showId, recovered);
+    await recovered;
   }
 
   /** Retries rebuild the body from the latest entry, so an unknown outcome reuses its key. */

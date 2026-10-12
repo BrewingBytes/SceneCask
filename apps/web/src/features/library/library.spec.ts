@@ -233,6 +233,14 @@ test("no matches keeps the search and filter and offers a clear action", async (
   await expect(page).toHaveURL(/\/library$/);
 });
 
+test("a restored ?q= longer than the API allows is clamped instead of failing", async ({ page }) => {
+  const fake = new FakeApi();
+  await openLibrary(page, fake, `?q=${"a".repeat(150)}`);
+  await expect(search(page)).toHaveValue("a".repeat(100));
+  expect(fake.reads().at(-1)?.query.q).toHaveLength(100);
+  await expect(page.getByText("Your library didn’t load")).toHaveCount(0);
+});
+
 test("a status change is optimistic, keyed, recounted and undoable", async ({ page }) => {
   const fake = new FakeApi();
   await openLibrary(page, fake);
@@ -325,6 +333,32 @@ test("a rejected status change recovers the server state without overwriting a l
   expect(patches[1].key).not.toBe(patches[0].key);
 });
 
+test("Retry clicked during the recovery read waits for the recovered revision", async ({ page }) => {
+  const fake = new FakeApi();
+  await openLibrary(page, fake);
+  fake.elsewhere(HOLLOW, { status: "on_hold" });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(`**/api/v1/shows/${showId(HOLLOW)}`, async (route) => {
+    await held;
+    return route.fallback();
+  });
+  await choose(page, "Hollow Orchard", "Dropped");
+  const alert = failure(page, "Couldn’t move Hollow Orchard to Dropped.");
+  await expect(alert).toBeVisible();
+  // The row stays busy until the authoritative read settles.
+  await expect(row(page, "Hollow Orchard")).toHaveAttribute("aria-busy", "true");
+  await alert.getByRole("button", { name: "Retry" }).click();
+  release();
+
+  await expect(toast(page, "Hollow Orchard is now Dropped.")).toBeVisible();
+  const patches = fake.writes().filter((write) => write.path === `/library/${showId(HOLLOW)}`);
+  expect(patches.map((write) => write.body)).toEqual([
+    { status: "dropped", expectedRevision: 1 },
+    { status: "dropped", expectedRevision: 2 },
+  ]);
+});
+
 test("a remove with an unknown outcome rolls back and retries with the same key", async ({ page }) => {
   const fake = new FakeApi();
   await openLibrary(page, fake);
@@ -384,6 +418,8 @@ test("load failure, retry and signed-out states use product copy", async ({ page
   const alert = page.getByRole("alert").filter({ hasText: "Your library didn’t load" });
   await expect(alert).toBeVisible();
   await expect(alert).not.toContainText("Safe server message.");
+  // A failed load keeps the controls, so the query can be changed rather than only retried.
+  await expect(search(page)).toBeVisible();
   mode = "ok";
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(rows(page)).toHaveCount(4);

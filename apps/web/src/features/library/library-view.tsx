@@ -54,7 +54,8 @@ export function LibraryView({ initialQuery = { status: null, q: "" } }: LibraryV
   const params = useSearchParams();
   const [start] = useState<LibraryQuery>(() => ({
     status: parseStatus(params.get("status")) ?? initialQuery.status,
-    q: params.get("q") ?? initialQuery.q,
+    // The API rejects longer queries; a long ?q= would otherwise leave only a failing Retry.
+    q: (params.get("q") ?? initialQuery.q).slice(0, MAX_LIBRARY_QUERY),
   }));
   const { toasts, show, update, dismiss } = useToastQueue();
   const [controls] = useState(() => ({ show, update, dismiss }));
@@ -86,6 +87,8 @@ export function LibraryView({ initialQuery = { status: null, q: "" } }: LibraryV
 
   const empty = list.status === "ready" && counts ? counts.all === 0 : list.status === "ready" && rows.length === 0 && !query.status && !query.q.trim();
   const filtered = !!query.status || !!query.q.trim();
+  // A failed search keeps its controls so the query can be changed, not only retried.
+  const signedOut = list.status === "error" && (list.failure.kind === "auth" || list.failure.kind === "unverified");
   const loadMore = () => {
     focusFrom.current = rows.length;
     void client.loadMore();
@@ -101,7 +104,7 @@ export function LibraryView({ initialQuery = { status: null, q: "" } }: LibraryV
         <h1 id="sc-library-title">Library</h1>
         {counts && counts.all > 0 && <span className="sc-library-total">{showCount(counts.all)}</span>}
       </div>
-      {!empty && list.status !== "error" && (
+      {!empty && !signedOut && (
         <div className="sc-library-controls">
           <form role="search" className="sc-library-search" onSubmit={(event) => event.preventDefault()}>
             <TextField
