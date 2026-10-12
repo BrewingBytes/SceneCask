@@ -1,6 +1,18 @@
 import axe from "axe-core";
-import { expect, test, type Page, type Request, type Route } from "@playwright/test";
-import { CSRF, error, json, later, serve, UUID, type Logged } from "../../tracking/fixture-api";
+import { expect, test, type Page } from "@playwright/test";
+import {
+  CSRF,
+  ep,
+  episodeId,
+  error,
+  FakeTrackingApi,
+  FIXTURE_SHOW,
+  json,
+  later,
+  SECRET,
+  UUID,
+  type FakeLibrary,
+} from "../../tracking/fixture-api";
 
 /**
  * Component suite for R21. The production /shows/[showId] route runs in an isolated fixture app;
@@ -9,26 +21,8 @@ import { CSRF, error, json, later, serve, UUID, type Logged } from "../../tracki
  * integration (R24 owns that gate).
  */
 
-const SHOW = "10000000-0000-4000-8000-000000000001";
-const SECRET = "Secret title";
+const SHOW = FIXTURE_SHOW;
 
-type ReleaseState = "released" | "future" | "unknown";
-interface FakeEpisode {
-  id: string;
-  season: number;
-  number: number;
-  state: ReleaseState;
-  date: string | null;
-}
-const episodeId = (season: number, number: number) =>
-  `30000000-0000-4000-8000-0000000${String(season).padStart(2, "0")}${String(number).padStart(3, "0")}`;
-const ep = (season: number, number: number, state: ReleaseState = "released", date: string | null = "2026-01-01"): FakeEpisode => ({
-  id: episodeId(season, number),
-  season,
-  number,
-  state,
-  date: state === "unknown" ? null : date,
-});
 /** S1: E1–E3 released, E4 undated, E5 released, E6 future. S2: E1–E2 released. One special. */
 const EPISODES = [
   ep(1, 1),
@@ -41,238 +35,11 @@ const EPISODES = [
   ep(2, 2),
   ep(0, 1),
 ];
-const byId = new Map(EPISODES.map((episode) => [episode.id, episode]));
-const regular = EPISODES.filter((episode) => episode.season > 0);
-const code = (episode: FakeEpisode) => `S${episode.season} E${episode.number}`;
 
-interface Library {
-  saved: boolean;
-  status: "plan_to_watch" | "watching" | "on_hold" | "dropped";
-  revision: number;
-}
-interface Change {
-  id: string;
-  before: boolean;
-  after: number;
-}
-
-/** A small in-memory C05 backend: per-episode revisions, aggregate tracking revision, undo. */
-class FakeApi {
-  progress = new Map<string, { watched: boolean; revision: number }>();
-  tracking = 0;
-  library: Library | null = null;
-  actions = new Map<string, { changes: Change[]; library: { before: Library | null; after: number } | null; result?: unknown }>();
-  previews = new Map<string, { included: string[]; tracking: number }>();
-  idempotent = new Map<string, { body: string; response: unknown; status: number }>();
-  log: Logged[] = [];
-  private sequence = 0;
-
-  constructor(watched: number[][] = [], library: Library | null = null) {
-    for (const [season, number] of watched) this.progress.set(episodeId(season, number), { watched: true, revision: 1 });
-    this.tracking = watched.length;
-    this.library = library;
-  }
-  uuid(prefix: string) {
-    this.sequence += 1;
-    return `${prefix}-0000-4000-8000-${String(this.sequence).padStart(12, "0")}`;
-  }
-  watched(id: string) {
-    return this.progress.get(id)?.watched ?? false;
-  }
-  revision(id: string) {
-    return this.progress.get(id)?.revision ?? 0;
-  }
-  episodeDto(episode: FakeEpisode) {
-    const base = {
-      id: episode.id,
-      showId: SHOW,
-      season: episode.season,
-      number: episode.number,
-      release: { state: episode.state, date: episode.date, timezone: episode.date ? "UTC" : null, estimated: episode.state === "future" },
-      watched: this.watched(episode.id),
-      revision: this.revision(episode.id),
-    };
-    return base.watched
-      ? { ...base, detailsAccess: "watched", details: { title: `${SECRET} ${code(episode)}`, overview: "Protected overview.", stillUrl: null } }
-      : { ...base, detailsAccess: "locked" };
-  }
-  libraryItem() {
-    const marked = regular.filter((episode) => this.watched(episode.id));
-    const next = regular.find((episode) => episode.state === "released" && !this.watched(episode.id));
-    const firstGap = regular.findIndex((episode) => episode.state === "released" && !this.watched(episode.id));
-    return {
-      showId: SHOW,
-      title: "Hollow Orchard",
-      year: 2024,
-      posterUrl: null,
-      saved: this.library?.saved ?? false,
-      status: this.library?.status ?? "plan_to_watch",
-      revision: this.library?.revision ?? 0,
-      progress: {
-        watched: marked.length,
-        total: regular.length,
-        percent: Math.floor((marked.length * 100) / regular.length),
-        state: next ? "in_progress" : "caught_up",
-        nextEpisode: next ? { id: next.id, season: next.season, number: next.number } : null,
-        outOfOrder: firstGap >= 0 && regular.slice(firstGap).some((episode) => this.watched(episode.id)),
-        releaseInfoIncomplete: true,
-      },
-    };
-  }
-  showDto() {
-    return {
-      id: SHOW,
-      title: "Hollow Orchard",
-      year: 2024,
-      genres: ["Drama", "Mystery"],
-      synopsis: "A small orchard town keeps its secrets.",
-      posterUrl: null,
-      status: "returning",
-      catalogRevision: 3,
-      metadataStale: false,
-      releaseInfoIncomplete: true,
-      seasons: [
-        { number: 1, count: 6 },
-        { number: 2, count: 2 },
-        { number: 0, count: 1 },
-      ],
-      library: this.library ? this.libraryItem() : null,
-      trackingRevision: this.tracking,
-    };
-  }
-  /** Writes episodes and records an undoable action; returns a MutationResult. */
-  write(targets: string[], watched: boolean, autoAdd: boolean) {
-    const changes: Change[] = [];
-    for (const id of targets) {
-      if (this.watched(id) === watched) continue;
-      const revision = this.revision(id) + 1;
-      changes.push({ id, before: this.watched(id), after: revision });
-      this.progress.set(id, { watched, revision });
-    }
-    if (changes.length === 0) return this.noop();
-    this.tracking += 1;
-    let library = null;
-    if (autoAdd && watched) {
-      const before = this.library ? { ...this.library } : null;
-      if (!this.library) this.library = { saved: true, status: "watching", revision: 1 };
-      else if (!this.library.saved || this.library.status === "plan_to_watch")
-        this.library = { saved: true, status: this.library.status === "plan_to_watch" ? "watching" : this.library.status, revision: this.library.revision + 1 };
-      if (this.library.revision !== before?.revision) library = { before, after: this.library.revision };
-    }
-    return this.changed(changes, library);
-  }
-  changed(changes: Change[], library: { before: Library | null; after: number } | null) {
-    const actionId = this.uuid("40000000");
-    this.actions.set(actionId, { changes, library });
-    return {
-      actionId,
-      undoUntil: "2026-10-10T12:10:00Z",
-      changed: changes.length + (library ? 1 : 0),
-      library: this.libraryItem(),
-      trackingRevision: this.tracking,
-      episodes: changes.map((change) => ({ id: change.id, watched: this.watched(change.id), revision: change.after })),
-    };
-  }
-  noop() {
-    return { actionId: null, undoUntil: null, changed: 0, library: this.libraryItem(), trackingRevision: this.tracking, episodes: [] };
-  }
-  /** Another device marks an episode: bumps the aggregate revision so open previews go stale. */
-  markElsewhere(id: string) {
-    this.progress.set(id, { watched: true, revision: this.revision(id) + 1 });
-    this.tracking += 1;
-  }
-  preview(throughId: string) {
-    const through = byId.get(throughId)!;
-    const before = regular.filter(
-      (episode) => episode.season < through.season || (episode.season === through.season && episode.number <= through.number),
-    );
-    const short = (episode: FakeEpisode) => ({ id: episode.id, season: episode.season, episode: episode.number });
-    const included = before.filter((episode) => episode.state === "released" && !this.watched(episode.id));
-    const previewId = this.uuid("50000000");
-    this.previews.set(previewId, { included: included.map((episode) => episode.id), tracking: this.tracking });
-    return {
-      previewId,
-      expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
-      through: { season: through.season, episode: through.number },
-      included: included.map(short),
-      excluded: {
-        alreadyWatched: before.filter((episode) => episode.state === "released" && this.watched(episode.id)).map(short),
-        future: before.filter((episode) => episode.state === "future").map(short),
-        undated: before.filter((episode) => episode.state === "unknown").map(short),
-        specials: EPISODES.filter((episode) => episode.season === 0).map(short),
-      },
-      count: included.length,
-    };
-  }
-
-  handle(route: Route, request: Request) {
-    return serve(this, route, request);
-  }
-  read(path: string, url: URL) {
-    if (path === `/shows/${SHOW}`) return this.showDto();
-    if (path === `/shows/${SHOW}/episodes`) {
-      const season = Number(url.searchParams.get("season"));
-      return { items: EPISODES.filter((episode) => episode.season === season).map((episode) => this.episodeDto(episode)), nextCursor: null };
-    }
-    const episode = byId.get(path.replace("/episodes/", ""));
-    return episode ? this.episodeDto(episode) : null;
-  }
-
-  mutate(method: string, path: string, body: Record<string, unknown> | undefined): [number, unknown] {
-    if (method === "PUT" && path.startsWith("/progress/episodes/")) {
-      const id = path.split("/")[3];
-      if (body!.expectedRevision !== this.revision(id)) return [409, "REVISION_CONFLICT"];
-      return [200, this.write([id], body!.watched as boolean, true)];
-    }
-    if (path === `/library/${SHOW}`) {
-      if (body!.expectedRevision !== (this.library?.revision ?? 0)) return [409, "REVISION_CONFLICT"];
-      const before = this.library ? { ...this.library } : null;
-      const next: Library =
-        method === "PATCH"
-          ? { ...this.library!, status: body!.status as Library["status"] }
-          : { saved: body!.saved as boolean, status: (body!.status as Library["status"]) ?? this.library?.status ?? "plan_to_watch", revision: 0 };
-      if (before && before.saved === next.saved && before.status === next.status) return [200, this.noop()];
-      this.library = { ...next, revision: (before?.revision ?? 0) + 1 };
-      return [200, this.changed([], { before, after: this.library.revision })];
-    }
-    if (method === "POST" && path === `/shows/${SHOW}/catch-up/preview`) return [200, this.preview(body!.throughEpisodeId as string)];
-    if (method === "POST" && path === `/shows/${SHOW}/catch-up`) {
-      const preview = this.previews.get(body!.previewId as string);
-      if (!preview) return [410, "ACTION_EXPIRED"];
-      if (preview.tracking !== this.tracking) return [409, "PREVIEW_STALE"];
-      return [200, this.write(preview.included, true, true)];
-    }
-    if (method === "DELETE" && path === `/shows/${SHOW}/history`) {
-      if (body!.expectedRevision !== this.tracking) return [409, "REVISION_CONFLICT"];
-      return [200, this.write(EPISODES.map((episode) => episode.id), false, false)];
-    }
-    if (method === "POST" && path.startsWith("/actions/")) {
-      const action = this.actions.get(path.split("/")[2]);
-      if (!action) return [404, "NOT_FOUND"];
-      if (action.result) return [200, action.result];
-      let reverted = 0;
-      let skipped = 0;
-      for (const change of action.changes) {
-        if (this.revision(change.id) !== change.after) {
-          skipped += 1;
-          continue;
-        }
-        this.progress.set(change.id, { watched: change.before, revision: change.after + 1 });
-        reverted += 1;
-      }
-      if (reverted) this.tracking += 1;
-      if (action.library && this.library?.revision === action.library.after) {
-        this.library = action.library.before ? { ...action.library.before, revision: this.library.revision + 1 } : { ...this.library, saved: false, revision: this.library.revision + 1 };
-        reverted += 1;
-      }
-      action.result = { actionId: path.split("/")[2], reverted, skipped, library: this.libraryItem() };
-      return [200, action.result];
-    }
-    return [404, "NOT_FOUND"];
-  }
-  /** Writes only: GETs and catch-up previews change nothing. */
-  writes() {
-    return this.log.filter((entry) => entry.method !== "GET" && !entry.path.endsWith("/preview"));
+/** The shared C05 fake over this suite's episodes; watched episodes are given as [season, number]. */
+class FakeApi extends FakeTrackingApi {
+  constructor(watched: number[][] = [], library: FakeLibrary | null = null) {
+    super(EPISODES, watched.map(([season, number]) => episodeId(season, number)), library);
   }
 }
 
