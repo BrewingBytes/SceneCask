@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 test("web and real API share an origin", async ({ page, request }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("A place for your TV story.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Keep track of your shows. Without spoilers.");
   for (const [path, status] of [["/health/live", "live"], ["/health/ready", "ready"]]) {
     const response = await request.get(path);
     expect(response.status()).toBe(200);
