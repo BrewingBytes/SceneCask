@@ -885,13 +885,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@redocly/cli@npm:2.53.3":
-  version: 2.53.3
-  resolution: "@redocly/cli@npm:2.53.3"
+"@redocly/cli@npm:2.62.1":
+  version: 2.62.1
+  resolution: "@redocly/cli@npm:2.62.1"
   bin:
     openapi: bin/cli.js
     redocly: bin/cli.js
-  checksum: 10c0/dfe116c9e95a24d7b8883974a1df477acadb3a8a3a8cf2c142d9052d338937247ff5e2ea6cc859a481ef6da6cb9e4bd196199aa799238eed36342ca1fee289fd
+  checksum: 10c0/5350698f6903915f543a4fe6a7a46e32e82784fed38c3a7a90058d6fefacddb0f0127922b8a1c1018088ba976463647a35ee5e5a7d6359f87ba9d41c10ae7132
   languageName: node
   linkType: hard
 
@@ -930,7 +930,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scenecask/api-client@workspace:packages/api-client"
   dependencies:
-    "@redocly/cli": "npm:2.53.3"
+    "@redocly/cli": "npm:2.62.1"
     ajv: "npm:8.20.0"
     ajv-formats: "npm:3.0.1"
     openapi-fetch: "npm:0.17.0"
