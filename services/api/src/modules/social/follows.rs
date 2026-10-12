@@ -256,9 +256,43 @@ async fn decide(
 }
 
 #[derive(Deserialize)]
-struct PageParams {
-    cursor: Option<String>,
-    limit: Option<String>,
+pub(super) struct PageParams {
+    pub cursor: Option<String>,
+    pub limit: Option<String>,
+}
+
+/// An edge-list keyset position: the edge's createdAt and the other person's ID, descending.
+pub(super) type EdgePosition = (DateTime<Utc>, Uuid);
+
+pub(super) fn decode_edge_cursor(cursor: Option<&str>) -> Result<Option<EdgePosition>, ApiError> {
+    cursor
+        .map(|cursor| {
+            decode_opaque(cursor, |text| {
+                let (micros, id) = text.split_once('.')?;
+                Some((
+                    DateTime::<Utc>::from_timestamp_micros(micros.parse().ok()?)?,
+                    Uuid::try_parse(id).ok()?,
+                ))
+            })
+        })
+        .transpose()
+}
+
+/// Drops the lookahead row beyond `limit` and returns the cursor after the last kept row.
+pub(super) fn split_edges(
+    mut rows: Vec<EdgePosition>,
+    limit: i64,
+) -> (Vec<EdgePosition>, Option<String>) {
+    let more = rows.len() as i64 > limit;
+    rows.truncate(limit as usize);
+    let next_cursor = more.then(|| rows.last()).flatten().map(|(created_at, id)| {
+        encode_opaque(&format!(
+            "{}.{}",
+            created_at.timestamp_micros(),
+            id.simple()
+        ))
+    });
+    (rows, next_cursor)
 }
 
 /// `GET /me/follow-requests` (`PENDING = true`) and `GET /me/followers`: listed people with an
@@ -272,21 +306,9 @@ async fn incoming<const PENDING: bool>(
     let state = if PENDING { "pending" } else { "approved" };
     let Query(params) = params.map_err(|_| ApiError::malformed())?;
     let limit = page_limit(params.limit.as_deref(), DEFAULT_LIMIT)?;
-    let after = params
-        .cursor
-        .as_deref()
-        .map(|cursor| {
-            decode_opaque(cursor, |text| {
-                let (micros, id) = text.split_once('.')?;
-                Some((
-                    DateTime::<Utc>::from_timestamp_micros(micros.parse().ok()?)?,
-                    Uuid::try_parse(id).ok()?,
-                ))
-            })
-        })
-        .transpose()?;
+    let after = decode_edge_cursor(params.cursor.as_deref())?;
     let mut conn = security.pool.acquire().await?;
-    let rows: Vec<(DateTime<Utc>, Uuid)> = sqlx::query_as(concat!(
+    let rows: Vec<EdgePosition> = sqlx::query_as(concat!(
         "SELECT f.created_at, f.follower_id
              FROM follows f
              JOIN users u ON u.id = f.follower_id
@@ -303,15 +325,7 @@ async fn incoming<const PENDING: bool>(
     .bind(limit + 1)
     .fetch_all(&mut *conn)
     .await?;
-    let more = rows.len() as i64 > limit;
-    let page: Vec<_> = rows.into_iter().take(limit as usize).collect();
-    let next_cursor = more.then(|| page.last()).flatten().map(|(created_at, id)| {
-        encode_opaque(&format!(
-            "{}.{}",
-            created_at.timestamp_micros(),
-            id.simple()
-        ))
-    });
+    let (page, next_cursor) = split_edges(rows, limit);
     let ids: Vec<Uuid> = page.iter().map(|row| row.1).collect();
     let items = cards(&mut conn, viewer, &ids).await?;
     Ok(Json(PeoplePage { items, next_cursor }))

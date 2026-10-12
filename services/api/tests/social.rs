@@ -2,9 +2,14 @@
 //! private and public accounts, request approval/decline, unfollow and follower removal revoking
 //! library access immediately, deduplicated notifications and outbox events, concurrent writes,
 //! private search leakage, cursors and concealed blocked lookups.
+//!
+//! R26 privacy and block evidence: privacy switches change library access on the next read and
+//! never touch edges; a block removes both follow directions, their request notifications and the
+//! pair's discussion reveals in one transaction, races with follows and reverse blocks, and an
+//! unblock restores no relationship.
 
 use axum::http::{Method, StatusCode};
-use scenecask_api::modules::social;
+use scenecask_api::modules::{policy, social};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -16,7 +21,10 @@ use common::{
 };
 
 async fn fixture(pool: PgPool) -> MemberFixture {
-    let f = member_fixture(pool, |security| social::routes(security.clone())).await;
+    let f = member_fixture(pool, |security| {
+        social::routes(security.clone()).merge(policy::routes(security.clone()))
+    })
+    .await;
     profile(&f.pool, f.ana.id, "ana_r", "Ana Rusu", "private").await;
     f
 }
@@ -118,6 +126,50 @@ impl MemberFixture {
             Method::POST,
             &format!("/me/follow-requests/{requester}"),
             json!({ "decision": decision }),
+        )
+        .await
+        .0
+    }
+
+    async fn block(&self, user: &TestUser, target: Uuid) -> StatusCode {
+        self.write(
+            user,
+            Method::PUT,
+            &format!("/me/blocks/{target}"),
+            json!({}),
+        )
+        .await
+        .0
+    }
+
+    async fn unblock(&self, user: &TestUser, target: Uuid) -> StatusCode {
+        self.write(
+            user,
+            Method::DELETE,
+            &format!("/me/blocks/{target}"),
+            json!({}),
+        )
+        .await
+        .0
+    }
+
+    async fn privacy(&self, user: &TestUser, visibility: &str) -> (StatusCode, Value) {
+        self.write(
+            user,
+            Method::PATCH,
+            "/me/privacy",
+            json!({ "visibility": visibility }),
+        )
+        .await
+    }
+
+    /// Re-reveals `discussion` for `user`: 201 while they may read it, 404 once they may not.
+    async fn reveal(&self, user: &TestUser, discussion: Uuid) -> StatusCode {
+        self.write(
+            user,
+            Method::POST,
+            "/reveals",
+            json!({"scope": "discussion", "resourceId": discussion}),
         )
         .await
         .0
@@ -345,7 +397,7 @@ async fn decline_remove_and_unfollow_revoke_access_immediately_and_notify_nobody
 
 /// A discussion hosted by `host` with a one-hour discussion reveal grant on each session of
 /// `viewer`.
-async fn revealed_discussion(pool: &PgPool, host: Uuid, viewer: Uuid) {
+async fn revealed_discussion(pool: &PgPool, host: Uuid, viewer: Uuid) -> Uuid {
     let (_, episodes) = seed_show(pool, "Thread show", "returning", &[released(1, 1)]).await;
     let discussion: Uuid = sqlx::query_scalar(
         "INSERT INTO discussions (host_id, episode_id) VALUES ($1, $2) RETURNING id",
@@ -365,6 +417,7 @@ async fn revealed_discussion(pool: &PgPool, host: Uuid, viewer: Uuid) {
     .execute(pool)
     .await
     .unwrap();
+    discussion
 }
 
 #[sqlx::test]
@@ -715,5 +768,298 @@ async fn racing_approval_and_withdrawal_leave_no_edge_or_notification(pool: PgPo
         assert_eq!(count(&f.pool, "SELECT count(*) FROM follows").await, 0);
         assert_eq!(f.notifications().await.0, 0);
         assert_eq!(f.library(&bo, f.ana.id).await, StatusCode::NOT_FOUND);
+    }
+}
+
+#[sqlx::test]
+async fn going_private_hides_the_library_from_nonfollowers_immediately_and_keeps_edges(
+    pool: PgPool,
+) {
+    let f = fixture(pool).await;
+    let bo = f.member("bo_i", "private").await;
+    save_show(&f.pool, bo.id, "Hollow Orchard").await;
+    let stranger = f.member("cy_stranger", "private").await;
+    let requester = f.member("di_r", "private").await;
+    f.follow(&f.ana, bo.id).await;
+    f.decide(&bo, f.ana.id, "approve").await;
+    f.follow(&requester, bo.id).await;
+
+    // Going public opens the library to signed-in members but approves no pending request.
+    assert_eq!(
+        f.privacy(&bo, "public").await,
+        (StatusCode::OK, json!({"visibility": "public"}))
+    );
+    assert_eq!(f.library(&stranger, bo.id).await, StatusCode::OK);
+    assert_eq!(f.library(&requester, bo.id).await, StatusCode::OK);
+    assert_eq!(
+        f.get(&bo, "/me/follow-requests").await.1["items"][0]["id"],
+        json!(requester.id)
+    );
+    assert_eq!(
+        f.notifications().await,
+        (2, 2),
+        "the two requests only; the switch adds none"
+    );
+
+    // Going private: the next read by a nonfollower or requester is concealed; the approved
+    // follower keeps access and the pending request stays pending.
+    assert_eq!(
+        f.privacy(&bo, "private").await,
+        (StatusCode::OK, json!({"visibility": "private"}))
+    );
+    assert_eq!(f.library(&stranger, bo.id).await, StatusCode::NOT_FOUND);
+    assert_eq!(f.library(&requester, bo.id).await, StatusCode::NOT_FOUND);
+    assert_eq!(f.library(&f.ana, bo.id).await, StatusCode::OK);
+    let (_, body) = f.get(&stranger, &format!("/people/{}", bo.id)).await;
+    assert_eq!(body["person"]["visibility"], "private");
+    assert_eq!(body["canViewLibrary"], false);
+    assert_eq!(
+        count(
+            &f.pool,
+            "SELECT count(*) FROM follows WHERE state = 'pending'"
+        )
+        .await,
+        1
+    );
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM follows").await, 2);
+    // Repeating a switch is harmless.
+    assert_eq!(f.privacy(&bo, "private").await.0, StatusCode::OK);
+
+    let (status, body) = f.privacy(&bo, "friends").await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body["error"]["fields"]["visibility"].is_string());
+    assert!(!body.to_string().contains("friends"), "no echo");
+    let (status, _) = f.write(&bo, Method::PATCH, "/me/privacy", json!({})).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    let visibility: String = sqlx::query_scalar("SELECT visibility FROM users WHERE id = $1")
+        .bind(bo.id)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(visibility, "private", "rejected writes change nothing");
+
+    let (status, headers, body) = send(
+        &f.app,
+        Call::write(Method::PATCH, "/me/privacy", r#"{"visibility":"public"}"#),
+    )
+    .await;
+    assert!([401, 403].contains(&status.as_u16()), "{body} {headers:?}");
+}
+
+#[sqlx::test]
+async fn block_removes_both_edges_notifications_and_discussion_reveals(pool: PgPool) {
+    let f = fixture(pool).await;
+    let bo = f.member("bo_i", "private").await;
+    let cy = f.member("cy_t", "public").await;
+    let grants = || count(&f.pool, "SELECT count(*) FROM reveal_grants");
+    f.follow(&f.ana, bo.id).await;
+    f.decide(&bo, f.ana.id, "approve").await;
+    f.follow(&bo, f.ana.id).await;
+    f.decide(&f.ana, bo.id, "approve").await;
+    let hosted_by_bo = revealed_discussion(&f.pool, bo.id, f.ana.id).await;
+    let hosted_by_ana = revealed_discussion(&f.pool, f.ana.id, bo.id).await;
+    let elsewhere = revealed_discussion(&f.pool, cy.id, f.ana.id).await;
+    // Both can read the other's revealed thread before the block.
+    assert_eq!(f.reveal(&f.ana, hosted_by_bo).await, StatusCode::CREATED);
+    assert_eq!(f.reveal(&bo, hosted_by_ana).await, StatusCode::CREATED);
+    assert_eq!(grants().await, 3);
+
+    assert_eq!(f.block(&f.ana, bo.id).await, StatusCode::NO_CONTENT);
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM follows").await, 0);
+    assert_eq!(
+        grants().await,
+        1,
+        "only the unrelated thread's grant remains"
+    );
+    let kept: Uuid = sqlx::query_scalar("SELECT resource_id FROM reveal_grants")
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(kept, elsewhere);
+    // The revealed thread now reads as concealed for both people.
+    assert_eq!(f.reveal(&f.ana, hosted_by_bo).await, StatusCode::NOT_FOUND);
+    assert_eq!(f.reveal(&bo, hosted_by_ana).await, StatusCode::NOT_FOUND);
+    // Concealed both ways, and Bo cannot follow back.
+    assert_eq!(
+        f.get(&bo, &format!("/people/{}", f.ana.id)).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        f.get(&f.ana, &format!("/people/{}", bo.id)).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(f.follow(&bo, f.ana.id).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(f.follow(&f.ana, bo.id).await.0, StatusCode::NOT_FOUND);
+
+    // Only Ana's block list shows the entry; repeats are idempotent.
+    assert_eq!(f.block(&f.ana, bo.id).await, StatusCode::NO_CONTENT);
+    assert_eq!(
+        f.get(&f.ana, "/me/blocks").await,
+        (
+            StatusCode::OK,
+            json!({"items": [{"id": bo.id, "handle": "bo_i", "displayName": "Bo Ilie"}],
+                   "nextCursor": null})
+        )
+    );
+    assert_eq!(
+        f.get(&bo, "/me/blocks").await.1,
+        json!({"items": [], "nextCursor": null})
+    );
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM blocks").await, 1);
+
+    // A pending request the other way: blocking its requester deletes it, its notification
+    // and the blocker's own approved follow.
+    let di = f.member("di_r", "public").await;
+    f.follow(&f.ana, di.id).await;
+    f.follow(&di, f.ana.id).await;
+    assert_eq!(f.notifications().await.0, 1);
+    assert_eq!(f.block(&f.ana, di.id).await, StatusCode::NO_CONTENT);
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM follows").await, 0);
+    assert_eq!(f.notifications().await.0, 0);
+    assert_eq!(
+        f.get(&f.ana, "/me/follow-requests").await.1["items"],
+        json!([])
+    );
+}
+
+#[sqlx::test]
+async fn unblock_restores_no_relationship_and_a_reverse_block_stays_private(pool: PgPool) {
+    let f = fixture(pool).await;
+    let bo = f.member("bo_i", "public").await;
+    f.follow(&f.ana, bo.id).await;
+    f.follow(&bo, f.ana.id).await;
+    f.decide(&f.ana, bo.id, "approve").await;
+    assert_eq!(f.block(&f.ana, bo.id).await, StatusCode::NO_CONTENT);
+
+    // Bo can block Ana back without learning that Ana blocks Bo.
+    assert_eq!(f.block(&bo, f.ana.id).await, StatusCode::NO_CONTENT);
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM blocks").await, 2);
+
+    // Ana's unblock leaves Bo's block, so both stay concealed.
+    for _ in 0..2 {
+        assert_eq!(f.unblock(&f.ana, bo.id).await, StatusCode::NO_CONTENT);
+    }
+    assert_eq!(
+        f.get(&f.ana, &format!("/people/{}", bo.id)).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(f.unblock(&bo, f.ana.id).await, StatusCode::NO_CONTENT);
+
+    // With both blocks gone, neither follow direction comes back.
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM follows").await, 0);
+    let (status, body) = f.get(&f.ana, &format!("/people/{}", bo.id)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["person"]["relationship"],
+        json!({"outgoing": "none", "incoming": "none", "mutual": false})
+    );
+    assert_eq!(f.get(&f.ana, "/me/blocks").await.1["items"], json!([]));
+}
+
+#[sqlx::test]
+async fn invalid_block_targets_are_rejected_without_writes(pool: PgPool) {
+    let f = fixture(pool).await;
+    let (status, body) = f
+        .write(
+            &f.ana,
+            Method::PUT,
+            &format!("/me/blocks/{}", f.ana.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body["error"]["fields"]["id"].is_string());
+    let gone = f.member("gone_d", "public").await;
+    disable(&f.pool, gone.id).await;
+    for target in [Uuid::new_v4(), gone.id] {
+        assert_eq!(f.block(&f.ana, target).await, StatusCode::NOT_FOUND);
+    }
+    let (status, _) = f
+        .write(&f.ana, Method::PUT, "/me/blocks/not-a-uuid", json!({}))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = f
+        .write(
+            &f.ana,
+            Method::PUT,
+            &format!("/me/blocks/{}", gone.id),
+            json!({"x": 1}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        f.unblock(&f.ana, Uuid::new_v4()).await,
+        StatusCode::NO_CONTENT,
+        "unblocking nobody is idempotent"
+    );
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM blocks").await, 0);
+
+    let path = format!("/me/blocks/{}", Uuid::new_v4());
+    let (status, _, body) = send(&f.app, Call::write(Method::PUT, &path, "{}")).await;
+    assert!([401, 403].contains(&status.as_u16()), "{body}");
+    let (status, headers, body) = send(&f.app, Call::get("/me/blocks")).await;
+    assert_error(status, &headers, &body, 401, "AUTH_REQUIRED");
+}
+
+#[sqlx::test]
+async fn block_list_pages_by_cursor_and_skips_disabled_accounts(pool: PgPool) {
+    let f = fixture(pool).await;
+    let mut blocked = Vec::new();
+    for handle in ["first_b", "second_b", "third_b"] {
+        let user = f.member(handle, "public").await;
+        f.block(&f.ana, user.id).await;
+        blocked.push(user);
+    }
+    let gone = f.member("gone_d", "public").await;
+    f.block(&f.ana, gone.id).await;
+    disable(&f.pool, gone.id).await;
+
+    let mut seen = Vec::new();
+    let mut next = "/me/blocks?limit=2".to_owned();
+    loop {
+        let (status, body) = f.get(&f.ana, &next).await;
+        assert_eq!(status, StatusCode::OK);
+        for item in body["items"].as_array().unwrap() {
+            seen.push(item["handle"].as_str().unwrap().to_owned());
+        }
+        match body["nextCursor"].as_str() {
+            Some(cursor) => next = format!("/me/blocks?limit=2&cursor={cursor}"),
+            None => break,
+        }
+    }
+    assert_eq!(seen, ["third_b", "second_b", "first_b"]);
+    let (status, _) = f.get(&f.ana, "/me/blocks?cursor=bad").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[sqlx::test]
+async fn racing_follows_and_reverse_blocks_leave_both_blocks_and_no_edges(pool: PgPool) {
+    let f = fixture(pool).await;
+    let bo = f.member("bo_i", "private").await;
+    for _ in 0..5 {
+        f.unblock(&f.ana, bo.id).await;
+        f.unblock(&bo, f.ana.id).await;
+        f.follow(&bo, f.ana.id).await;
+        let (follow, ana_blocks, bo_blocks, request) = tokio::join!(
+            f.follow(&f.ana, bo.id),
+            f.block(&f.ana, bo.id),
+            f.block(&bo, f.ana.id),
+            f.follow(&bo, f.ana.id),
+        );
+        assert!(
+            [StatusCode::OK, StatusCode::NOT_FOUND].contains(&follow.0),
+            "{follow:?}"
+        );
+        assert!(
+            [StatusCode::OK, StatusCode::NOT_FOUND].contains(&request.0),
+            "{request:?}"
+        );
+        assert_eq!(
+            (ana_blocks, bo_blocks),
+            (StatusCode::NO_CONTENT, StatusCode::NO_CONTENT)
+        );
+        assert_eq!(count(&f.pool, "SELECT count(*) FROM blocks").await, 2);
+        assert_eq!(count(&f.pool, "SELECT count(*) FROM follows").await, 0);
+        assert_eq!(f.notifications().await.0, 0);
     }
 }

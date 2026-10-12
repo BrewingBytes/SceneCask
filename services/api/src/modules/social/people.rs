@@ -5,7 +5,8 @@
 
 use axum::{
     Json, Router,
-    extract::{Path, Query, State, rejection::QueryRejection},
+    extract::{FromRequestParts, Path, Query, State, rejection::QueryRejection},
+    http::request::Parts,
     routing::get,
 };
 use chrono::Utc;
@@ -161,6 +162,20 @@ fn initials(name: &str) -> String {
 /// A path ID that is not a UUID cannot name a person: 404, like an unknown one.
 pub(super) fn path_id(value: &str) -> Result<Uuid, ApiError> {
     Uuid::try_parse(value).map_err(|_| ApiError::not_found())
+}
+
+/// The `{id}` path segment of a route naming one person, parsed like [`path_id`].
+pub(super) struct PersonId(pub Uuid);
+
+impl<S: Send + Sync> FromRequestParts<S> for PersonId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, ApiError> {
+        let Path(id) = Path::<String>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| ApiError::not_found())?;
+        path_id(&id).map(Self)
+    }
 }
 
 /// A listed person and their visibility, with the privacy decision made from the current edges.
