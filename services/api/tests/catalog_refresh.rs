@@ -2,7 +2,7 @@
 //! at the external boundary. No provider credentials.
 use std::{
     sync::{
-        Arc, Mutex, RwLock,
+        Arc, RwLock,
         atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
@@ -26,7 +26,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 mod common;
-use common::count;
+use common::{ManualClock, count};
 
 const SHOW: i64 = 77;
 
@@ -65,20 +65,6 @@ impl TvProvider for Provider {
     async fn catalog(&self, _: i64) -> Result<Catalog, ProviderError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.answer.read().unwrap().clone()
-    }
-}
-
-struct ManualClock(Mutex<DateTime<Utc>>);
-impl ManualClock {
-    fn advance(&self, by: TimeDelta) -> DateTime<Utc> {
-        let mut now = self.0.lock().unwrap();
-        *now += by;
-        *now
-    }
-}
-impl Clock for ManualClock {
-    fn now(&self) -> DateTime<Utc> {
-        *self.0.lock().unwrap()
     }
 }
 
@@ -161,7 +147,7 @@ impl World {
         .execute(&pool)
         .await
         .unwrap();
-        let clock = Arc::new(ManualClock(Mutex::new(fetched_at(&pool).await)));
+        let clock = Arc::new(ManualClock::new(fetched_at(&pool).await));
         let refresher = Arc::new(Refresher::new(
             pool.clone(),
             Arc::clone(&provider),

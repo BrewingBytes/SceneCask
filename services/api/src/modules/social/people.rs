@@ -82,10 +82,10 @@ macro_rules! listed {
     };
 }
 
-pub(super) use {listed, person_columns};
+pub(crate) use {listed, person_columns};
 
 /// A row selected with [`person_columns`].
-pub(super) type PersonRow = (
+pub(crate) type PersonRow = (
     Uuid,
     Option<String>,
     Option<String>,
@@ -105,7 +105,7 @@ fn follow_state(value: Option<&str>) -> FollowState {
 }
 
 /// The card `viewer` may see for `row`, or `None` when the policy conceals that person.
-pub(super) fn person(viewer: Uuid, row: PersonRow) -> Option<Person> {
+pub(crate) fn person(viewer: Uuid, row: PersonRow) -> Option<Person> {
     let (id, handle, display_name, visibility, outgoing, incoming, viewer_blocks, blocked_by) = row;
     let relationship = Relationship {
         outgoing: follow_state(outgoing.as_deref()),
