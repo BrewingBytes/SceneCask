@@ -44,15 +44,7 @@ impl Tmdb {
     /// accepted, so a deployment can never redirect the credential elsewhere.
     pub fn loopback_fixture(token: &str, base: &str) -> Result<Self, ProviderError> {
         let url = Url::parse(base).map_err(|_| ProviderError::Unavailable)?;
-        let loopback = url.host_str().is_some_and(|host| {
-            host == "localhost"
-                || host
-                    .trim_start_matches('[')
-                    .trim_end_matches(']')
-                    .parse::<std::net::IpAddr>()
-                    .is_ok_and(|ip| ip.is_loopback())
-        });
-        if url.scheme() != "http" || !loopback || !base.ends_with('/') {
+        if url.scheme() != "http" || !crate::config::loopback_host(&url) || !base.ends_with('/') {
             return Err(ProviderError::Unavailable);
         }
         Self::build(token, base, Duration::from_secs(5))

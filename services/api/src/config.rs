@@ -2,6 +2,8 @@
 
 use std::{env, net::SocketAddr};
 
+use reqwest::Url;
+
 use crate::{
     middleware::SecurityConfig,
     modules::auth::google::{GOOGLE_ISSUER, GoogleConfig},
@@ -121,21 +123,31 @@ fn flag(value: Option<&str>, name: &'static str) -> Result<bool, &'static str> {
     }
 }
 
-/// `http://localhost[:port]` or an `http` loopback IP, with no path.
+/// `http://localhost[:port]` or an `http` loopback IP, with no credentials, path or query.
+/// Parsed as a URL, so `http://localhost:1@remote.example` names `remote.example`.
 fn loopback_http(origin: &str) -> bool {
-    let Some(authority) = origin.strip_prefix("http://") else {
+    let Ok(url) = Url::parse(origin) else {
         return false;
     };
-    let host = match authority.rfind(':') {
-        Some(colon) if !authority.ends_with(']') => &authority[..colon],
-        _ => authority,
-    };
-    host == "localhost"
-        || host
-            .trim_start_matches('[')
-            .trim_end_matches(']')
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|ip| ip.is_loopback())
+    url.scheme() == "http"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.path() == "/"
+        && url.query().is_none()
+        && url.fragment().is_none()
+        && loopback_host(&url)
+}
+
+/// `localhost` or a loopback IP literal, read from the parsed host (never from raw text).
+pub fn loopback_host(url: &Url) -> bool {
+    url.host_str().is_some_and(|host| {
+        host == "localhost"
+            || host
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|ip| ip.is_loopback())
+    })
 }
 
 #[cfg(test)]
@@ -217,5 +229,13 @@ mod tests {
         );
         assert!(google(Some("http://localhost:4011")).is_ok());
         assert!(google(Some("http://accounts.example")).is_err());
+        for userinfo in [
+            "http://localhost:1@accounts.example",
+            "http://127.0.0.1:1@accounts.example",
+            "http://user@127.0.0.1:4011",
+        ] {
+            assert!(google(Some(userinfo)).is_err(), "{userinfo}");
+        }
+        assert!(google(Some("http://127.0.0.1:4011/path")).is_err());
     }
 }

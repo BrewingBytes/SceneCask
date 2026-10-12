@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createSceneCaskClient } from "@scenecask/api-client";
 import { Avatar } from "../../components/ui/basic";
-import { Menu } from "../../components/ui/overlays";
+import { Menu, ToastViewport, useToastQueue } from "../../components/ui/overlays";
 import { endExpiredSession } from "../../features/auth";
 import { announceSignedOut, onSignedOut } from "./session-channel";
 
@@ -22,6 +22,7 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [account, setAccount] = useState<Account>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const { toasts, show, dismiss } = useToastQueue();
 
   useEffect(() => {
     let current = true;
@@ -44,27 +45,35 @@ export function AccountMenu() {
     const client = createSceneCaskClient({ getCsrfToken: () => csrfToken });
     try {
       csrfToken = (await client.GET("/session")).data?.csrfToken;
-      // Already signed out is also a success (C04); a network failure still leaves this tab.
-      await client.POST("/auth/logout", { body: {} });
+      // Already signed out (no session) is also a success (C04).
+      const { response } = await client.POST("/auth/logout", { body: {} });
+      if (!response.ok && response.status !== 401) throw new Error("logout failed");
     } catch {
-      // Fall through: the next private request answers 401 and ends the session view anyway.
+      // The session may still be valid, so stay here rather than look signed out.
+      setSigningOut(false);
+      show({ id: "signout", tone: "error", message: "Couldn’t sign you out. Try again.", onRetry: () => void signOut() });
+      return;
     }
+    dismiss("signout");
     announceSignedOut();
     window.location.replace("/auth/signin");
   }
 
   const name = account?.displayName || "Your account";
   return (
-    <Menu
-      open={open}
-      onOpenChange={setOpen}
-      label="Account"
-      trigger={<Avatar initials={account?.displayName ? initialsOf(account.displayName) : "?"} label={name} />}
-      header={<span className="sc-account-name">{name}</span>}
-      items={[
-        { id: "about", label: "About SceneCask", href: "/about" },
-        { id: "signout", label: signingOut ? "Signing out…" : "Sign out", disabled: signingOut, onSelect: () => void signOut() },
-      ]}
-    />
+    <>
+      <Menu
+        open={open}
+        onOpenChange={setOpen}
+        label="Account"
+        trigger={<Avatar initials={account?.displayName ? initialsOf(account.displayName) : "?"} label={name} />}
+        header={<span className="sc-account-name">{name}</span>}
+        items={[
+          { id: "about", label: "About SceneCask", href: "/about" },
+          { id: "signout", label: signingOut ? "Signing out…" : "Sign out", disabled: signingOut, onSelect: () => void signOut() },
+        ]}
+      />
+      <ToastViewport toasts={toasts} onDismiss={dismiss} label="Account notifications" />
+    </>
   );
 }

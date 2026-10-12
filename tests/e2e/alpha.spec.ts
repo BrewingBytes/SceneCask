@@ -290,3 +290,19 @@ test("keyboard: account menu opens, moves and closes with focus restored", async
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/auth\/signin$/);
 });
+
+test("a failed sign-out keeps the viewer signed in and on the page, with Retry", async ({ page }) => {
+  await verifiedAccount(page, "signout");
+  await page.goto("/home");
+  await page.route("**/api/v1/auth/logout", (route) => route.fulfill({ status: 503 }));
+  await page.getByRole("button", { name: /^Account/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  const failure = page.getByRole("alert").filter({ hasText: "Couldn’t sign you out. Try again." });
+  await expect(failure).toBeVisible();
+  await expect(page).toHaveURL(/\/home$/);
+  expect((await (await page.request.get("/api/v1/session")).json()).user).not.toBeNull();
+  await page.unroute("**/api/v1/auth/logout");
+  await failure.getByRole("button", { name: "Retry" }).click();
+  await expect(page).toHaveURL(/\/auth\/signin$/);
+  expect((await (await page.request.get("/api/v1/session")).json()).user).toBeNull();
+});
