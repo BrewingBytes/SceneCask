@@ -1,9 +1,6 @@
 import type { ToastControls } from "../catalog/search/use-library-actions";
 import {
   actionIdOf,
-  keyedUndo,
-  newIdempotencyKey,
-  outcomeUnknown,
   type ApiResult,
   type CatchupPreview,
   type Episode,
@@ -16,6 +13,7 @@ import {
   type TrackingApi,
 } from "./api";
 import { episodeCode, plural, STATUS_LABELS, trackingFailureCopy } from "./copy";
+import { createIdempotencyKeys, createToastUndo } from "./mutation-support";
 
 export type { ToastControls };
 
@@ -110,8 +108,8 @@ export function visibleDetails(overlay: Overlay, episode: EpisodeView) {
 export function createTrackingClient(api: TrackingApi, showId: string, toasts: ToastControls) {
   const listeners = new Set<() => void>();
   const patches = new Map<number, Patch>();
-  const pendingKeys = new Map<string, { key: string; body: string }>();
-  const runUndo = keyedUndo(api.undo);
+  const keys = createIdempotencyKeys();
+  const undo = createToastUndo(api.undo, toasts, () => refresh());
   const busy = new Set<string>();
   let patchId = 0;
   let generation = 0;
@@ -212,23 +210,14 @@ export function createTrackingClient(api: TrackingApi, showId: string, toasts: T
     void refetchEpisodes(result.episodes.filter((episode) => episode.watched).map((episode) => episode.id));
   }
 
-  function idempotencyKey(scope: string, body: unknown) {
-    const text = JSON.stringify(body);
-    const known = pendingKeys.get(scope);
-    if (known && known.body === text) return known.key;
-    const key = newIdempotencyKey();
-    pendingKeys.set(scope, { key, body: text });
-    return key;
-  }
-
   async function mutate(options: MutationOptions): Promise<MutationOutcome> {
     if (busy.has(options.busy)) return { ok: false, failure: { kind: "busy" } };
     busy.add(options.busy);
     const id = ++patchId;
     if (options.patch) patches.set(id, options.patch);
     emit();
-    const result = await options.run(idempotencyKey(options.scope, options.body));
-    if (result.ok || !outcomeUnknown(result.failure)) pendingKeys.delete(options.scope);
+    const result = await options.run(keys.keyFor(options.scope, options.body));
+    keys.settle(options.scope, result);
     busy.delete(options.busy);
     patches.delete(id);
     if (result.ok) {
@@ -247,28 +236,6 @@ export function createTrackingClient(api: TrackingApi, showId: string, toasts: T
       });
     }
     return result;
-  }
-
-  async function undo(actionId: string, toastId: string, undone: string) {
-    toasts.update(toastId, { busy: "undo" });
-    const result = await runUndo(actionId);
-    if (result.ok) {
-      const { skipped } = result.data;
-      toasts.show({
-        id: toastId,
-        tone: "success",
-        message: skipped ? `Undone. ${plural(skipped, "change")} you made afterwards ${skipped === 1 ? "was" : "were"} kept.` : undone,
-      });
-      await refresh();
-      return;
-    }
-    const expired = result.failure.kind === "expired";
-    toasts.show({
-      id: toastId,
-      tone: "error",
-      message: expired ? "Undo is no longer available." : `Couldn’t undo. ${trackingFailureCopy(result.failure)}`,
-      onRetry: expired ? undefined : () => void undo(actionId, toastId, undone),
-    });
   }
 
   /** Success toast with Undo when the action changed something; a no-op gets an info note. */

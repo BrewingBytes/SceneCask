@@ -1,5 +1,6 @@
 import axe from "axe-core";
 import { expect, test, type Page, type Request, type Route } from "@playwright/test";
+import { CSRF, error, json, later, serve, UUID, type Logged } from "../../tracking/fixture-api";
 
 /**
  * Component suite for R21. The production /shows/[showId] route runs in an isolated fixture app;
@@ -8,9 +9,7 @@ import { expect, test, type Page, type Request, type Route } from "@playwright/t
  * integration (R24 owns that gate).
  */
 
-const CSRF = "csrf-fixture-token";
 const SHOW = "10000000-0000-4000-8000-000000000001";
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SECRET = "Secret title";
 
 type ReleaseState = "released" | "future" | "unknown";
@@ -45,7 +44,6 @@ const EPISODES = [
 const byId = new Map(EPISODES.map((episode) => [episode.id, episode]));
 const regular = EPISODES.filter((episode) => episode.season > 0);
 const code = (episode: FakeEpisode) => `S${episode.season} E${episode.number}`;
-const later = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface Library {
   saved: boolean;
@@ -56,13 +54,6 @@ interface Change {
   id: string;
   before: boolean;
   after: number;
-}
-interface Logged {
-  method: string;
-  path: string;
-  body: unknown;
-  key: string | null;
-  csrf: string | null;
 }
 
 /** A small in-memory C05 backend: per-episode revisions, aggregate tracking revision, undo. */
@@ -214,32 +205,17 @@ class FakeApi {
     };
   }
 
-  async handle(route: Route, request: Request) {
-    const url = new URL(request.url());
-    const path = url.pathname.replace("/api/v1", "");
-    const method = request.method();
-    const body = request.postData() ? request.postDataJSON() : undefined;
-    const key = request.headers()["idempotency-key"] ?? null;
-    if (path === "/session") return json(route, { user: null, csrfToken: CSRF });
-    this.log.push({ method, path, body, key, csrf: request.headers()["x-csrf-token"] ?? null });
-    if (method === "GET") {
-      if (path === `/shows/${SHOW}`) return json(route, this.showDto());
-      if (path === `/shows/${SHOW}/episodes`) {
-        const season = Number(url.searchParams.get("season"));
-        return json(route, { items: EPISODES.filter((episode) => episode.season === season).map((episode) => this.episodeDto(episode)), nextCursor: null });
-      }
-      const episode = byId.get(path.replace("/episodes/", ""));
-      if (episode) return json(route, this.episodeDto(episode));
-      return error(route, 404, "NOT_FOUND");
+  handle(route: Route, request: Request) {
+    return serve(this, route, request);
+  }
+  read(path: string, url: URL) {
+    if (path === `/shows/${SHOW}`) return this.showDto();
+    if (path === `/shows/${SHOW}/episodes`) {
+      const season = Number(url.searchParams.get("season"));
+      return { items: EPISODES.filter((episode) => episode.season === season).map((episode) => this.episodeDto(episode)), nextCursor: null };
     }
-    // Same key + same body replays the stored response; a changed body is a conflict.
-    if (key) {
-      const stored = this.idempotent.get(key);
-      if (stored) return stored.body === JSON.stringify(body) ? json(route, stored.response, stored.status) : error(route, 409, "REVISION_CONFLICT");
-    }
-    const [status, response] = this.mutate(method, path, body);
-    if (key && status < 300) this.idempotent.set(key, { body: JSON.stringify(body), response, status });
-    return status < 300 ? json(route, response, status) : error(route, status, response as string);
+    const episode = byId.get(path.replace("/episodes/", ""));
+    return episode ? this.episodeDto(episode) : null;
   }
 
   mutate(method: string, path: string, body: Record<string, unknown> | undefined): [number, unknown] {
@@ -299,11 +275,6 @@ class FakeApi {
     return this.log.filter((entry) => entry.method !== "GET" && !entry.path.endsWith("/preview"));
   }
 }
-
-const json = (route: Route, body: unknown, status = 200) =>
-  route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-const error = (route: Route, status: number, code: string) =>
-  json(route, { error: { code, message: "Safe server message.", requestId: "60000000-0000-4000-8000-000000000001" } }, status);
 
 async function openShow(page: Page, fake: FakeApi, query = "") {
   await page.route("**/api/v1/**", (route, request) => fake.handle(route, request));
