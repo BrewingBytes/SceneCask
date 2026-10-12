@@ -6,4 +6,5 @@ pub mod catalog;
 pub mod library;
 pub mod mail;
 pub mod policy;
+pub mod social;
 pub mod tracking;

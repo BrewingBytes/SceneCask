@@ -243,6 +243,18 @@ pub fn assert_error(
     assert!(body.get("user").is_none());
 }
 
+/// Sends `call`, asserting private no-store and, for a failure, the C03 envelope without user
+/// data; returns the status and body.
+pub async fn checked(app: &Router, call: Call<'_>) -> (StatusCode, Value) {
+    let (status, headers, body) = send(app, call).await;
+    assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+    if !status.is_success() {
+        let code = body["error"]["code"].as_str().expect("error envelope");
+        assert_error(status, &headers, &body, status.as_u16(), code);
+    }
+    (status, body)
+}
+
 /// A fresh account/session; use `user` + `sign_in` separately for session lifecycle tests.
 pub struct TestUser {
     pub id: Uuid,
