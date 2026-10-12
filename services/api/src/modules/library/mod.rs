@@ -79,7 +79,7 @@ async fn list(
     let user_id = current.user.id;
     let mut conn = security.pool.acquire().await?;
     let counts = repository::counts(&mut conn, user_id).await?;
-    let mut positions = repository::page(
+    let positions = repository::page(
         &mut conn,
         user_id,
         &PageQuery {
@@ -90,13 +90,7 @@ async fn list(
         },
     )
     .await?;
-    let next_cursor = if positions.len() as i64 > limit {
-        positions.truncate(limit as usize);
-        positions.last().map(encode_cursor)
-    } else {
-        None
-    };
-    let ids: Vec<Uuid> = positions.iter().map(|p| p.show_id).collect();
+    let (ids, next_cursor) = split_page(positions, limit);
     let items = repository::items(&mut conn, user_id, &ids, Utc::now()).await?;
     Ok(Json(LibraryPage {
         items,
@@ -186,6 +180,18 @@ pub(crate) fn decode_opaque<T>(
     decode().ok_or_else(ApiError::malformed)
 }
 
+/// The show IDs of the first `limit` saved positions, and the cursor after the last of them when
+/// `positions` (fetched with `limit + 1`) held another page.
+pub(crate) fn split_page(mut positions: Vec<Position>, limit: i64) -> (Vec<Uuid>, Option<String>) {
+    let next_cursor = if positions.len() as i64 > limit {
+        positions.truncate(limit as usize);
+        positions.last().map(encode_cursor)
+    } else {
+        None
+    };
+    (positions.iter().map(|p| p.show_id).collect(), next_cursor)
+}
+
 /// A show ID that is not a UUID cannot name a show: 404, like an unknown one.
 fn path_show_id(value: &str) -> Result<Uuid, ApiError> {
     Uuid::try_parse(value).map_err(|_| ApiError::not_found())
@@ -199,7 +205,7 @@ fn encode_cursor(position: &Position) -> String {
     ))
 }
 
-fn decode_cursor(cursor: &str) -> Result<Position, ApiError> {
+pub(crate) fn decode_cursor(cursor: &str) -> Result<Position, ApiError> {
     decode_opaque(cursor, |text| {
         let (micros, id) = text.split_once('.')?;
         Some(Position {

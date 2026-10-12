@@ -311,7 +311,7 @@ pub async fn saved_watching(
     Ok((items(conn, user_id, &ids, now).await?, any_saved))
 }
 
-fn escape_like(text: &str) -> String {
+pub(crate) fn escape_like(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     for c in text.chars() {
         if matches!(c, '%' | '_' | '\\') {
