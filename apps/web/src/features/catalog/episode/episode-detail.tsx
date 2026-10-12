@@ -95,6 +95,7 @@ interface ScreenProps {
   showId: string;
   episode: EpisodeView;
   notice: EpisodeSnapshot["notice"];
+  readFailure: Failure | null;
   store: EpisodeStore;
   toasts: ToastControls;
   /** Set when the viewer pressed Hide again: focus moves to the redacted section. */
@@ -106,7 +107,7 @@ interface ScreenProps {
  * Header, details and actions for one loaded episode. Remounted (with a fresh tracking client)
  * whenever protected data is evicted, so no episode list fetched under a reveal survives it.
  */
-function EpisodeScreen({ showId, episode, notice, store, toasts, focusHidden, discussions }: ScreenProps) {
+function EpisodeScreen({ showId, episode, notice, readFailure, store, toasts, focusHidden, discussions }: ScreenProps) {
   const [client] = useState(() => createTrackingClient(createTrackingApi(), showId, toasts));
   const tracking = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
   const [reveal, setReveal] = useState<{ open: boolean; busy: boolean; error: string | null }>({ open: false, busy: false, error: null });
@@ -228,7 +229,11 @@ function EpisodeScreen({ showId, episode, notice, store, toasts, focusHidden, di
         <section className="sc-ep-hidden" ref={hiddenSection} tabIndex={-1} aria-label={`${code} details`}>
           <p className="sc-ep-air-strong">{airText(episode)}</p>
           {status && <p className="sc-ep-status">{status}</p>}
-          {watched ? (
+          {watched && readFailure ? (
+            <ErrorState title={`Details for ${code} didn’t load`} onRetry={() => void store.load()}>
+              {trackingFailureCopy(readFailure)}
+            </ErrorState>
+          ) : watched ? (
             <Skeleton label={`Loading ${code} details`} width="70%" height={20} />
           ) : (
             <>
@@ -340,6 +345,7 @@ export function EpisodeDetail({ episodeId, discussions }: EpisodeDetailProps) {
           showId={load.showId}
           episode={load.episode}
           notice={snapshot.notice}
+          readFailure={snapshot.readFailure}
           store={store}
           toasts={controls}
           focusHidden={focusHidden}

@@ -297,6 +297,47 @@ test("a future episode can be marked; the authorized read unlocks details and th
   await expect(page.getByRole("button", { name: "Mark unwatched" })).toBeVisible();
 });
 
+test("a failed reread after a mark offers Retry instead of loading forever", async ({ page }) => {
+  const fake = new FakeApi();
+  await openEpisode(page, fake, E4);
+  let fail = true;
+  await page.route(`**/api/v1/episodes/${E4}`, (route) => (fail ? error(route, 503, "SERVICE_UNAVAILABLE") : route.fallback()));
+  await page.getByRole("button", { name: "Mark S1 E4 watched" }).click();
+  await expect(toast(page, "Marked S1 E4 watched.")).toBeVisible();
+  const alert = page.getByRole("alert").filter({ hasText: "Details for S1 E4 didn’t load" });
+  await expect(alert).toBeVisible();
+  await expect(alert).not.toContainText("Safe server message.");
+  await expect(page.getByLabel("Loading S1 E4 details")).toHaveCount(0);
+  await expectRedacted(page);
+
+  fail = false;
+  await page.getByRole("region", { name: "S1 E4 details" }).getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: `${SECRET} S1 E4` })).toBeVisible();
+  await expect(alert).toHaveCount(0);
+});
+
+test("a reveal that returns after marking and unmarking still lapses", async ({ page }) => {
+  await page.clock.install();
+  const fake = new FakeApi();
+  await openEpisode(page, fake);
+  await revealButton(page).click();
+  await revealDialog(page).getByRole("button", { name: "Reveal details" }).click();
+  await expect(page.getByRole("button", { name: "Hide again" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark S1 E3 watched" }).click();
+  await expect(toast(page, "Marked S1 E3 watched.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hide again" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Mark unwatched" }).click();
+  await expect(toast(page, "Marked S1 E3 unwatched.")).toBeVisible();
+  // The grant is still active, so the reread is revealed again.
+  await expect(page.getByRole("button", { name: "Hide again" })).toBeVisible();
+
+  fake.grants.clear();
+  await page.clock.fastForward("12:00:01");
+  await expect(page.getByText("Your reveal for S1 E3 ended, so its details are hidden again.").first()).toBeVisible();
+  await expectRedacted(page);
+});
+
 test("unmarking hides watched details at once; Undo restores them through a reread", async ({ page }) => {
   const fake = new FakeApi([E3]);
   await openEpisode(page, fake);

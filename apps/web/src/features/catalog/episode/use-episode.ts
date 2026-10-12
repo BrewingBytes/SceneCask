@@ -18,6 +18,8 @@ export interface EpisodeSnapshot {
    * client behind the catch-up sheet) are keyed by it, so their caches are dropped too.
    */
   cacheEpoch: number;
+  /** A reread of an already loaded episode failed; the last authorized read stays on screen. */
+  readFailure: Failure | null;
 }
 
 /** Longest delay setTimeout accepts; a longer reveal is rechecked when it fires. */
@@ -33,7 +35,7 @@ const redact = (episode: EpisodeView): EpisodeView =>
  */
 export function createEpisodeStore(api: EpisodeApi, episodeId: string) {
   const listeners = new Set<() => void>();
-  let state: EpisodeSnapshot = { load: { status: "loading" }, notice: null, cacheEpoch: 0 };
+  let state: EpisodeSnapshot = { load: { status: "loading" }, notice: null, cacheEpoch: 0, readFailure: null };
   let generation = 0;
   let expiry: ReturnType<typeof setTimeout> | undefined;
   /** Set by Hide again until the backend confirms; a revealed read is redacted meanwhile. */
@@ -67,7 +69,8 @@ export function createEpisodeStore(api: EpisodeApi, episodeId: string) {
     if (run !== generation) return result;
     if (!result.ok) {
       if (result.failure.kind === "auth") endSession();
-      else if (!ready()) emit({ load: { status: "error", failure: result.failure } });
+      else if (ready()) emit({ readFailure: result.failure });
+      else emit({ load: { status: "error", failure: result.failure } });
       return result;
     }
     let fresh = toEpisodeView(result.data);
@@ -75,8 +78,8 @@ export function createEpisodeStore(api: EpisodeApi, episodeId: string) {
     const known = ready()?.episode;
     // A read answered after a newer write never moves the episode back.
     if (known && fresh.revision < known.revision) return result;
-    if (fresh.access !== "revealed") clearTimeout(expiry);
-    emit({ load: { status: "ready", showId: result.data.showId, episode: fresh } });
+    // The expiry timer keeps running while watched: an unmark can bring the reveal back.
+    emit({ load: { status: "ready", showId: result.data.showId, episode: fresh }, readFailure: null });
     return result;
   }
 

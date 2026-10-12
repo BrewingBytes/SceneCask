@@ -9,7 +9,7 @@ and `app/episodes/**`, plus a test-only extraction in `features/tracking/fixture
 
 | Command | Result |
 | --- | --- |
-| `CI=1 yarn playwright test --config apps/web/src/features/catalog/episode/playwright.config.ts` | Pass: 20 Chromium tests |
+| `CI=1 yarn playwright test --config apps/web/src/features/catalog/episode/playwright.config.ts` | Pass: 22 Chromium tests |
 | Same suite with the synchronous eviction in Hide removed | The Hide-again test fails |
 | Same suite with the pending-Hide redaction removed | The failed-Hide test fails |
 | `CI=1 yarn playwright test --config apps/web/src/features/catalog/show/playwright.config.ts` | Pass: 17 tests (R21, after the shared fake extraction) |
