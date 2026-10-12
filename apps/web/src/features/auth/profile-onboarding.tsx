@@ -37,7 +37,8 @@ export function ProfileOnboarding() {
       const { user } = result.data;
       if (!user) return window.location.replace(signinHref({ returnTo: ONBOARDING }));
       if (user.handle) return window.location.replace(AFTER_ONBOARDING);
-      setDisplayName(user.displayName);
+      // Email sign-ups have no name until onboarding; the live API sends null (contract says string).
+      setDisplayName(user.displayName ?? "");
       setPhase({ name: "ready" });
     });
     return () => {

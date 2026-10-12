@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AppShell } from "../../../components/shell";
+import { PrivateShell } from "../../_integration/private-shell";
 import { ShowDetail } from "../../../features/catalog/show";
 
 // Titles come from client data after an authorized fetch; the server never renders show content.
@@ -10,8 +10,8 @@ export default async function ShowPage({ params, searchParams }: PageProps<"/sho
   const { season } = await searchParams;
   const requested = typeof season === "string" && /^\d{1,3}$/.test(season) ? Number(season) : undefined;
   return (
-    <AppShell currentPath="/shows">
+    <PrivateShell currentPath="/shows">
       <ShowDetail key={showId} showId={showId} initialSeason={requested} />
-    </AppShell>
+    </PrivateShell>
   );
 }

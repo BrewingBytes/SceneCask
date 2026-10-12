@@ -40,6 +40,24 @@ impl Tmdb {
             Duration::from_secs(5),
         )
     }
+    /// A local TMDB-shaped fixture for browser journeys. Only plain-HTTP loopback bases are
+    /// accepted, so a deployment can never redirect the credential elsewhere.
+    pub fn loopback_fixture(token: &str, base: &str) -> Result<Self, ProviderError> {
+        let url = Url::parse(base).map_err(|_| ProviderError::Unavailable)?;
+        let loopback = url.host_str().is_some_and(|host| {
+            host == "localhost"
+                || host
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|ip| ip.is_loopback())
+        });
+        if url.scheme() != "http" || !loopback || !base.ends_with('/') {
+            return Err(ProviderError::Unavailable);
+        }
+        Self::build(token, base, Duration::from_secs(5))
+    }
+
     fn build(token: &str, base: &str, timeout: Duration) -> Result<Self, ProviderError> {
         if token.trim().is_empty() {
             return Err(ProviderError::Unavailable);
@@ -529,6 +547,32 @@ mod tests {
         };
         let tmdb = Tmdb::build("fixture-only", &base, timeout).unwrap();
         (tmdb, state, task)
+    }
+
+    #[test]
+    fn fixture_base_must_be_plain_http_loopback() {
+        for base in [
+            "http://127.0.0.1:4010/3/",
+            "http://localhost:4010/3/",
+            "http://[::1]:4010/",
+        ] {
+            assert!(
+                Tmdb::loopback_fixture("fixture-only", base).is_ok(),
+                "{base}"
+            );
+        }
+        for base in [
+            "https://127.0.0.1:4010/3/",
+            "http://api.themoviedb.org/3/",
+            "http://10.0.0.1/3/",
+            "http://127.0.0.1:4010/3",
+            "not a url",
+        ] {
+            assert!(
+                Tmdb::loopback_fixture("fixture-only", base).is_err(),
+                "{base}"
+            );
+        }
     }
 
     #[tokio::test]

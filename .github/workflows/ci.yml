@@ -21,7 +21,7 @@ jobs:
           --health-interval 2s --health-timeout 3s --health-retries 30
       mail:
         image: axllent/mailpit:v1.31.4
-        ports: ['1025:1025']
+        ports: ['1025:1025', '8025:8025']
         options: >-
           --health-cmd "/mailpit readyz"
           --health-interval 2s --health-timeout 3s --health-retries 30
@@ -31,6 +31,7 @@ jobs:
       DATABASE_URL: postgres://scenecask:scenecask_ci@127.0.0.1:5432/scenecask
       API_BIND: 127.0.0.1:8080
       API_ORIGIN: http://127.0.0.1:8080
+      MAILPIT_API: http://127.0.0.1:8025
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

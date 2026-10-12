@@ -15,6 +15,7 @@ use axum::{
 };
 use lettre::Message;
 use scenecask_api::{
+    app::{self, MetadataProvider, Services},
     mail::MailTransport,
     middleware::{self, Security, SecurityConfig},
     modules::{
@@ -43,6 +44,16 @@ impl TestApp {
     }
     pub fn routes(&self, routes: Router) -> Router {
         middleware::apply(routes, &self.security)
+    }
+    /// The production composition (health plus every `/api/v1` route) over this app's security
+    /// state, with the metadata provider unconfigured (an outage) and beta off.
+    pub fn application(&self) -> Router {
+        app::application(&Services {
+            security: self.security.clone(),
+            provider: std::sync::Arc::new(MetadataProvider::Unconfigured),
+            google: None,
+            beta: false,
+        })
     }
 }
 

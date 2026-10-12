@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AppShell } from "../../components/shell";
+import { PrivateShell } from "../_integration/private-shell";
 import { HomeView } from "../../features/home";
 
 // Home sections come from client data after an authorized fetch; the server renders no account data.
@@ -7,8 +7,8 @@ export const metadata: Metadata = { title: "Home · SceneCask", referrer: "no-re
 
 export default function HomePage() {
   return (
-    <AppShell currentPath="/home" homeHref="/home">
+    <PrivateShell currentPath="/home">
       <HomeView />
-    </AppShell>
+    </PrivateShell>
   );
 }

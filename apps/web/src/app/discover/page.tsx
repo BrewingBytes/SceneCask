@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AppShell } from "../../components/shell";
+import { PrivateShell } from "../_integration/private-shell";
 import { DiscoverSearch } from "../../features/catalog/search";
 
 export const metadata: Metadata = { title: "Discover · SceneCask", referrer: "no-referrer" };
@@ -7,8 +7,8 @@ export const metadata: Metadata = { title: "Discover · SceneCask", referrer: "n
 export default async function DiscoverPage({ searchParams }: PageProps<"/discover">) {
   const { q } = await searchParams;
   return (
-    <AppShell currentPath="/discover">
+    <PrivateShell currentPath="/discover">
       <DiscoverSearch initialQuery={typeof q === "string" ? q : ""} />
-    </AppShell>
+    </PrivateShell>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AppShell } from "../../../components/shell";
+import { PrivateShell } from "../../_integration/private-shell";
 import { EpisodeDetail } from "../../../features/catalog/episode";
 
 // The server renders no episode data: details arrive only from an authorized client fetch, and
@@ -9,8 +9,8 @@ export const metadata: Metadata = { title: "Episode · SceneCask", referrer: "no
 export default async function EpisodePage({ params }: PageProps<"/episodes/[episodeId]">) {
   const { episodeId } = await params;
   return (
-    <AppShell currentPath="/episodes">
+    <PrivateShell currentPath="/episodes">
       <EpisodeDetail key={episodeId} episodeId={episodeId} />
-    </AppShell>
+    </PrivateShell>
   );
 }

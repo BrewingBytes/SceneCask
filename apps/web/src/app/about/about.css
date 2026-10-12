@@ -1,0 +1,15 @@
+.sc-about h1 {
+  margin-block: var(--sc-space-6) var(--sc-space-4);
+}
+
+.sc-about-section {
+  margin-top: var(--sc-space-8);
+  padding-top: var(--sc-space-4);
+  border-top: 3px solid var(--sc-color-ink);
+}
+
+.sc-about a {
+  color: inherit;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}

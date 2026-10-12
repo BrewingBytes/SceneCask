@@ -1,7 +1,8 @@
 # SceneCask
 
-A responsive personal TV tracker. This foundation contains a Next.js App Router
-web application and Rust/Axum API; domain features will follow the rebuild backlog.
+A responsive personal TV tracker: a Next.js App Router web application and a Rust/Axum API.
+The personal-tracking alpha (account, search, library, episode tracking, catch-up, Home) is
+integrated end to end; the social beta stays behind `SCENECASK_BETA`.
 
 ## Clean checkout
 
@@ -27,7 +28,26 @@ Compose binds services only to loopback and retains PostgreSQL in a named volume
 versions is unused and can be removed with `docker volume rm scenecask_postgres-data`.
 The dev supervisor
 loads .env for both processes and shuts down the other process if either exits.
-Next.js forwards /api/v1/* and /health/* to API_ORIGIN; there are no domain routes.
+Next.js forwards /api/v1/* and /health/* to API_ORIGIN.
+
+## Alpha configuration
+
+`services/api/src/app.rs` mounts every alpha route under `/api/v1` behind one set of C03
+security layers and runs the outbox mailer, metadata refresher and OAuth-flow cleanup.
+`services/api/src/config.rs` reads:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PUBLIC_ORIGIN` | `http://127.0.0.1:3000` | Browser origin: mutation Origin checks, cookie mode, email links, Google callback |
+| `SCENECASK_BETA` | `false` | Mounts social beta routes (none yet) and shows Friends/notifications in the web shell. Anything other than `true`/`false` is rejected |
+| `API_MIGRATE_ON_START` | `false` | Applies pending migrations before serving (development, CI and e2e) |
+| `TMDB_API_TOKEN` | unset | TMDB read-access token. Unset: search/import answer 502 PROVIDER_UNAVAILABLE; saved catalog keeps serving |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | Google sign-in. Unset: `/auth/google/*` and `/me/identities*` are not mounted |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM` | — | Required mail transport (loopback capture needs no credentials) |
+
+`TMDB_FIXTURE_BASE` and `GOOGLE_FIXTURE_ISSUER` point the providers at the e2e fixture
+servers and accept only plain-HTTP loopback addresses. The web app guards private routes
+(`apps/web/src/proxy.ts`) and lists TMDB attribution at `/about`.
 
 `DATABASE_URL` is required. Invalid configuration exits with a fixed message and
 nonzero status without printing values. The API starts when PostgreSQL is offline:
@@ -57,8 +77,10 @@ yarn playwright install chromium
 yarn test:e2e
 ```
 
-Stop `yarn dev` before e2e: Playwright starts isolated API/web processes and requires
-DATABASE_URL. `yarn health:smoke` checks both endpoints through the running web
+Stop `yarn dev` before e2e: Playwright starts isolated API/web processes plus the
+TMDB/Google fixture servers (`tests/e2e/alpha-fixtures`, ports 4010/4011), and requires
+DATABASE_URL and the Mailpit API (`MAILPIT_API`, default http://127.0.0.1:8029) for real
+email links. `tests/e2e/alpha.spec.ts` is the R24 alpha gate. `yarn health:smoke` checks both endpoints through the running web
 server; set SMOKE_ORIGIN to check another origin. E2e captures 390/1440 screenshots
 and checks 320px overflow and the 860px gutter breakpoint. The foundation page is
 static and has no interactive controls or loading/error states.
@@ -97,8 +119,8 @@ actual validation results, and the issue closed on merge.
 ## Deployment inputs
 
 Production deployment is outside this issue. Supply a private PostgreSQL connection,
-SMTP transport credentials/TLS, Google/TMDB credentials, and a domain/TLS reverse
-proxy with one public origin. Configure API_ORIGIN before building Next.js and
-API_BIND for the private runtime network. Never expose backend credentials with
+SMTP transport credentials/TLS, Google/TMDB credentials, an approved TMDB logo for `/about`,
+and a domain/TLS reverse proxy with one public origin (`PUBLIC_ORIGIN`). Configure API_ORIGIN
+before building Next.js and API_BIND for the private runtime network. Never expose backend credentials with
 NEXT_PUBLIC_* variables. Development credentials in .env.example and Compose are
 for disposable local services only. No provider calls or account data ship here.
