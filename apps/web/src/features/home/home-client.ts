@@ -20,7 +20,7 @@ interface Tracker {
   shown: ShowLoad;
 }
 
-/** Listings change when progress or releases do; a key per state keeps notes current. */
+/** A listing read for another progress state is not shown; it may name an episode now watched. */
 const upcomingKey = (item: LibraryItem) =>
   `${item.showId}:${item.progress.state}:${item.progress.watched}:${item.progress.total}:${item.progress.releaseInfoIncomplete}`;
 
@@ -35,7 +35,9 @@ export function createHomeClient(api: HomeApi, toasts: ToastControls) {
   const listeners = new Set<() => void>();
   const trackers = new Map<string, Tracker>();
   const pending = new Set<string>();
-  const upcoming = new Map<string, readonly Episode[] | null>();
+  /** Last good listing per caught-up show, and the read in flight for it. */
+  const listings = new Map<string, { key: string; episodes: readonly Episode[] }>();
+  const reads = new Map<string, { key: string }>();
   let load: HomeLoad = { status: "loading" };
   let generation = 0;
   let controller: AbortController | null = null;
@@ -45,7 +47,12 @@ export function createHomeClient(api: HomeApi, toasts: ToastControls) {
     const busy = new Set(pending);
     for (const [showId, tracker] of trackers) if (tracker.client.getSnapshot().busy.size > 0) busy.add(showId);
     const notes: Record<string, readonly Episode[] | null> = {};
-    if (load.status === "ready") for (const item of load.home.caughtUp) notes[item.showId] = upcoming.get(upcomingKey(item)) ?? null;
+    if (load.status === "ready") {
+      for (const item of load.home.caughtUp) {
+        const listing = listings.get(item.showId);
+        notes[item.showId] = listing?.key === upcomingKey(item) ? listing.episodes : null;
+      }
+    }
     return { load, busy, upcoming: notes };
   }
   function emit() {
@@ -93,17 +100,31 @@ export function createHomeClient(api: HomeApi, toasts: ToastControls) {
     emit();
   }
 
+  /**
+   * Every Home read rereads the listings, so release dates announced or moved since the last read
+   * show up. A failed read keeps the last good listing and is tried again on the next Home read.
+   */
   async function fetchUpcoming(item: LibraryItem) {
     const key = upcomingKey(item);
-    if (upcoming.has(key)) return;
-    upcoming.set(key, null);
-    const show = await api.tracking.getShow(item.showId);
-    const latest = show.ok ? Math.max(0, ...show.data.seasons.filter((season) => season.number > 0 && season.count > 0).map((season) => season.number)) : 0;
-    if (!latest) return;
-    const episodes = await api.tracking.listSeason(item.showId, latest);
-    if (!episodes.ok) return;
-    upcoming.set(key, episodes.data);
+    if (reads.get(item.showId)?.key === key) return;
+    const run = { key };
+    reads.set(item.showId, run);
+    const episodes = await readLatestSeason(item.showId);
+    if (reads.get(item.showId) !== run) return;
+    reads.delete(item.showId);
+    if (!episodes) return;
+    listings.set(item.showId, { key, episodes });
     emit();
+  }
+
+  /** The latest regular season's listing; empty when the show has none, null when a read failed. */
+  async function readLatestSeason(showId: string): Promise<readonly Episode[] | null> {
+    const show = await api.tracking.getShow(showId);
+    if (!show.ok) return null;
+    const latest = Math.max(0, ...show.data.seasons.filter((season) => season.number > 0 && season.count > 0).map((season) => season.number));
+    if (!latest) return [];
+    const episodes = await api.tracking.listSeason(showId, latest);
+    return episodes.ok ? episodes.data : null;
   }
 
   /** The show must be loaded first so the tracking client knows it is already saved. */

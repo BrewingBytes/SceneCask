@@ -56,7 +56,8 @@ Acceptance criteria (fixture API at the `/api/v1` boundary):
   hand-run browser session.
 - These tests use a fixture API, not live integration (R24 owns that gate).
 - `GET /home` carries no release dates, so caught-up notes read the show and its latest season
-  per caught-up show (two reads each). A dedicated field would be a contract change for R03.
+  per caught-up show (two reads each) on every Home read, so new dates and failed reads recover
+  on return. A dedicated field would be a contract change for R03.
 - The shell's Home tab still links to `/` on other routes. Welcome forwards a signed-in session
   to `/home`; switching `homeHref` app-wide is R24's integration work.
 - The page mounts its own ToastViewport until a root one exists. Registering this suite in CI is

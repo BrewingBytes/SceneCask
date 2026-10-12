@@ -194,6 +194,27 @@ test("a caught-up show lists what it waits for; a new release moves it back on r
   expect(fake.homeReads().length).toBeGreaterThan(reads);
 });
 
+test("returning to the tab rereads caught-up listings: a failed read retries, a new date shows", async ({ page }) => {
+  const fake = allCaught();
+  let failNight = true;
+  await page.route("**/api/v1/**", (route, request) => {
+    if (failNight && new URL(request.url()).pathname.endsWith(`/shows/${showId(NIGHT)}`)) return error(route, 503, "SERVICE_UNAVAILABLE");
+    return fake.handle(route, request);
+  });
+  await page.goto("/home");
+  const night = caught(page).getByRole("listitem").filter({ hasText: "Night Shift" });
+  const paper = caught(page).getByRole("listitem").filter({ hasText: "Paper Moons" });
+  await expect(paper).toContainText("S1 E2 · Release date unknown");
+  await expect(night).toContainText("Release info incomplete");
+
+  // Progress is unchanged, so only rereading the listings can pick these up.
+  failNight = false;
+  Object.assign(fake.shows[1].byId.get(ep(PAPER, 1, 2).id)!, { state: "future", date: "2026-12-03" });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(night).toContainText("S2 E3 · Airs Nov 12, 2026 (estimated)");
+  await expect(paper).toContainText("S1 E2 · Airs Dec 3, 2026 (estimated)");
+});
+
 test("an empty library keeps the solo search journey; no social area is required", async ({ page }) => {
   const fake = new FakeHome();
   await openHome(page, fake);
