@@ -65,6 +65,26 @@ pub async fn lock_pair(conn: &mut PgConnection, a: Uuid, b: Uuid) -> Result<(), 
         .map(drop)
 }
 
+/// Deletes each user's discussion reveal grants for threads the other hosts. Removing an edge
+/// ends their mutuality, so a later follow that restores it must not reopen a thread revealed
+/// before (C09 #7). R26 blocks take the same step under [`lock_pair`].
+pub async fn revoke_discussion_grants(
+    conn: &mut PgConnection,
+    a: Uuid,
+    b: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "DELETE FROM reveal_grants g USING discussions d
+         WHERE g.scope = 'discussion' AND g.resource_id = d.id
+           AND ((g.user_id = $1 AND d.host_id = $2) OR (g.user_id = $2 AND d.host_id = $1))",
+    )
+    .bind(a)
+    .bind(b)
+    .execute(conn)
+    .await
+    .map(drop)
+}
+
 /// 422 until the caller has chosen a handle (C06 social writes).
 fn require_handle(current: &CurrentSession) -> Result<Uuid, ApiError> {
     current
@@ -153,6 +173,7 @@ async fn follow(
 /// `DELETE /people/{id}/follow` (`FOLLOWER = false`) withdraws a pending request or unfollows;
 /// `DELETE /me/followers/{id}` (`FOLLOWER = true`) removes an approved follower. Both are
 /// idempotent and silent, leave the reverse edge alone, and delete the edge's notification with it.
+/// Removing an edge also revokes the pair's discussion reveal grants.
 async fn remove_edge<const FOLLOWER: bool>(
     VerifiedUser(current): VerifiedUser,
     State(security): State<Security>,
@@ -168,7 +189,7 @@ async fn remove_edge<const FOLLOWER: bool>(
     };
     let mut tx = security.pool.begin().await?;
     lock_pair(&mut tx, follower, followee).await?;
-    sqlx::query(
+    let removed = sqlx::query(
         "DELETE FROM follows
          WHERE follower_id = $1 AND followee_id = $2 AND ($3::text IS NULL OR state = $3)",
     )
@@ -176,7 +197,11 @@ async fn remove_edge<const FOLLOWER: bool>(
     .bind(followee)
     .bind(state)
     .execute(&mut *tx)
-    .await?;
+    .await?
+    .rows_affected();
+    if removed > 0 {
+        revoke_discussion_grants(&mut tx, follower, followee).await?;
+    }
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

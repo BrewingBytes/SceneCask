@@ -343,6 +343,72 @@ async fn decline_remove_and_unfollow_revoke_access_immediately_and_notify_nobody
     );
 }
 
+/// A discussion hosted by `host` with a one-hour discussion reveal grant on each session of
+/// `viewer`.
+async fn revealed_discussion(pool: &PgPool, host: Uuid, viewer: Uuid) {
+    let (_, episodes) = seed_show(pool, "Thread show", "returning", &[released(1, 1)]).await;
+    let discussion: Uuid = sqlx::query_scalar(
+        "INSERT INTO discussions (host_id, episode_id) VALUES ($1, $2) RETURNING id",
+    )
+    .bind(host)
+    .bind(episodes[0])
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO reveal_grants (session_id, user_id, scope, resource_id, expires_at)
+         SELECT id_hash, user_id, 'discussion', $2, now() + interval '1 hour'
+         FROM sessions WHERE user_id = $1",
+    )
+    .bind(viewer)
+    .bind(discussion)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[sqlx::test]
+async fn unfollow_and_follower_removal_revoke_the_pairs_discussion_grants(pool: PgPool) {
+    let f = fixture(pool).await;
+    let bo = f.member("bo_i", "public").await;
+    let cy = f.member("cy_t", "public").await;
+    let grants = || count(&f.pool, "SELECT count(*) FROM reveal_grants");
+    let mutual = async |a: &TestUser, b: &TestUser| {
+        f.follow(a, b.id).await;
+        f.follow(b, a.id).await;
+        f.decide(a, b.id, "approve").await;
+        f.decide(b, a.id, "approve").await;
+    };
+    mutual(&f.ana, &bo).await;
+    revealed_discussion(&f.pool, bo.id, f.ana.id).await;
+    revealed_discussion(&f.pool, f.ana.id, bo.id).await;
+    // A grant for someone else's thread is untouched.
+    revealed_discussion(&f.pool, cy.id, f.ana.id).await;
+    assert_eq!(grants().await, 3);
+
+    // Withdrawing nothing revokes nothing; unfollowing revokes both sides of the pair, so
+    // following again does not reopen a thread revealed before.
+    assert_eq!(f.unfollow(&f.ana, cy.id).await, StatusCode::NO_CONTENT);
+    assert_eq!(grants().await, 3);
+    assert_eq!(f.unfollow(&f.ana, bo.id).await, StatusCode::NO_CONTENT);
+    assert_eq!(grants().await, 1);
+    f.follow(&f.ana, bo.id).await;
+    assert_eq!(grants().await, 1);
+
+    // Removing a follower ends mutuality too.
+    revealed_discussion(&f.pool, bo.id, f.ana.id).await;
+    let (status, _) = f
+        .write(
+            &bo,
+            Method::DELETE,
+            &format!("/me/followers/{}", f.ana.id),
+            json!({}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(grants().await, 1);
+}
+
 #[sqlx::test]
 async fn self_unknown_blocked_and_handleless_follows_are_rejected_without_writes(pool: PgPool) {
     let f = fixture(pool).await;
