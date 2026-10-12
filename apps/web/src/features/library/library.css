@@ -1,0 +1,162 @@
+.sc-library {
+  padding-top: var(--sc-space-3);
+}
+.sc-library-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sc-space-2);
+  padding: var(--sc-space-4) 0 var(--sc-space-2);
+  border-bottom: var(--sc-border-section-rule);
+}
+.sc-library-head h1 {
+  margin: 0;
+}
+.sc-library-total {
+  color: var(--sc-color-ink-muted);
+  font-family: var(--sc-type-kicker-family);
+  font-size: var(--sc-type-kicker-size);
+  letter-spacing: var(--sc-type-kicker-tracking);
+  text-transform: var(--sc-type-kicker-case);
+}
+.sc-library-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sc-space-3);
+  padding-top: var(--sc-space-4);
+}
+.sc-library-search {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+.sc-library-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-1);
+}
+.sc-library-filter {
+  min-height: var(--sc-layout-touch-target-min);
+  padding: 0 var(--sc-space-3);
+  border: 0;
+  border-radius: var(--sc-radius-pill);
+  background: var(--sc-color-paper-2);
+  color: var(--sc-color-ink);
+  font: inherit;
+  font-size: var(--sc-type-label-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+.sc-library-filter[aria-pressed="true"] {
+  background: var(--sc-color-ink);
+  color: var(--sc-color-paper);
+}
+.sc-library-filter:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-library-count {
+  font-family: var(--sc-type-code-family);
+  font-weight: 400;
+}
+.sc-library-hint {
+  min-height: 20px;
+  margin: var(--sc-space-2) 0;
+  color: var(--sc-color-ink-muted);
+  font-size: var(--sc-type-label-size);
+}
+.sc-library-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
+  gap: 0 var(--sc-space-7);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-library-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-3);
+  min-width: 0;
+  padding: var(--sc-space-3) 0;
+  border-bottom: var(--sc-border-hairline);
+}
+.sc-library-poster {
+  flex: none;
+  width: 52px;
+}
+.sc-library-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sc-space-1);
+  min-width: 0;
+}
+.sc-library-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.3em;
+  min-height: var(--sc-layout-touch-target-min);
+  color: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+/* The whole row opens the show; the status menu sits above this hit area. */
+.sc-library-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.sc-library-open:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-library-open:hover {
+  text-decoration: underline;
+}
+.sc-library-year {
+  color: var(--sc-color-ink-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sc-library-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1);
+  color: var(--sc-color-ink-secondary);
+  font-size: var(--sc-type-label-size);
+}
+.sc-library-main .sc-progress {
+  max-width: 220px;
+}
+.sc-library-menu {
+  position: relative;
+  z-index: 1;
+  flex: none;
+}
+.sc-library-more {
+  margin-top: var(--sc-space-5);
+}
+.sc-library .sc-error,
+.sc-library .sc-empty {
+  margin-top: var(--sc-space-3);
+}
+/* Only the narrowest phones move the status menu below the title. */
+@media (max-width: 359px) {
+  .sc-library-row {
+    flex-wrap: wrap;
+  }
+  .sc-library-main {
+    flex-basis: calc(100% - 52px - var(--sc-space-3));
+  }
+  .sc-library-menu {
+    margin-left: calc(52px + var(--sc-space-3));
+  }
+}
