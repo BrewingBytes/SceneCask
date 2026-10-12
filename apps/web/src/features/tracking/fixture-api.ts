@@ -110,6 +110,8 @@ export class FakeTrackingApi implements FakeBackend {
     readonly episodes: FakeEpisode[],
     watched: string[] = [],
     public library: FakeLibrary | null = null,
+    /** Show identity, so one suite can serve several shows (Home); defaults to the fixture show. */
+    readonly show: { id: string; title: string } = { id: FIXTURE_SHOW, title: "Hollow Orchard" },
   ) {
     this.byId = new Map(episodes.map((episode) => [episode.id, episode]));
     this.regular = episodes.filter((episode) => episode.season > 0);
@@ -135,7 +137,7 @@ export class FakeTrackingApi implements FakeBackend {
   episodeDto(episode: FakeEpisode) {
     const base = {
       id: episode.id,
-      showId: FIXTURE_SHOW,
+      showId: this.show.id,
       season: episode.season,
       number: episode.number,
       release: { state: episode.state, date: episode.date, timezone: episode.date ? "UTC" : null, estimated: episode.state === "future" },
@@ -156,8 +158,8 @@ export class FakeTrackingApi implements FakeBackend {
     const next = regular.find((episode) => episode.state === "released" && !this.watched(episode.id));
     const firstGap = regular.findIndex((episode) => episode.state === "released" && !this.watched(episode.id));
     return {
-      showId: FIXTURE_SHOW,
-      title: "Hollow Orchard",
+      showId: this.show.id,
+      title: this.show.title,
       year: 2024,
       posterUrl: null,
       saved: this.library?.saved ?? false,
@@ -178,8 +180,8 @@ export class FakeTrackingApi implements FakeBackend {
     const seasons = new Map<number, number>();
     for (const episode of this.episodes) seasons.set(episode.season, (seasons.get(episode.season) ?? 0) + 1);
     return {
-      id: FIXTURE_SHOW,
-      title: "Hollow Orchard",
+      id: this.show.id,
+      title: this.show.title,
       year: 2024,
       genres: ["Drama", "Mystery"],
       synopsis: "A small orchard town keeps its secrets.",
@@ -262,8 +264,8 @@ export class FakeTrackingApi implements FakeBackend {
     return serve(this, route, request);
   }
   read(path: string, url: URL): unknown {
-    if (path === `/shows/${FIXTURE_SHOW}`) return this.showDto();
-    if (path === `/shows/${FIXTURE_SHOW}/episodes`) {
+    if (path === `/shows/${this.show.id}`) return this.showDto();
+    if (path === `/shows/${this.show.id}/episodes`) {
       const season = Number(url.searchParams.get("season"));
       return { items: this.episodes.filter((episode) => episode.season === season).map((episode) => this.episodeDto(episode)), nextCursor: null };
     }
@@ -277,7 +279,7 @@ export class FakeTrackingApi implements FakeBackend {
       if (body!.expectedRevision !== this.revision(id)) return [409, "REVISION_CONFLICT"];
       return [200, this.write([id], body!.watched as boolean, true)];
     }
-    if (path === `/library/${FIXTURE_SHOW}`) {
+    if (path === `/library/${this.show.id}`) {
       if (body!.expectedRevision !== (this.library?.revision ?? 0)) return [409, "REVISION_CONFLICT"];
       const before = this.library ? { ...this.library } : null;
       const next: FakeLibrary =
@@ -288,14 +290,14 @@ export class FakeTrackingApi implements FakeBackend {
       this.library = { ...next, revision: (before?.revision ?? 0) + 1 };
       return [200, this.changed([], { before, after: this.library.revision })];
     }
-    if (method === "POST" && path === `/shows/${FIXTURE_SHOW}/catch-up/preview`) return [200, this.preview(body!.throughEpisodeId as string)];
-    if (method === "POST" && path === `/shows/${FIXTURE_SHOW}/catch-up`) {
+    if (method === "POST" && path === `/shows/${this.show.id}/catch-up/preview`) return [200, this.preview(body!.throughEpisodeId as string)];
+    if (method === "POST" && path === `/shows/${this.show.id}/catch-up`) {
       const preview = this.previews.get(body!.previewId as string);
       if (!preview) return [410, "ACTION_EXPIRED"];
       if (preview.tracking !== this.tracking) return [409, "PREVIEW_STALE"];
       return [200, this.write(preview.included, true, true)];
     }
-    if (method === "DELETE" && path === `/shows/${FIXTURE_SHOW}/history`) {
+    if (method === "DELETE" && path === `/shows/${this.show.id}/history`) {
       if (body!.expectedRevision !== this.tracking) return [409, "REVISION_CONFLICT"];
       return [200, this.write(this.episodes.map((episode) => episode.id), false, false)];
     }

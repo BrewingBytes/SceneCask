@@ -1,3 +1,8 @@
-export default function Home() {
-  return <main><p className="kicker">SceneCask</p><h1>A place for your TV story.</h1><p>Your personal TV tracker is taking shape.</p></main>;
+import type { Metadata } from "next";
+import { Welcome } from "../features/home";
+
+export const metadata: Metadata = { title: "SceneCask · Keep track of your shows" };
+
+export default function WelcomePage() {
+  return <Welcome />;
 }
