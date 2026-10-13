@@ -668,6 +668,13 @@ async fn create_is_idempotent_per_host_and_episode_and_race_safe(pool: PgPool) {
     assert!(status.is_client_error());
     assert_csrf_required(&f.app, &bo, Method::POST, &path, "{}").await;
     assert_eq!(count(&f.pool, "SELECT count(*) FROM discussions").await, 3);
+
+    // Before onboarding there is no host card to list, so hosting needs a handle first.
+    let fresh = TestUser::create(&f.test.security, true, "member").await;
+    let (status, headers, body) = send(&f.app, Call::post(&path, "{}").signed(&fresh.signed)).await;
+    assert_error(status, &headers, &body, 422, "VALIDATION_ERROR");
+    assert!(body["error"]["fields"]["handle"].is_string());
+    assert_eq!(count(&f.pool, "SELECT count(*) FROM discussions").await, 3);
 }
 
 async fn futures_join<T: Send + 'static>(

@@ -25,7 +25,7 @@ use crate::{
             self, Access, Discussion, DiscussionGate, DiscussionSummary, Grant, RevealScope,
         },
     },
-    error::ApiError,
+    error::{ApiError, ErrorCode},
     middleware::{
         Security,
         json::{ApiJson, EmptyRequest},
@@ -233,6 +233,11 @@ async fn create(
     ApiJson(EmptyRequest {}): ApiJson<EmptyRequest>,
 ) -> Result<(StatusCode, Json<DiscussionResult>), ApiError> {
     let episode_id = path_id(&id)?;
+    // A host card needs a handle, so a thread created before onboarding could never be listed.
+    if current.user.handle.is_none() {
+        return Err(ApiError::new(ErrorCode::ValidationError)
+            .with_field("handle", "Choose a handle before hosting a discussion."));
+    }
     let key = SessionKey::of(&current);
     let host = key.user_id();
     let mut conn = security.pool.acquire().await?;
