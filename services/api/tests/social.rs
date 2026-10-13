@@ -16,21 +16,12 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    Call, MemberFixture, TestUser, assert_error, checked, count, disable, profile, released,
+    Call, MemberFixture, TestUser, assert_error, block, checked, count, disable, profile, released,
     seed_show, send, social_fixture,
 };
 
 async fn fixture(pool: PgPool) -> MemberFixture {
     social_fixture(pool, social::routes).await
-}
-
-async fn block(pool: &PgPool, blocker: Uuid, blocked: Uuid) {
-    sqlx::query("INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)")
-        .bind(blocker)
-        .bind(blocked)
-        .execute(pool)
-        .await
-        .unwrap();
 }
 
 /// Saves a show with one watched episode to `user`'s library.

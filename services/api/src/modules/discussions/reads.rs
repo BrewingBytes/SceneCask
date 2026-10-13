@@ -13,19 +13,16 @@ use axum::{
 };
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Serialize;
+use sqlx::PgConnection;
 use uuid::Uuid;
 
-use super::{Page, PageParams, path_id, snapshot, threads::EpisodeCatalog};
+use super::{Page, PageParams, path_id, snapshot, unlocked, visible_comment};
 use crate::{
-    domain::spoilers::RevealScope,
-    error::{ApiError, ErrorCode},
+    error::ApiError,
     middleware::Security,
     modules::{
         auth::session::{Role, VerifiedUser},
-        policy::{
-            grants::{self, SessionKey},
-            relationships,
-        },
+        policy::grants::SessionKey,
         social::people::{Person, PersonRow, person, person_columns},
     },
 };
@@ -39,7 +36,7 @@ pub fn routes(security: Security) -> Router {
 /// API `Comment`. A tombstone keeps its position but never its original body.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Comment {
+pub(super) struct Comment {
     id: Uuid,
     author: Option<Person>,
     body: Option<String>,
@@ -47,6 +44,29 @@ struct Comment {
     removed: bool,
     can_delete: bool,
     can_moderate: bool,
+}
+
+impl Comment {
+    /// The DTO of `row` for a viewer who may delete their own comments, and every comment when
+    /// they host the thread or are an operator.
+    pub(super) fn new(
+        row: CommentRow,
+        author: Option<Person>,
+        own: bool,
+        moderates_thread: bool,
+        operator: bool,
+    ) -> Self {
+        let (id, created_at, _, body, removed) = row;
+        Self {
+            id,
+            author,
+            body: body.filter(|_| !removed),
+            created_at: created_at.to_rfc3339_opts(SecondsFormat::Millis, true),
+            removed,
+            can_delete: !removed && (own || moderates_thread || operator),
+            can_moderate: !removed && operator,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -57,7 +77,7 @@ struct CommentsPage {
 }
 
 /// id, createdAt, author, body, removed.
-type CommentRow = (Uuid, DateTime<Utc>, Option<Uuid>, Option<String>, bool);
+pub(super) type CommentRow = (Uuid, DateTime<Utc>, Option<Uuid>, Option<String>, bool);
 
 async fn list(
     VerifiedUser(current): VerifiedUser,
@@ -71,37 +91,17 @@ async fn list(
     let viewer = key.user_id();
     let operator = current.user.role == Role::Operator;
     let mut tx = snapshot(&security.pool).await?;
-    let (discussion, member) = relationships::discussion_member(&mut tx, viewer, discussion_id)
-        .await?
-        .ok_or_else(ApiError::not_found)?;
-    let episode_id: Uuid = sqlx::query_scalar("SELECT episode_id FROM discussions WHERE id = $1")
-        .bind(discussion_id)
-        .fetch_one(&mut *tx)
-        .await?;
-    let catalog = EpisodeCatalog::load(&mut tx, viewer, episode_id)
-        .await?
-        .ok_or_else(ApiError::not_found)?;
-    let stored = grants::live(&mut tx, &key, RevealScope::Discussion, &[discussion_id]).await?;
-    catalog
-        .gate(&key, &member, discussion, &stored, Utc::now())
-        .unlocked()
-        .map_err(|_| ApiError::new(ErrorCode::SpoilerLocked))?;
+    let member = unlocked(&mut tx, &key, discussion_id).await?;
 
-    let query = sqlx::query_as(
+    let query = sqlx::query_as(concat!(
         "SELECT c.id, c.created_at, c.author_id, c.body, c.removed_at IS NOT NULL
          FROM comments c
-         WHERE c.discussion_id = $2
-           AND NOT EXISTS (SELECT 1 FROM hidden_comments h
-                           WHERE h.user_id = $1 AND h.comment_id = c.id)
-           AND NOT EXISTS (SELECT 1 FROM reports r
-                           WHERE r.reporter_id = $1 AND r.comment_id = c.id)
-           AND NOT EXISTS (SELECT 1 FROM blocks b
-                           WHERE (b.blocker_id = $1 AND b.blocked_id = c.author_id)
-                              OR (b.blocker_id = c.author_id AND b.blocked_id = $1))
-           AND ($3::timestamptz IS NULL OR (c.created_at, c.id) > ($3, $4))
+         WHERE c.discussion_id = $2 AND ",
+        visible_comment!(),
+        " AND ($3::timestamptz IS NULL OR (c.created_at, c.id) > ($3, $4))
          ORDER BY c.created_at, c.id
-         LIMIT $5",
-    )
+         LIMIT $5"
+    ))
     .bind(viewer)
     .bind(discussion_id);
     let mut rows: Vec<CommentRow> = page.bind(query).fetch_all(&mut *tx).await?;
@@ -110,38 +110,40 @@ async fn list(
     let mut author_ids: Vec<Uuid> = rows.iter().filter_map(|row| row.2).collect();
     author_ids.sort_unstable();
     author_ids.dedup();
-    // A disabled (deleting) account keeps its comments until erasure, but no identity.
-    let authors: Vec<PersonRow> = sqlx::query_as(concat!(
+    let authors = authors(&mut tx, viewer, &author_ids).await?;
+    tx.commit().await?;
+
+    let items = rows
+        .into_iter()
+        .map(|row| {
+            let author = row.2.and_then(|author| authors.get(&author).cloned());
+            let own = row.2 == Some(viewer);
+            Comment::new(row, author, own, member.is_host(), operator)
+        })
+        .collect();
+    Ok(Json(CommentsPage { items, next_cursor }))
+}
+
+/// The cards of `ids` as `viewer` sees them, keyed by ID. A disabled (deleting) account keeps its
+/// comments until erasure, but no identity.
+pub(super) async fn authors(
+    conn: &mut PgConnection,
+    viewer: Uuid,
+    ids: &[Uuid],
+) -> Result<HashMap<Uuid, Person>, sqlx::Error> {
+    let rows: Vec<PersonRow> = sqlx::query_as(concat!(
         "SELECT ",
         person_columns!(),
         " FROM users u
           WHERE u.id = ANY($2) AND u.verified_at IS NOT NULL AND u.disabled_at IS NULL"
     ))
     .bind(viewer)
-    .bind(&author_ids)
-    .fetch_all(&mut *tx)
+    .bind(ids)
+    .fetch_all(conn)
     .await?;
-    tx.commit().await?;
-    let authors: HashMap<Uuid, Person> = authors
+    Ok(rows
         .into_iter()
         .filter_map(|row| person(viewer, row))
         .map(|person| (person.id, person))
-        .collect();
-
-    let items = rows
-        .into_iter()
-        .map(|(id, created_at, author_id, body, removed)| {
-            let own = author_id == Some(viewer);
-            Comment {
-                id,
-                author: author_id.and_then(|author| authors.get(&author).cloned()),
-                body: body.filter(|_| !removed),
-                created_at: created_at.to_rfc3339_opts(SecondsFormat::Millis, true),
-                removed,
-                can_delete: !removed && (own || member.is_host() || operator),
-                can_moderate: !removed && operator,
-            }
-        })
-        .collect();
-    Ok(Json(CommentsPage { items, next_cursor }))
+        .collect())
 }

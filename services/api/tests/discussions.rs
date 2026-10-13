@@ -12,8 +12,9 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    Call, MemberFixture, Signed, TestUser, assert_csrf_required, assert_error, checked, count,
-    disable, released, seed_show, send, social_fixture,
+    Call, MemberFixture, Signed, TestUser, approve, assert_csrf_required, assert_error, block,
+    checked, comment, count, disable, mark, mutual, released, seed_show, send, social_fixture,
+    thread,
 };
 
 async fn fixture(pool: PgPool) -> MemberFixture {
@@ -35,71 +36,6 @@ async fn show(pool: &PgPool) -> [Uuid; 4] {
     )
     .await;
     ids.try_into().unwrap()
-}
-
-async fn approve(pool: &PgPool, follower: Uuid, followee: Uuid) {
-    sqlx::query(
-        "INSERT INTO follows (follower_id, followee_id, state) VALUES ($1, $2, 'approved')
-         ON CONFLICT (follower_id, followee_id) DO UPDATE SET state = 'approved'",
-    )
-    .bind(follower)
-    .bind(followee)
-    .execute(pool)
-    .await
-    .unwrap();
-}
-
-async fn mutual(pool: &PgPool, a: Uuid, b: Uuid) {
-    approve(pool, a, b).await;
-    approve(pool, b, a).await;
-}
-
-async fn mark(pool: &PgPool, user: Uuid, episodes: &[Uuid]) {
-    for episode in episodes {
-        sqlx::query(
-            "INSERT INTO episode_progress (user_id, episode_id, watched, revision)
-             VALUES ($1, $2, true, 1)",
-        )
-        .bind(user)
-        .bind(episode)
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-}
-
-async fn thread(pool: &PgPool, host: Uuid, episode: Uuid) -> Uuid {
-    sqlx::query_scalar("INSERT INTO discussions (host_id, episode_id) VALUES ($1, $2) RETURNING id")
-        .bind(host)
-        .bind(episode)
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-/// A live comment `seconds` after the epoch of this test, so ordering is deterministic.
-async fn comment(pool: &PgPool, discussion: Uuid, author: Uuid, body: &str, seconds: i32) -> Uuid {
-    sqlx::query_scalar(
-        "INSERT INTO comments (discussion_id, author_id, body, created_at)
-         VALUES ($1, $2, $3, timestamptz '2026-10-01T00:00:00Z' + make_interval(secs => $4))
-         RETURNING id",
-    )
-    .bind(discussion)
-    .bind(author)
-    .bind(body)
-    .bind(f64::from(seconds))
-    .fetch_one(pool)
-    .await
-    .unwrap()
-}
-
-async fn block(pool: &PgPool, blocker: Uuid, blocked: Uuid) {
-    sqlx::query("INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)")
-        .bind(blocker)
-        .bind(blocked)
-        .execute(pool)
-        .await
-        .unwrap();
 }
 
 /// Asserts a payload carries none of the seeded episode's protected title, overview or still.
