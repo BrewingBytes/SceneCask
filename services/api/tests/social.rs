@@ -9,24 +9,19 @@
 //! unblock restores no relationship.
 
 use axum::http::{Method, StatusCode};
-use scenecask_api::modules::{policy, social};
+use scenecask_api::modules::social;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 mod common;
 use common::{
-    Call, MemberFixture, TestUser, assert_error, checked, count, disable, member_fixture, profile,
-    released, seed_show, send,
+    Call, MemberFixture, TestUser, assert_error, checked, count, disable, profile, released,
+    seed_show, send, social_fixture,
 };
 
 async fn fixture(pool: PgPool) -> MemberFixture {
-    let f = member_fixture(pool, |security| {
-        social::routes(security.clone()).merge(policy::routes(security.clone()))
-    })
-    .await;
-    profile(&f.pool, f.ana.id, "ana_r", "Ana Rusu", "private").await;
-    f
+    social_fixture(pool, social::routes).await
 }
 
 async fn block(pool: &PgPool, blocker: Uuid, blocked: Uuid) {

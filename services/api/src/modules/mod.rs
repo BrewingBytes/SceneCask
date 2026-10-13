@@ -3,6 +3,7 @@
 pub mod account;
 pub mod auth;
 pub mod catalog;
+pub mod discussions;
 pub mod library;
 pub mod mail;
 pub mod policy;

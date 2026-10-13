@@ -23,6 +23,7 @@ use scenecask_api::{
         auth::{AuthMail, password::REAUTH_WINDOW, session::start_session},
         catalog::refresh::Clock,
         mail::Worker,
+        policy,
     },
 };
 use serde_json::{Value, json};
@@ -327,6 +328,20 @@ pub async fn profile(pool: &PgPool, id: Uuid, handle: &str, name: &str, visibili
         .execute(pool)
         .await
         .unwrap();
+}
+
+/// A `member_fixture` serving `routes` plus reveals, with Ana's private `ana_r` profile, for
+/// social and discussion tests.
+pub async fn social_fixture(
+    pool: PgPool,
+    routes: impl FnOnce(Security) -> Router,
+) -> MemberFixture {
+    let f = member_fixture(pool, |security| {
+        routes(security.clone()).merge(policy::routes(security.clone()))
+    })
+    .await;
+    profile(&f.pool, f.ana.id, "ana_r", "Ana Rusu", "private").await;
+    f
 }
 
 impl MemberFixture {
