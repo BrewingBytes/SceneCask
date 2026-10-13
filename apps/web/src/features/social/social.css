@@ -1,0 +1,235 @@
+/* D08 social surfaces: one 760px reading column, hairline rows, 44px targets. */
+.sc-social {
+  padding-block: var(--sc-space-3) var(--sc-space-8);
+}
+.sc-social-title {
+  margin: var(--sc-space-4) 0 0;
+  overflow-wrap: anywhere;
+}
+.sc-social-title:focus-visible,
+.sc-social-panel-title:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-social a:not(.sc-button),
+.sc-social-section a:not(.sc-button) {
+  color: inherit;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.sc-social-lede,
+.sc-social-note {
+  margin: var(--sc-space-3) 0 0;
+  color: var(--sc-color-ink-secondary);
+  font-family: var(--sc-font-reading);
+  line-height: var(--sc-type-reading-line);
+}
+.sc-social-note {
+  font-size: var(--sc-type-label-size);
+  font-family: var(--sc-font-ui);
+}
+.sc-social-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-4);
+  margin: var(--sc-space-4) 0 0;
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-paper-2);
+}
+.sc-social-notice p {
+  margin: 0;
+}
+.sc-social .sc-tabs {
+  margin-top: var(--sc-space-6);
+}
+.sc-social-panel {
+  display: grid;
+  gap: var(--sc-space-3);
+  padding-top: var(--sc-space-4);
+}
+.sc-social-panel-title,
+.sc-social-section h2 {
+  margin: 0;
+  padding-bottom: var(--sc-space-2);
+  border-bottom: var(--sc-border-section-rule);
+  font-size: var(--sc-type-section-size);
+}
+.sc-social-section {
+  display: grid;
+  gap: var(--sc-space-3);
+  margin-top: var(--sc-space-7);
+}
+.sc-social-loading {
+  display: grid;
+  gap: var(--sc-space-3);
+  margin-top: var(--sc-space-4);
+}
+.sc-social-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-social-list > li {
+  border-bottom: var(--sc-border-hairline);
+}
+
+/* A person: initials, name and handle, then the action, wrapping below on phones. */
+.sc-social-person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-3);
+  padding-block: var(--sc-space-3);
+}
+.sc-social-person-main {
+  display: grid;
+  flex: 1 1 220px;
+  gap: var(--sc-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sc-social-person-name {
+  font-weight: 700;
+}
+.sc-social-person-name a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--sc-layout-touch-target-min);
+}
+.sc-social-handle {
+  color: var(--sc-color-ink-muted);
+  font-weight: 500;
+  font-size: var(--sc-type-label-size);
+}
+.sc-social-person-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-1) var(--sc-space-2);
+  margin: 0;
+  color: var(--sc-color-ink-secondary);
+  font-size: var(--sc-type-label-size);
+}
+.sc-social-person-action,
+.sc-social-follow,
+.sc-social-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-space-2);
+}
+
+/* Profile header. */
+.sc-social-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-4);
+  margin-top: var(--sc-space-4);
+}
+.sc-social-profile .sc-social-title {
+  margin: 0;
+}
+.sc-social-profile-main {
+  display: grid;
+  gap: var(--sc-space-1);
+  min-width: 0;
+}
+.sc-social-profile-actions {
+  margin-top: var(--sc-space-4);
+}
+.sc-social-locked {
+  padding: var(--sc-space-4);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-paper-2);
+}
+.sc-social-locked p {
+  margin: 0;
+}
+.sc-social-locked-title {
+  margin-bottom: var(--sc-space-1) !important;
+  font-weight: 700;
+}
+
+/* Shows in a visible library or a recommendation. */
+.sc-social-show {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-4);
+  padding-block: var(--sc-space-3);
+}
+.sc-social-poster {
+  flex: none;
+  width: 56px;
+}
+.sc-social-show-main {
+  display: grid;
+  flex: 1;
+  gap: var(--sc-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sc-social-show-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sc-space-1);
+  min-height: var(--sc-layout-touch-target-min);
+  align-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* Activity rows. */
+.sc-social-activity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sc-space-3);
+  padding-block: var(--sc-space-3);
+}
+.sc-social-activity-main {
+  display: grid;
+  gap: var(--sc-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sc-social-activity-text {
+  margin: 0;
+  font-family: var(--sc-font-reading);
+  font-size: var(--sc-type-reading-size-0);
+  line-height: 1.6;
+}
+.sc-social-activity-text a {
+  display: inline-block;
+  min-height: var(--sc-layout-touch-target-min);
+  line-height: var(--sc-layout-touch-target-min);
+}
+.sc-social-activity-text .sc-social-person-name {
+  font-family: var(--sc-font-ui);
+}
+.sc-social-time {
+  color: var(--sc-color-ink-muted);
+  font-family: var(--sc-font-code);
+  font-size: 12px;
+}
+
+/* Live regions stay rendered (not display: none) so later messages are announced. */
+.sc-social-status,
+.sc-social-problem {
+  margin: 0;
+  font-size: var(--sc-type-label-size);
+}
+.sc-social-status {
+  color: var(--sc-color-ink-secondary);
+}
+.sc-social-problem:not(:empty) {
+  border-radius: var(--sc-radius-md);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  color: var(--sc-color-error);
+  background: var(--sc-color-error-surface);
+}
+.sc-social-problem a {
+  color: inherit;
+}
