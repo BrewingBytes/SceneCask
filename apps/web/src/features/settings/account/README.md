@@ -32,7 +32,9 @@ toggle. All calls go through the generated client (`api.ts`) on the shared accou
   removed the password) shows the same explanation and re-reads the identities.
 - **Privacy writes.** The radios show the server's visibility, or the choice being saved
   while the request is in flight (`aria-busy`; changes are ignored until it settles). A
-  failed save returns them to the server's value with an alert and Try again.
+  failed save returns them to the server's value with an alert and Try again. A lost
+  response or 5xx can follow a committed write, so the session is re-read before the
+  alert names the account's visibility; if that fails too, it names neither.
 - **Lists** have loading, error with Retry, empty, and cursor "Show more" states. A row
   disappears only after the API accepts. A 404 counts as already removed. Focus goes to
   the section heading.

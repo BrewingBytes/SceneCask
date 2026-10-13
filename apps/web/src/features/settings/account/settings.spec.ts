@@ -381,6 +381,27 @@ test("public switch: a failed save keeps the authoritative visibility and offers
   await expect(alert(page, "Your account is still private.")).toHaveCount(0);
 });
 
+test("public switch: a lost response is checked against the server before anything is claimed", async ({ page }) => {
+  const fake = await open(page);
+  // The write commits, then the response never arrives.
+  fake.overrides.set("PATCH /me/privacy", (route) => {
+    fake.user.visibility = "public";
+    return route.abort();
+  });
+  await radio(page, /^Public/).check();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Make public" }).click();
+  await expect(status(page, "Your account is now public.")).toBeVisible();
+  await expect(radio(page, /^Public/)).toBeChecked();
+  await expect(alert(page, /still private/)).toHaveCount(0);
+
+  // Neither the write nor the re-read answers: the state isn't claimed either way.
+  fake.overrides.set("PATCH /me/privacy", (route) => route.abort());
+  fake.overrides.set("GET /session", (route) => route.abort());
+  await radio(page, /^Private/).check();
+  await expect(alert(page, "We couldn’t confirm your privacy setting.")).toBeVisible();
+  await expect(alert(page, /still/)).toHaveCount(0);
+});
+
 test("followers: removal is confirmed (no notification), changes only after the API accepts", async ({ page }) => {
   const fake = await open(page);
   const followers = section(page, "Followers");

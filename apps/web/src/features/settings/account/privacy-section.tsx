@@ -28,7 +28,15 @@ export function PrivacySection({ api, visibility, onChanged }: PrivacySectionPro
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState<Visibility | null>(null);
   const [status, setStatus] = useState("");
-  const [failed, setFailed] = useState<{ wanted: Visibility; failure: Failure } | null>(null);
+  // `known` is the server's visibility after the failure, or null when it couldn't be confirmed.
+  const [failed, setFailed] = useState<{ wanted: Visibility; failure: Failure; known: Visibility | null } | null>(null);
+
+  function saved(next: Visibility) {
+    onChanged(next);
+    setStatus(
+      next === "public" ? "Your account is now public." : "Your account is now private. Followers you’ve approved keep access.",
+    );
+  }
 
   async function save(wanted: Visibility) {
     setConfirming(false);
@@ -36,17 +44,21 @@ export function PrivacySection({ api, visibility, onChanged }: PrivacySectionPro
     setFailed(null);
     setStatus("");
     const result = await api.setVisibility(wanted);
-    setSaving(null);
     if (result.ok) {
-      onChanged(result.data.visibility);
-      return setStatus(
-        result.data.visibility === "public"
-          ? "Your account is now public."
-          : "Your account is now private. Followers you’ve approved keep access.",
-      );
+      setSaving(null);
+      return saved(result.data.visibility);
     }
     if (result.failure.kind === "auth") return endExpiredSession();
-    setFailed({ wanted, failure: result.failure });
+    // A lost response or a 5xx can follow a committed write: re-read before saying what the account is.
+    let known: Visibility | null = visibility;
+    if (result.failure.kind === "unavailable") {
+      const current = await api.session();
+      known = current.ok && current.data.user ? current.data.user.visibility : null;
+    }
+    setSaving(null);
+    if (known === wanted) return saved(known);
+    if (known && known !== visibility) onChanged(known);
+    setFailed({ wanted, failure: result.failure, known });
   }
 
   /** Ignored while saving. The radios stay enabled so focus can return to them from the warning. */
@@ -84,7 +96,8 @@ export function PrivacySection({ api, visibility, onChanged }: PrivacySectionPro
           failed && (
             <div className="sc-settings-inline-error">
               <p>
-                Your account is still {visibility}. {settingsFailureCopy(failed.failure)}
+                {failed.known ? `Your account is still ${failed.known}.` : "We couldn’t confirm your privacy setting."}{" "}
+                {settingsFailureCopy(failed.failure)}
               </p>
               <Button variant="secondary" onClick={() => (failed.wanted === "public" ? setConfirming(true) : void save(failed.wanted))}>
                 Try again

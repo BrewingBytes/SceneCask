@@ -7,7 +7,7 @@ Prerequisites R10 (#19) and R26 (#27) are closed and merged into `main`. Changes
 
 | Command | Result |
 | --- | --- |
-| `yarn playwright test --config apps/web/src/features/settings/account/playwright.config.ts` | Pass: 22 Chromium tests |
+| `yarn playwright test --config apps/web/src/features/settings/account/playwright.config.ts` | Pass: 23 Chromium tests |
 | `yarn playwright test --config apps/web/src/features/auth/playwright.config.ts` | Pass: 22 tests (after the shared transport extraction) |
 | `yarn playwright test --config apps/web/src/features/library/playwright.config.ts` | 18 pass, 1 fails: "a status change under a filter…" (two Undo toasts). It fails the same way on `main` without these changes |
 | `node apps/web/src/features/settings/account/fixture-server.mjs --build` | Pass |
@@ -29,7 +29,10 @@ Acceptance criteria:
   Nothing is written until Make public. Escape or Cancel keeps Private. While saving, the
   group is `aria-busy` and "Saving your privacy setting…" is announced. A 503 leaves Private
   checked, with an alert "Your account is still private. …" and Try again (which shows the
-  warning again). Success comes from the response's `visibility`.
+  warning again). Success comes from the response's `visibility`. When the response is lost
+  (the route aborts after the fake commits), the session is re-read and the saved Public
+  is announced; when that re-read also fails, the alert says "We couldn’t confirm your
+  privacy setting." instead of claiming either value.
 - **Unblock.** The confirmation reads "Follows between you were removed when you blocked them
   and won’t come back." Success announces "Dee Park is unblocked. Previous follows weren’t
   restored." Only `DELETE /me/blocks/{id}` is sent.
