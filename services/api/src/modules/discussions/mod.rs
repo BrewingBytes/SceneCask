@@ -1,9 +1,11 @@
 //! Hosted episode discussions (C07), relative to `/api/v1`. [`threads`] lists and creates
-//! host-owned threads on an episode and [`reads`] pages a thread's comments. Integration (R38)
+//! host-owned threads on an episode, [`reads`] pages a thread's comments and [`comments`] posts
+//! and removes them. Integration (R38)
 //! mounts [`routes`] only while the beta flag is on. Every request checks the privacy gate in
 //! [`crate::domain::access`] against current edges first, then the spoiler gate in
 //! [`crate::domain::spoilers`] with the viewer's own marks and this session's discussion grants.
 
+pub mod comments;
 pub mod reads;
 pub mod threads;
 
@@ -13,21 +15,47 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
-use sqlx::{PgPool, Postgres, Transaction, postgres::PgArguments, query::QueryAs};
+use sqlx::{PgConnection, PgPool, Postgres, Transaction, postgres::PgArguments, query::QueryAs};
 use uuid::Uuid;
 
+use self::threads::EpisodeCatalog;
 use crate::{
-    error::ApiError,
+    domain::{access::DiscussionMember, spoilers::RevealScope},
+    error::{ApiError, ErrorCode},
     middleware::Security,
-    modules::library::{decode_opaque, encode_opaque, page_limit},
+    modules::{
+        library::{decode_opaque, encode_opaque, page_limit},
+        policy::{
+            grants::{self, SessionKey},
+            relationships,
+        },
+    },
 };
 
-/// Every R30 route, for the beta router.
+/// Every R30 and R31 discussion route, for the beta router.
 pub fn routes(security: Security) -> Router {
     Router::new()
         .merge(threads::routes(security.clone()))
-        .merge(reads::routes(security))
+        .merge(reads::routes(security.clone()))
+        .merge(comments::routes(security))
 }
+
+/// Whether comment `c` may appear for the viewer bound to `$1`: not hidden or reported by them,
+/// and not written by someone blocked in either direction. Removed comments still qualify, as
+/// tombstones.
+macro_rules! visible_comment {
+    () => {
+        "NOT EXISTS (SELECT 1 FROM hidden_comments h
+                     WHERE h.user_id = $1 AND h.comment_id = c.id)
+         AND NOT EXISTS (SELECT 1 FROM reports r
+                         WHERE r.reporter_id = $1 AND r.comment_id = c.id)
+         AND NOT EXISTS (SELECT 1 FROM blocks b
+                         WHERE (b.blocker_id = $1 AND b.blocked_id = c.author_id)
+                            OR (b.blocker_id = c.author_id AND b.blocked_id = $1))"
+    };
+}
+
+pub(crate) use visible_comment;
 
 const DEFAULT_LIMIT: i64 = 20;
 
@@ -100,4 +128,52 @@ async fn snapshot(pool: &PgPool) -> Result<Transaction<'static, Postgres>, sqlx:
 /// A path ID that is not a UUID cannot name an episode or thread: 404, like an unknown one.
 fn path_id(value: &str) -> Result<Uuid, ApiError> {
     Uuid::try_parse(value).map_err(|_| ApiError::not_found())
+}
+
+/// The viewer's membership in a thread whose comments they may read and write now: 404 when the
+/// privacy gate fails (unknown thread, gone host, no mutual follow, a block), then 403
+/// SPOILER_LOCKED when the spoiler gate does, with this session's discussion grants.
+pub(crate) async fn unlocked(
+    conn: &mut PgConnection,
+    key: &SessionKey,
+    discussion_id: Uuid,
+) -> Result<DiscussionMember, ApiError> {
+    let viewer = key.user_id();
+    let (discussion, member) = relationships::discussion_member(conn, viewer, discussion_id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let episode_id: Uuid = sqlx::query_scalar("SELECT episode_id FROM discussions WHERE id = $1")
+        .bind(discussion_id)
+        .fetch_one(&mut *conn)
+        .await?;
+    let catalog = EpisodeCatalog::load(conn, viewer, episode_id)
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    let stored = grants::live(conn, key, RevealScope::Discussion, &[discussion_id]).await?;
+    catalog
+        .gate(key, &member, discussion, &stored, Utc::now())
+        .unlocked()
+        .map_err(|_| ApiError::new(ErrorCode::SpoilerLocked))?;
+    Ok(member)
+}
+
+/// Share-locks the viewer's and the thread host's user rows in ID order for the rest of the
+/// transaction. Follows, blocks, privacy changes and disabling take conflicting locks on the
+/// same rows ([`crate::modules::social::follows::lock_pair`]), so a comment write's gate check
+/// and its write cannot straddle a revocation.
+pub(crate) async fn lock_members(
+    conn: &mut PgConnection,
+    viewer: Uuid,
+    discussion_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "SELECT 1 FROM users
+         WHERE id = $1 OR id = (SELECT host_id FROM discussions WHERE id = $2)
+         ORDER BY id FOR SHARE",
+    )
+    .bind(viewer)
+    .bind(discussion_id)
+    .execute(conn)
+    .await
+    .map(drop)
 }

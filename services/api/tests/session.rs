@@ -23,8 +23,8 @@ use uuid::Uuid;
 
 mod common;
 use common::{
-    COOKIE, Call, ORIGIN, TestApp, assert_error, count_session as count, disable, grant, parts,
-    send, set_cookies, sha256, sign_in, signed, user,
+    COOKIE, Call, ORIGIN, TestApp, assert_error, assert_rate_limited, count_session as count,
+    disable, grant, parts, send, set_cookies, sha256, sign_in, signed, user,
 };
 
 fn session_limits(config: &mut SecurityConfig) {
@@ -642,13 +642,7 @@ async fn authenticated_writes_are_rate_limited_per_user(pool: PgPool) {
         assert_eq!(status, StatusCode::NO_CONTENT);
     }
     let (status, headers, body) = send(&app, Call::post("/probe/write", "").signed(&ana)).await;
-    assert_error(status, &headers, &body, 429, "RATE_LIMITED");
-    let retry: u64 = headers[header::RETRY_AFTER]
-        .to_str()
-        .unwrap()
-        .parse()
-        .unwrap();
-    assert!((1..=60).contains(&retry));
+    assert_rate_limited(status, &headers, &body);
     // Reads are not write-limited, and other users keep their own budget.
     let (status, _, _) = send(&app, Call::get("/probe/auth").signed(&ana)).await;
     assert_eq!(status, StatusCode::OK);
