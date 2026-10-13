@@ -111,7 +111,11 @@ export function SettingsView({ beta }: SettingsViewProps) {
               <PrivacySection
                 api={api}
                 visibility={phase.user.visibility}
-                onChanged={(visibility) => update({ user: { ...phase.user, visibility } })}
+                onChanged={(visibility) =>
+                  setPhase((current) =>
+                    current.name === "ready" ? { ...current, user: { ...current.user, visibility } } : current,
+                  )
+                }
               />
               <PeopleList
                 id="followers"
