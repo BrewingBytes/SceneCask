@@ -35,6 +35,7 @@ export function ProfileView({ personId }: { personId: string }) {
   const [attempt, setAttempt] = useState(0);
   const { announce, regions } = useAnnouncer();
   const title = useRef<HTMLHeadingElement>(null);
+  const reads = useRef(0);
 
   useEffect(() => {
     let live = true;
@@ -49,18 +50,24 @@ export function ProfileView({ personId }: { personId: string }) {
     };
   }, [api, personId, attempt]);
 
-  /** A relationship change can grant or revoke library access: re-read what the API allows. */
+  /**
+   * A relationship change can grant or revoke library access: re-read what the API allows. Only
+   * the latest re-read settles, so a slow earlier one can't restore a superseded relationship.
+   */
   const changed = useCallback(
     (person: Person) => {
+      const read = ++reads.current;
       setPhase((current) => (current.name === "ready" ? { name: "ready", result: { ...current.result, person } } : current));
       void api.person(personId).then((result) => {
-        if (result.ok) setPhase((current) => (current.name === "ready" ? { name: "ready", result: result.data } : current));
+        if (result.ok && read === reads.current)
+          setPhase((current) => (current.name === "ready" ? { name: "ready", result: result.data } : current));
       });
     },
     [api, personId],
   );
 
-  const self = viewer.state === "ready" && viewer.user.id === personId;
+  // Unknown until the session loads: actions on your own profile are never offered.
+  const self = viewer.state === "ready" ? viewer.user.id === personId : null;
 
   return (
     <div className="sc-social sc-reading-column">
@@ -123,7 +130,8 @@ export function ProfileView({ personId }: { personId: string }) {
 interface ProfileProps {
   api: SocialApi;
   result: PersonResult;
-  self: boolean;
+  /** Null while the viewer is unknown. */
+  self: boolean | null;
   titleRef: RefObject<HTMLHeadingElement | null>;
   announce: Announce;
   onChange: (person: Person) => void;
@@ -151,7 +159,7 @@ function Profile({ api, result, self, titleRef, announce, onChange, onGone, onBl
           </p>
         </div>
       </header>
-      {!self && (
+      {self === false && (
         <div className="sc-social-profile-actions">
           <FollowAction api={api} person={person} onChange={onChange} onGone={onGone} announce={announce} />
           <BlockAction api={api} person={person} onBlocked={onBlocked} returnFocusRef={titleRef} />

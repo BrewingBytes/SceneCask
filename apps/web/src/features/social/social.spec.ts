@@ -116,6 +116,10 @@ class FakeApi {
       relationship: { outgoing: item.outgoing, incoming: item.incoming, mutual: item.outgoing === "approved" && item.incoming === "approved" },
     };
   }
+  /** The viewer's own card, as `GET /people/{id}` answers for their own id. */
+  self() {
+    return this.person({ ...this.user, handle: this.user.handle ?? "", outgoing: "none", incoming: "none", blocked: false });
+  }
   canView(item: Account) {
     return item.visibility === "public" || item.outgoing === "approved";
   }
@@ -155,6 +159,7 @@ class FakeApi {
         return json(route, this.page(found.map((p) => this.person(p)), query));
       }
       case "GET /people/{id}":
+        if (target === this.user.id) return json(route, { person: this.self(), canViewLibrary: true });
         return item ? json(route, { person: this.person(item), canViewLibrary: this.canView(item) }) : error(route, 404, "NOT_FOUND");
       case "GET /people/{id}/library":
         return item && this.canView(item) ? json(route, this.page(this.library, query)) : error(route, 404, "NOT_FOUND");
@@ -385,6 +390,54 @@ test("private profile without access: locked explanation, no library request, co
   await page.getByRole("button", { name: "Request to follow Bea Lin" }).click();
   await expect(page.getByText("Your request is waiting for their approval.")).toBeVisible();
   expect(fake.count("GET /people/{id}/library")).toHaveLength(0);
+});
+
+test("your own profile never offers follow or block, before or without a session", async ({ page }) => {
+  const fake = new FakeApi();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  fake.replies.set("GET /session", async (route) => {
+    await held;
+    return json(route, { user: fake.user, csrfToken: fake.csrf });
+  });
+  await open(page, fake, `/people/${id(0)}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Ana Rivera" })).toBeVisible();
+  const actions = page.getByRole("button", { name: /follow|block/i });
+  await expect(actions).toHaveCount(0);
+  release();
+  await expect(page.getByText("This is you")).toBeVisible();
+  await expect(actions).toHaveCount(0);
+
+  fake.replies.set("GET /session", (route) => error(route, 503, "SERVICE_UNAVAILABLE"));
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Ana Rivera" })).toBeVisible();
+  await later(300);
+  await expect(actions).toHaveCount(0);
+  expect(fake.mutations()).toHaveLength(0);
+});
+
+test("a slow re-read after a relationship change can't restore a superseded state", async ({ page }) => {
+  const fake = await open(page, new FakeApi(), `/people/${id(1)}`);
+  await expect(page.getByRole("button", { name: "Request to follow Bea Lin" })).toBeVisible();
+  const bea = fake.people[0];
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reads = 0;
+  // Each answer is what the server saw when the read arrived; only the first is delayed.
+  fake.replies.set("GET /people/{id}", async (route) => {
+    const answer = { person: fake.person(bea), canViewLibrary: fake.canView(bea) };
+    if (++reads === 1) await held;
+    return json(route, answer);
+  });
+
+  await page.getByRole("button", { name: "Request to follow Bea Lin" }).click();
+  await page.getByRole("button", { name: "Cancel request to follow Bea Lin" }).click();
+  await expect(status(page, "Your request to follow Bea Lin was canceled.")).toBeVisible();
+  await expect.poll(() => reads).toBe(2);
+  release();
+  await later(300);
+  await expect(page.getByRole("button", { name: "Request to follow Bea Lin", exact: true })).toBeVisible();
+  await expect(page.getByText("Your request is waiting for their approval.")).toHaveCount(0);
 });
 
 test("visible profile lists the library with codes and counts only; access lost mid-read locks it", async ({ page }) => {
