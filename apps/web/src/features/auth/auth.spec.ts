@@ -1,5 +1,5 @@
-import axe from "axe-core";
 import { expect, test, type Page, type Request, type Route } from "@playwright/test";
+import { axeViolations, expectNoPageOverflow, responsiveTests } from "../tracking/fixture-api";
 import { safeReturnTo } from "./routes";
 
 /**
@@ -602,15 +602,6 @@ test("keyboard order on sign-in follows the visual order", async ({ page }) => {
   await expect(page.getByText("Enter a valid email address.")).toBeVisible();
 });
 
-/** WCAG 2.0 A/AA and 2.1 AA violations on the current screen, as "rule: targets" lines. */
-async function axeViolations(page: Page) {
-  await page.addScriptTag({ content: axe.source });
-  const results = await page.evaluate(() =>
-    (window as unknown as { axe: typeof axe }).axe.run({ runOnly: ["wcag2a", "wcag2aa", "wcag21aa"] }),
-  );
-  return results.violations.map((rule) => `${rule.id}: ${rule.nodes.map((node) => node.target.join(" ")).join(", ")}`);
-}
-
 /** Each screen state, reached through the real routes. */
 const SCREENS: { name: string; reach: (page: Page) => Promise<unknown> }[] = [
   { name: "signin", reach: (page) => page.goto("/auth/signin") },
@@ -670,29 +661,24 @@ const SCREENS: { name: string; reach: (page: Page) => Promise<unknown> }[] = [
   },
 ];
 
-for (const width of [320, 390, 859, 860, 1440])
-  test(`responsive account screens, targets, axe and screenshots at ${width}`, async ({ page }) => {
-    test.setTimeout(90000);
-    await page.setViewportSize({ width, height: 900 });
-    const shots = [390, 1440].includes(width);
-    for (const screen of SCREENS) {
-      await page.unroute("**/api/v1/**");
-      await mockApi(page);
-      await screen.reach(page);
-      await page.evaluate(() => document.fonts.ready);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), screen.name).toBe(true);
-      const column = (await page.locator(".sc-auth-column").boundingBox())!;
-      // D03: a 480px column on desktop; full width inside 20px gutters on phones.
-      expect(column.width, screen.name).toBeLessThanOrEqual(480);
-      expect(column.x, screen.name).toBeGreaterThanOrEqual(20);
-      for (const control of await page.locator(".sc-auth-column :is(button, a, input)").all()) {
-        const box = (await control.boundingBox())!;
-        expect(box.height, `${screen.name} control height`).toBeGreaterThanOrEqual(44);
-        expect(box.width, `${screen.name} control width`).toBeGreaterThanOrEqual(44);
-      }
-      if (shots) {
-        expect(await axeViolations(page), screen.name).toEqual([]);
-        await page.screenshot({ path: `test-results/r10/${screen.name}-${width}.png`, fullPage: true });
-      }
+responsiveTests("responsive account screens, targets, axe and screenshots", async (page, width, shots) => {
+  for (const screen of SCREENS) {
+    await page.unroute("**/api/v1/**");
+    await mockApi(page);
+    await screen.reach(page);
+    await expectNoPageOverflow(page, screen.name);
+    const column = (await page.locator(".sc-auth-column").boundingBox())!;
+    // D03: a 480px column on desktop; full width inside 20px gutters on phones.
+    expect(column.width, screen.name).toBeLessThanOrEqual(480);
+    expect(column.x, screen.name).toBeGreaterThanOrEqual(20);
+    for (const control of await page.locator(".sc-auth-column :is(button, a, input)").all()) {
+      const box = (await control.boundingBox())!;
+      expect(box.height, `${screen.name} control height`).toBeGreaterThanOrEqual(44);
+      expect(box.width, `${screen.name} control width`).toBeGreaterThanOrEqual(44);
     }
-  });
+    if (shots) {
+      expect(await axeViolations(page), screen.name).toEqual([]);
+      await page.screenshot({ path: `test-results/r10/${screen.name}-${width}.png`, fullPage: true });
+    }
+  }
+});

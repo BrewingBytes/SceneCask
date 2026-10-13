@@ -1,4 +1,5 @@
-import type { Request, Route } from "@playwright/test";
+import axe from "axe-core";
+import { expect, test, type Page, type Request, type Route } from "@playwright/test";
 
 /**
  * Shared plumbing for the stateful C05 fakes in component suites. Test-only: imported by
@@ -30,6 +31,34 @@ export const json = (route: Route, body: unknown, status = 200) =>
 export const error = (route: Route, status: number, code: string) =>
   json(route, { error: { code, message: "Safe server message.", requestId: "60000000-0000-4000-8000-000000000001" } }, status);
 export const later = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * One test per D09 width (320, 390, 859, 860, 1440) at that viewport. `shots` is true at 390
+ * and 1440, where suites also run axe and take screenshots.
+ */
+export function responsiveTests(title: string, run: (page: Page, width: number, shots: boolean) => Promise<void>) {
+  for (const width of [320, 390, 859, 860, 1440])
+    test(`${title} at ${width}`, async ({ page }) => {
+      test.setTimeout(90000);
+      await page.setViewportSize({ width, height: 900 });
+      await run(page, width, width === 390 || width === 1440);
+    });
+}
+
+/** WCAG 2.0 A/AA and 2.1 AA violations on the current screen, as "rule: targets" lines. */
+export async function axeViolations(page: Page) {
+  await page.addScriptTag({ content: axe.source });
+  const results = await page.evaluate(() =>
+    (window as unknown as { axe: typeof axe }).axe.run({ runOnly: ["wcag2a", "wcag2aa", "wcag21aa"] }),
+  );
+  return results.violations.map((rule) => `${rule.id}: ${rule.nodes.map((node) => node.target.join(" ")).join(", ")}`);
+}
+
+/** Once fonts have loaded, the page must not scroll horizontally (D09). */
+export async function expectNoPageOverflow(page: Page, name: string) {
+  await page.evaluate(() => document.fonts.ready);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name).toBe(true);
+}
 
 /**
  * Answers /session with the CSRF token and logs every other call. The same Idempotency-Key

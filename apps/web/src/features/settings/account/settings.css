@@ -1,0 +1,124 @@
+.sc-settings {
+  padding-block: var(--sc-space-3) var(--sc-space-8);
+}
+.sc-settings-title {
+  margin: var(--sc-space-4) 0 0;
+}
+.sc-settings-loading {
+  display: grid;
+  gap: var(--sc-space-3);
+  margin-top: var(--sc-space-6);
+}
+.sc-settings-section {
+  margin-top: var(--sc-space-7);
+  padding-top: var(--sc-space-3);
+  border-top: var(--sc-border-section-rule);
+}
+.sc-settings-section h2:focus-visible {
+  outline: var(--sc-focus-ring);
+  outline-offset: var(--sc-focus-offset);
+}
+.sc-settings-lede {
+  margin: 0 0 var(--sc-space-3);
+  color: var(--sc-color-ink-secondary);
+}
+.sc-settings a:not(.sc-button) {
+  color: inherit;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.sc-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-space-2) var(--sc-space-4);
+  margin-bottom: var(--sc-space-2);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-paper-raised);
+}
+.sc-settings-row-main {
+  display: grid;
+  flex: 1 1 260px;
+  gap: var(--sc-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sc-settings-row-title {
+  font-weight: 600;
+}
+.sc-settings-row-detail {
+  color: var(--sc-color-ink-secondary);
+  font-size: var(--sc-type-label-size);
+}
+.sc-settings-row-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-2);
+}
+.sc-settings-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-settings-person {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: var(--sc-space-3);
+  min-width: 0;
+}
+.sc-settings-form {
+  display: grid;
+  gap: var(--sc-space-4);
+  max-width: var(--sc-layout-form-width);
+}
+.sc-settings-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-space-3);
+  min-width: 0;
+}
+.sc-settings-identity p {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sc-settings-identity span {
+  color: var(--sc-color-ink-muted);
+  font-family: var(--sc-font-code);
+  font-size: var(--sc-type-label-size);
+}
+.sc-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sc-space-2);
+  margin-top: var(--sc-space-2);
+}
+.sc-settings-status {
+  margin: var(--sc-space-2) 0 0;
+  color: var(--sc-color-ink-secondary);
+  font-size: var(--sc-type-label-size);
+}
+.sc-settings-problem {
+  margin-top: var(--sc-space-2);
+  padding: var(--sc-space-3) var(--sc-space-4);
+  border-radius: var(--sc-radius-md);
+  background: var(--sc-color-error-surface);
+  color: var(--sc-color-error);
+}
+.sc-settings-inline-error p {
+  margin: 0 0 var(--sc-space-2);
+}
+.sc-settings-privacy .sc-choice {
+  min-height: var(--sc-layout-touch-target-min);
+}
+/* Kept rendered (not display: none) so live regions announce what is added later. */
+.sc-settings-status:empty,
+.sc-settings-problem:empty {
+  margin: 0;
+  padding: 0;
+  background: none;
+}
