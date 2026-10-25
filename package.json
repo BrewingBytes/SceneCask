@@ -29,6 +29,6 @@
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
-    "jscpd": "5.4.1"
+    "jscpd": "5.4.2"
   }
 }
